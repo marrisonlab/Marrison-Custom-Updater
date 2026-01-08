@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Marrison Custom Updater
  * Description: Updater custom con repository remoto, update reale dei file, singolo e bulk.
- * Version: 1.4.2
+ * Version: 1.4.4
  * Author: Angelo Marra
  */
 
