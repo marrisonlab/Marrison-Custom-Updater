@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Marrison Custom Updater
  * Description: Updater custom con repository remoto, update reale dei file, singolo e bulk.
- * Version: 1.4.4
+ * Version: 1.4.6
  * Author: Angelo Marra
  */
 
@@ -202,7 +202,7 @@ class Marrison_Custom_Updater {
                 <table class="wp-list-table widefat striped">
                     <thead>
                         <tr>
-                            <th></th>
+                            <td id="cb" class="manage-column column-cb check-column"><label class="screen-reader-text" for="cb-select-all-1">Seleziona tutto</label><input id="cb-select-all-1" type="checkbox"></td>
                             <th>Plugin</th>
                             <th>Versione</th>
                             <th>Azione</th>
@@ -241,6 +241,14 @@ class Marrison_Custom_Updater {
                     endforeach; ?>
 
                     </tbody>
+                    <tfoot>
+                        <tr>
+                            <td class="manage-column column-cb check-column"><label class="screen-reader-text" for="cb-select-all-2">Seleziona tutto</label><input id="cb-select-all-2" type="checkbox"></td>
+                            <th>Plugin</th>
+                            <th>Versione</th>
+                            <th>Azione</th>
+                        </tr>
+                    </tfoot>
                 </table>
 
                 <p>
@@ -254,6 +262,32 @@ class Marrison_Custom_Updater {
                 <button class="button">Pulisci cache</button>
             </form>
         </div>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const selectAll1 = document.getElementById('cb-select-all-1');
+                const selectAll2 = document.getElementById('cb-select-all-2');
+                const checkboxes = document.querySelectorAll('input[name="plugins[]"]');
+
+                function toggleCheckboxes(source) {
+                    checkboxes.forEach(function(checkbox) {
+                        checkbox.checked = source.checked;
+                    });
+                    if(source === selectAll1 && selectAll2) selectAll2.checked = source.checked;
+                    if(source === selectAll2 && selectAll1) selectAll1.checked = source.checked;
+                }
+
+                if (selectAll1) {
+                    selectAll1.addEventListener('change', function() {
+                        toggleCheckboxes(this);
+                    });
+                }
+                if (selectAll2) {
+                    selectAll2.addEventListener('change', function() {
+                        toggleCheckboxes(this);
+                    });
+                }
+            });
+        </script>
         <?php
     }
 }
