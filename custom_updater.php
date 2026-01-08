@@ -2,13 +2,8 @@
 /**
  * Plugin Name: Marrison Custom Updater
  * Description: Updater custom con repository remoto, update reale dei file, singolo e bulk.
-<<<<<<< Updated upstream
- * Version: 1.4.1
- * Author: Your Name
-=======
- * Version: 1.4.3
+ * Version: 1.4.2
  * Author: Angelo Marra
->>>>>>> Stashed changes
  */
 
 class Marrison_Custom_Updater {
@@ -72,9 +67,7 @@ class Marrison_Custom_Updater {
     private function find_plugin_file($slug) {
         foreach (get_plugins() as $file => $data) {
             $dir = dirname($file);
-            if ($dir === '.' || $dir === '') {
-                $dir = basename($file, '.php');
-            }
+            if ($dir === '.' || $dir === '') $dir = basename($file, '.php');
             if ($dir === $slug) return $file;
         }
         return null;
@@ -83,9 +76,7 @@ class Marrison_Custom_Updater {
     public function plugin_info($false, $action, $args) {
         if ($action !== 'plugin_information') return $false;
         foreach ($this->get_available_updates() as $update) {
-            if ($update['slug'] === $args->slug) {
-                return (object)$update;
-            }
+            if ($update['slug'] === $args->slug) return (object)$update;
         }
         return $false;
     }
@@ -149,11 +140,15 @@ class Marrison_Custom_Updater {
     public function bulk_update() {
         check_admin_referer('marrison_bulk_update');
 
+        $updated = [];
         foreach ($_POST['plugins'] ?? [] as $slug) {
-            $this->perform_update(sanitize_text_field($slug));
+            if ($this->perform_update(sanitize_text_field($slug))) {
+                $updated[] = $slug;
+            }
         }
 
-        wp_redirect(admin_url('tools.php?page=marrison-updater&bulk_updated=1'));
+        $query = http_build_query(['bulk_updated' => $updated]);
+        wp_redirect(admin_url('tools.php?page=marrison-updater&' . $query));
         exit;
     }
 
@@ -176,21 +171,23 @@ class Marrison_Custom_Updater {
             'Marrison Updater',
             'manage_options',
             'marrison-updater',
-            [$this, 'admin_page']
+            [$this,'admin_page']
         );
     }
 
     public function admin_page() {
 
-        $updates   = $this->get_available_updates();
-        $plugins   = get_plugins();
-        $updated   = $_GET['updated'] ?? '';
+        $updates     = $this->get_available_updates();
+        $plugins     = get_plugins();
+        $updated     = $_GET['updated'] ?? '';
+        $bulkUpdated = $_GET['bulk_updated'] ?? [];
+        if (!is_array($bulkUpdated)) $bulkUpdated = [$bulkUpdated];
 
         ?>
         <div class="wrap">
             <h1>Marrison Updater</h1>
 
-            <?php if (isset($_GET['bulk_updated'])): ?>
+            <?php if ($bulkUpdated): ?>
                 <div class="notice notice-success"><p>Bulk update completato ✓</p></div>
             <?php endif; ?>
 
@@ -205,7 +202,7 @@ class Marrison_Custom_Updater {
                 <table class="wp-list-table widefat striped">
                     <thead>
                         <tr>
-                            <th><input type="checkbox" id="select-all"></th>
+                            <th></th>
                             <th>Plugin</th>
                             <th>Versione</th>
                             <th>Azione</th>
@@ -216,9 +213,7 @@ class Marrison_Custom_Updater {
                     <?php foreach ($updates as $u):
                         foreach ($plugins as $file => $data) {
                             $slug = dirname($file);
-                            if ($slug === '.' || $slug === '') {
-                                $slug = basename($file, '.php');
-                            }
+                            if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
 
                             if ($slug === $u['slug'] && version_compare($data['Version'], $u['version'], '<')):
                     ?>
@@ -227,7 +222,7 @@ class Marrison_Custom_Updater {
                             <td><?php echo esc_html($u['name']); ?></td>
                             <td><?php echo esc_html($data['Version'] . ' → ' . $u['version']); ?></td>
                             <td>
-                                <?php if ($updated === $slug): ?>
+                                <?php if ($updated === $slug || in_array($slug, $bulkUpdated, true)): ?>
                                     <strong style="color:green;">✓ Aggiornato</strong>
                                 <?php else: ?>
                                     <a class="button button-primary"
@@ -259,20 +254,6 @@ class Marrison_Custom_Updater {
                 <button class="button">Pulisci cache</button>
             </form>
         </div>
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                const selectAll = document.getElementById('select-all');
-                const checkboxes = document.querySelectorAll('input[name="plugins[]"]');
-
-                if (selectAll) {
-                    selectAll.addEventListener('change', function() {
-                        checkboxes.forEach(function(checkbox) {
-                            checkbox.checked = selectAll.checked;
-                        });
-                    });
-                }
-            });
-        </script>
         <?php
     }
 }
