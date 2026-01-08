@@ -2,8 +2,13 @@
 /**
  * Plugin Name: Marrison Custom Updater
  * Description: Updater custom con repository remoto, update reale dei file, singolo e bulk.
+<<<<<<< Updated upstream
  * Version: 1.4.1
  * Author: Your Name
+=======
+ * Version: 1.4.3
+ * Author: Angelo Marra
+>>>>>>> Stashed changes
  */
 
 class Marrison_Custom_Updater {
@@ -200,7 +205,7 @@ class Marrison_Custom_Updater {
                 <table class="wp-list-table widefat striped">
                     <thead>
                         <tr>
-                            <th></th>
+                            <th><input type="checkbox" id="select-all"></th>
                             <th>Plugin</th>
                             <th>Versione</th>
                             <th>Azione</th>
@@ -254,6 +259,20 @@ class Marrison_Custom_Updater {
                 <button class="button">Pulisci cache</button>
             </form>
         </div>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const selectAll = document.getElementById('select-all');
+                const checkboxes = document.querySelectorAll('input[name="plugins[]"]');
+
+                if (selectAll) {
+                    selectAll.addEventListener('change', function() {
+                        checkboxes.forEach(function(checkbox) {
+                            checkbox.checked = selectAll.checked;
+                        });
+                    });
+                }
+            });
+        </script>
         <?php
     }
 }
