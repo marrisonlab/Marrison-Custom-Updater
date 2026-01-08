@@ -1,9 +1,11 @@
 <?php
 /**
  * Plugin Name: Marrison Custom Updater
+ * Plugin URI: https://marrisonlab.com
  * Description: Updater custom con repository remoto, update reale dei file, singolo e bulk.
- * Version: 1.4.6
+ * Version: 1.4.7
  * Author: Angelo Marra
+ * Author URI: https://marrisonlab.com
  */
 
 class Marrison_Custom_Updater {
@@ -173,6 +175,12 @@ class Marrison_Custom_Updater {
             'marrison-updater',
             [$this,'admin_page']
         );
+    }
+
+    public function add_action_links($links) {
+        $settings_link = '<a href="' . admin_url('tools.php?page=marrison-updater') . '">Impostazioni</a>';
+        array_unshift($links, $settings_link);
+        return $links;
     }
 
     public function admin_page() {
