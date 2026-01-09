@@ -1,8 +1,4 @@
 <?php
-/**
- * Index.php - Legge tutti gli ZIP nella cartella e restituisce le info in JSON
- * Posiziona questo file nella cartella wp-updates/ insieme agli ZIP
- */
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
