@@ -1,8 +1,9 @@
 <?php
 /**
  * Plugin Name: Marrison Custom Updater
+ * Plugin URI:  https://marrisonlab.com
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 2.2.1
+ * Version: 2.2.2
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
