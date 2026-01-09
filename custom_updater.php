@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://marrisonlab.com
  * Description: Updater custom con repository remoto, update reale dei file, singolo e bulk.
- * Version: 1.7
+ * Version: 1.8
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -450,3 +450,31 @@ class Marrison_Custom_Updater {
 }
 
 new Marrison_Custom_Updater;
+
+/**
+ * Fix GitHub updater: rinomina la cartella del plugin dopo l'estrazione
+ * per evitare il suffisso del tag (es. plugin-1.8.0)
+ */
+add_filter( 'upgrader_source_selection', function ( $source, $remote_source, $upgrader ) {
+
+    if ( empty( $upgrader->skin ) || empty( $upgrader->skin->plugin ) ) {
+        return $source;
+    }
+
+    if ( $upgrader->skin->plugin !== 'marrison-custom-updater/marrison-custom-updater.php' ) {
+        return $source;
+    }
+
+    $correct_dir = trailingslashit( $remote_source ) . 'marrison-custom-updater';
+
+    if ( basename( $source ) === 'marrison-custom-updater' ) {
+        return $source;
+    }
+
+    if ( @rename( $source, $correct_dir ) ) {
+        return $correct_dir;
+    }
+
+    return $source;
+
+}, 10, 3 );
