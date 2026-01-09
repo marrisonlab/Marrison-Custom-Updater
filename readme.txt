@@ -5,10 +5,20 @@ Requires at least: 5.0
 Requires PHP: 7.4
 Stable tag: 1.6.5
 License: GPL-3.0+
+License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
-A must-have solution for managing plugin updates.
+== Description ==
+Descrizione completa del plugin qui. Questa appare nel popup "Dettagli versione".
+
+== Installation ==
+Come installare il plugin.
 
 == Changelog ==
 
 = 1.6.5 =
-* Bug fixes and improvements
+* Fix: risolto bug X
+* Feature: aggiunta funzione Y
+* Improvement: miglioramento Z
+
+= 1.6.4 =
+* Fix precedenti
