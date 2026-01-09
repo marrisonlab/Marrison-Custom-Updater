@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://marrisonlab.com
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 3.5.1
+ * Version: 4.0
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -19,6 +19,7 @@ class Marrison_Custom_Updater {
 
         add_action('admin_menu', [$this, 'add_admin_menu']);
         add_action('admin_post_marrison_update_plugin', [$this, 'update_plugin']);
+        add_action('admin_post_marrison_restore_plugin', [$this, 'restore_plugin']);
         add_action('admin_post_marrison_bulk_update', [$this, 'bulk_update']);
         add_action('admin_post_marrison_clear_cache', [$this, 'clear_cache']);
         add_action('admin_post_marrison_save_repo_url', [$this, 'save_repo_url']);
@@ -58,10 +59,6 @@ class Marrison_Custom_Updater {
         // Ottieni tutti i plugin con aggiornamenti automatici attivati
         $auto_update_plugins = (array) get_site_option('auto_update_plugins', []);
         
-        if (empty($auto_update_plugins)) {
-            wp_send_json_error('Nessun plugin ha gli aggiornamenti automatici attivati');
-        }
-
         // Forza il controllo degli aggiornamenti WordPress
         wp_update_plugins();
         $transient = get_site_transient('update_plugins');
@@ -89,15 +86,13 @@ class Marrison_Custom_Updater {
                 continue;
             }
 
-            // Includi solo se ha auto-update attivo
-            if (in_array($file, $auto_update_plugins)) {
-                $plugins_to_update[] = $file;
-                $slugs_map[$slug] = $file;
-            }
+            // Includi TUTTI i plugin standard che hanno un aggiornamento, non solo quelli con auto-update
+            $plugins_to_update[] = $file;
+            $slugs_map[$slug] = $file;
         }
         
         if (empty($plugins_to_update)) {
-            wp_send_json_error('Nessun plugin "normale" con aggiornamenti automatici attivati ha aggiornamenti disponibili');
+            wp_send_json_error('Nessun plugin "normale" ha aggiornamenti disponibili');
         }
 
         // Carica le classi necessarie per l'aggiornamento
@@ -130,6 +125,10 @@ class Marrison_Custom_Updater {
         }
 
         if ($success_count > 0) {
+            // Pulisci la cache degli aggiornamenti per evitare che vengano mostrati di nuovo
+            wp_clean_plugins_cache( true );
+            delete_site_transient('update_plugins');
+
             wp_send_json_success([
                 'message' => sprintf('%d plugin aggiornati con successo', $success_count),
                 'results' => $formatted_results,
@@ -429,6 +428,22 @@ class Marrison_Custom_Updater {
             $zip = download_url($update['download_url']);
             if (is_wp_error($zip)) return false;
 
+            // Trova versione corrente per il backup
+            $current_version = '';
+            $plugin_file = $this->find_plugin_file($slug);
+            if ($plugin_file) {
+                if (!function_exists('get_plugins')) {
+                    require_once ABSPATH . 'wp-admin/includes/plugin.php';
+                }
+                $all_plugins = get_plugins();
+                if (isset($all_plugins[$plugin_file])) {
+                    $current_version = $all_plugins[$plugin_file]['Version'];
+                }
+            }
+
+            // Crea backup prima di procedere
+            $this->create_backup($slug, $current_version);
+
             $upgrade_dir = WP_CONTENT_DIR . '/upgrade/marrison-' . $slug;
             wp_mkdir_p($upgrade_dir);
 
@@ -493,6 +508,133 @@ class Marrison_Custom_Updater {
         return true;
     }
 
+    /* ===================== BACKUP & ROLLBACK ===================== */
+
+    private function get_backup_dir() {
+        $dir = WP_CONTENT_DIR . '/marrison-backups';
+        if (!file_exists($dir)) {
+            wp_mkdir_p($dir);
+            file_put_contents($dir . '/index.php', '<?php // Silence is golden');
+            file_put_contents($dir . '/.htaccess', 'deny from all');
+        }
+        return $dir;
+    }
+
+    private function create_backup($slug, $version = '') {
+        $plugin_file = $this->find_plugin_file($slug);
+        if (!$plugin_file) return false;
+
+        $source = WP_PLUGIN_DIR . '/' . $slug; // Assume folder structure
+        
+        // Se non è una directory (plugin singolo file), salta backup per ora
+        if (!is_dir($source)) return false;
+
+        $backup_dir = $this->get_backup_dir();
+        
+        // Rimuovi vecchi backup per questo slug se si vuole mantenere solo l'ultimo, 
+        // oppure mantieni multipli. Per ora manteniamo multipli se hanno versione diversa.
+        // Ma l'utente ha detto "la versione vecchia viene sovrascritta", quindi puliamo i precedenti.
+        $old_files = glob($backup_dir . '/' . $slug . '-*-backup.zip');
+        foreach ($old_files as $f) {
+            @unlink($f);
+        }
+        // Rimuovi anche formato vecchio
+        if (file_exists($backup_dir . '/' . $slug . '-backup.zip')) {
+            @unlink($backup_dir . '/' . $slug . '-backup.zip');
+        }
+        
+        $version_part = $version ? '-v' . $version : '';
+        $zip_file = $backup_dir . '/' . $slug . $version_part . '-backup.zip';
+        
+        if (file_exists($zip_file)) @unlink($zip_file);
+
+        if (!class_exists('PclZip')) {
+            require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
+        }
+        
+        $archive = new PclZip($zip_file);
+        
+        // Rimuove il percorso assoluto per mantenere struttura relativa
+        $v_list = $archive->create($source, PCLZIP_OPT_REMOVE_PATH, WP_PLUGIN_DIR);
+        
+        return ($v_list != 0);
+    }
+
+    public function restore_plugin() {
+        // Aumenta limiti esecuzione per evitare crash durante operazioni file
+        @ignore_user_abort(true);
+        @set_time_limit(0);
+
+        $filename = sanitize_file_name($_GET['file'] ?? '');
+        $slug_param = sanitize_text_field($_GET['slug'] ?? '');
+        
+        if (!empty($filename)) {
+             check_admin_referer('marrison_restore_' . $filename);
+        } elseif (!empty($slug_param)) {
+             check_admin_referer('marrison_restore_' . $slug_param);
+             // Fallback per vecchi link: cerca backup standard
+             $filename = $slug_param . '-backup.zip';
+             
+             // Se non esiste, cerca se c'è un backup versionato
+             $backup_dir = $this->get_backup_dir();
+             if (!file_exists($backup_dir . '/' . $filename)) {
+                 $files = glob($backup_dir . '/' . $slug_param . '-*-backup.zip');
+                 if (!empty($files)) {
+                     $filename = basename($files[0]);
+                 }
+             }
+        } else {
+             wp_die('Missing parameters');
+        }
+
+        if (!current_user_can('install_plugins')) wp_die('Insufficient permissions');
+
+        $backup_dir = $this->get_backup_dir();
+        $zip_file = $backup_dir . '/' . $filename;
+
+        if (!file_exists($zip_file)) {
+            wp_die('Backup not found');
+        }
+        
+        // Estrai slug dal filename
+        $slug = '';
+        if (preg_match('/^(.*)-v(.*)-backup\.zip$/', $filename, $matches)) {
+            $slug = $matches[1];
+        } else {
+            $slug = str_replace('-backup.zip', '', $filename);
+        }
+
+        global $wp_filesystem;
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        WP_Filesystem();
+
+        if (!$wp_filesystem) wp_die('Filesystem error');
+
+        // Elimina plugin corrente
+        $dest = WP_PLUGIN_DIR . '/' . $slug;
+        if ($wp_filesystem->is_dir($dest)) {
+            if (!$wp_filesystem->delete($dest, true)) {
+                // Se fallisce, potrebbe essere in uso (Windows). 
+                // Proviamo a continuare, unzip potrebbe sovrascrivere.
+            }
+        }
+
+        // Estrai backup
+        $result = unzip_file($zip_file, WP_PLUGIN_DIR);
+
+        if (is_wp_error($result)) {
+            wp_die('Error restoring backup: ' . $result->get_error_message());
+        }
+        
+        // Pulisce cache
+        delete_site_transient('update_plugins');
+        wp_clean_plugins_cache(true);
+
+        $redirect_to = !empty($_REQUEST['redirect_to']) ? $_REQUEST['redirect_to'] : admin_url('admin.php?page=marrison-updater-backups&restored=' . $slug);
+        wp_redirect($redirect_to);
+        exit;
+    }
+
     /* ===================== ACTIONS ===================== */
 
     public function update_plugin() {
@@ -526,7 +668,8 @@ class Marrison_Custom_Updater {
         delete_site_transient('update_plugins');
         wp_clean_plugins_cache(true);
 
-        wp_redirect(admin_url('admin.php?page=marrison-updater&cache_cleared=1'));
+        $redirect = !empty($_REQUEST['redirect_to']) ? $_REQUEST['redirect_to'] : admin_url('admin.php?page=marrison-updater-settings&cache_cleared=1');
+        wp_redirect($redirect);
         exit;
     }
 
@@ -535,11 +678,11 @@ class Marrison_Custom_Updater {
 
         if (isset($_POST['marrison_remove_repo_url'])) {
             delete_option('marrison_repo_url');
-            $redirect_url = admin_url('admin.php?page=marrison-updater&settings-updated=removed');
+            $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=removed');
         } else {
             $url = sanitize_url($_POST['marrison_repo_url']);
             update_option('marrison_repo_url', $url);
-            $redirect_url = admin_url('admin.php?page=marrison-updater&settings-updated=saved');
+            $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=saved');
         }
 
         // Pulisce la cache dopo aver modificato l'URL
@@ -683,6 +826,189 @@ class Marrison_Custom_Updater {
             'dashicons-update', // Icona carina per aggiornamenti
             30 // Posizione nel menu (dopo Dashboard e Media)
         );
+
+        // Sottomenu Aggiornamenti (default)
+        add_submenu_page(
+            'marrison-updater',
+            'Aggiornamenti',
+            'Aggiornamenti',
+            'manage_options',
+            'marrison-updater',
+            [$this, 'admin_page']
+        );
+
+        // Sottomenu Impostazioni
+        add_submenu_page(
+            'marrison-updater',
+            'Impostazioni',
+            'Impostazioni',
+            'manage_options',
+            'marrison-updater-settings',
+            [$this, 'settings_page']
+        );
+
+        // Sottomenu Backup
+        add_submenu_page(
+            'marrison-updater',
+            'Backup',
+            'Backup',
+            'manage_options',
+            'marrison-updater-backups',
+            [$this, 'backup_page']
+        );
+    }
+
+    public function settings_page() {
+        $settingsUpdated = $_GET['settings-updated'] ?? '';
+        ?>
+        <div class="wrap">
+            <h1>Impostazioni Marrison Updater</h1>
+
+            <?php if ($settingsUpdated === 'saved'): ?>
+                <div class="notice notice-success is-dismissible"><p>Impostazioni salvate correttamente.</p></div>
+            <?php elseif ($settingsUpdated === 'removed'): ?>
+                <div class="notice notice-success is-dismissible"><p>URL del repository ripristinato ai valori predefiniti.</p></div>
+            <?php endif; ?>
+
+            <?php if (isset($_GET['cache_cleared'])): ?>
+                <div class="notice notice-info"><p>Cache pulita ✓</p></div>
+            <?php endif; ?>
+
+            <h2>Impostazioni Repository</h2>
+            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                <?php wp_nonce_field('marrison_save_repo_url'); ?>
+                <input type="hidden" name="action" value="marrison_save_repo_url">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="marrison_repo_url">Indirizzo Repository</label></th>
+                        <td>
+                            <input type="url" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo esc_attr(get_option('marrison_repo_url', $this->updates_url)); ?>" class="regular-text">
+                            <p class="description">Inserisci l'URL del repository personalizzato.</p>
+                        </td>
+                    </tr>
+                </table>
+                <p class="submit">
+                    <button class="button button-primary" type="submit">Salva</button>
+                    <button class="button" type="submit" name="marrison_remove_repo_url" value="1">Rimuovi e ripristina default</button>
+                </p>
+            </form>
+        </div>
+        <?php
+    }
+
+    public function backup_page() {
+        $restored = $_GET['restored'] ?? '';
+        $plugins = get_plugins();
+        ?>
+        <div class="wrap">
+            <h1>Backup Disponibili</h1>
+            
+            <?php if ($restored): ?>
+                <div class="notice notice-success is-dismissible"><p>Plugin <?php echo esc_html($restored); ?> ripristinato con successo.</p></div>
+            <?php endif; ?>
+
+            <?php 
+            // Cerca backup disponibili
+            $backup_dir = WP_CONTENT_DIR . '/marrison-backups';
+            $backups = [];
+            if (is_dir($backup_dir)) {
+                $files = glob($backup_dir . '/*-backup.zip');
+                // Ordina per data (più recenti prima)
+                usort($files, function($a, $b) {
+                    return filemtime($b) - filemtime($a);
+                });
+
+                foreach ($files as $file) {
+                    $filename = basename($file);
+                    
+                    // Parsa nome file per estrarre slug e versione
+                    $slug = '';
+                    $backup_version = 'N/A';
+                    
+                    if (preg_match('/^(.*)-v(.*)-backup\.zip$/', $filename, $matches)) {
+                        $slug = $matches[1];
+                        $backup_version = $matches[2];
+                    } else {
+                        $slug = str_replace('-backup.zip', '', $filename);
+                    }
+                    
+                    $backups[] = [
+                        'file' => $file,
+                        'filename' => $filename,
+                        'slug' => $slug,
+                        'backup_version' => $backup_version,
+                        'date' => date('d/m/Y H:i', filemtime($file)),
+                        'size' => size_format(filesize($file))
+                    ];
+                }
+            }
+
+            if (!empty($backups)): ?>
+                <table class="wp-list-table widefat striped">
+                    <thead>
+                        <tr>
+                            <th>Plugin (Slug)</th>
+                            <th>Versione Backup</th>
+                            <th>Versione Attuale</th>
+                            <th>Data Backup</th>
+                            <th>Dimensione</th>
+                            <th>Azione</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($backups as $info): 
+                             $plugin_name = $info['slug'];
+                             $current_version = 'Non installato';
+                             $version_class = '';
+                             
+                             // Cerca nome plugin se installato
+                             $found_file = $this->find_plugin_file($info['slug']);
+                             if ($found_file && isset($plugins[$found_file])) {
+                                 $plugin_name = $plugins[$found_file]['Name'];
+                                 $current_version = $plugins[$found_file]['Version'];
+                                 
+                                 if ($info['backup_version'] !== 'N/A' && $info['backup_version'] !== $current_version) {
+                                     $version_class = 'color: #d63638; font-weight: bold;';
+                                 }
+                             }
+                        ?>
+                            <tr>
+                                <td>
+                                    <strong><?php echo esc_html($plugin_name); ?></strong>
+                                    <br><small><?php echo esc_html($info['slug']); ?></small>
+                                </td>
+                                <td>
+                                    <span class="badge" style="background: #f0f0f1; padding: 2px 6px; border-radius: 4px;">
+                                        <?php echo esc_html($info['backup_version']); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <span style="<?php echo $version_class; ?>">
+                                        <?php echo esc_html($current_version); ?>
+                                    </span>
+                                </td>
+                                <td><?php echo esc_html($info['date']); ?></td>
+                                <td><?php echo esc_html($info['size']); ?></td>
+                                <td>
+                                    <?php 
+                                    // Usa il nome file completo per il nonce e l'azione
+                                    $restore_nonce = wp_create_nonce('marrison_restore_' . $info['filename']); 
+                                    ?>
+                                    <a href="<?php echo esc_url(admin_url('admin-post.php?action=marrison_restore_plugin&file=' . urlencode($info['filename']) . '&_wpnonce=' . $restore_nonce)); ?>" 
+                                       class="button" 
+                                       onclick="return confirm('Sei sicuro di voler ripristinare questo backup? La versione corrente verrà sovrascritta.');">
+                                        Ripristina
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php else: ?>
+                <p>Nessun backup disponibile.</p>
+            <?php endif; ?>
+        </div>
+        <?php
     }
 
     public function admin_page() {
@@ -690,6 +1016,7 @@ class Marrison_Custom_Updater {
         $updates     = $this->get_available_updates();
         $plugins     = get_plugins();
         $updated     = $_GET['updated'] ?? '';
+        $restored    = $_GET['restored'] ?? '';
         $bulkUpdated = $_GET['bulk_updated'] ?? [];
         if (!is_array($bulkUpdated)) $bulkUpdated = [$bulkUpdated];
         $settingsUpdated = $_GET['settings-updated'] ?? '';
@@ -722,6 +1049,10 @@ class Marrison_Custom_Updater {
                 <div class="notice notice-success"><p>Bulk update completato ✓</p></div>
             <?php endif; ?>
 
+            <?php if ($restored): ?>
+                <div class="notice notice-success is-dismissible"><p>Plugin <?php echo esc_html($restored); ?> ripristinato con successo.</p></div>
+            <?php endif; ?>
+
             <?php if (isset($_GET['cache_cleared'])): ?>
                 <div class="notice notice-info"><p>Cache pulita ✓</p></div>
             <?php endif; ?>
@@ -730,6 +1061,7 @@ class Marrison_Custom_Updater {
                 <?php wp_nonce_field('marrison_bulk_update'); ?>
                 <input type="hidden" name="action" value="marrison_bulk_update">
 
+                <h2 style="margin-top: 30px;">Plugin Repository Privato</h2>
                 <table class="wp-list-table widefat striped">
                     <thead>
                         <tr>
@@ -741,12 +1073,15 @@ class Marrison_Custom_Updater {
                     </thead>
                     <tbody>
 
-                    <?php foreach ($updates as $u):
+                    <?php 
+                    $has_repo_updates = false;
+                    foreach ($updates as $u):
                         foreach ($plugins as $file => $data) {
                             $slug = dirname($file);
                             if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
 
                             if ($slug === $u['slug'] && version_compare($data['Version'], $u['version'], '<')):
+                                $has_repo_updates = true;
                     ?>
                         <tr>
                             <td><input type="checkbox" name="plugins[]" value="<?php echo esc_attr($slug); ?>"></td>
@@ -771,7 +1106,11 @@ class Marrison_Custom_Updater {
                     <?php
                             endif;
                         }
-                    endforeach; ?>
+                    endforeach; 
+                    
+                    if (!$has_repo_updates): ?>
+                        <tr><td colspan="4">Nessun aggiornamento disponibile dal repository privato.</td></tr>
+                    <?php endif; ?>
 
                     </tbody>
                     <tfoot>
@@ -785,8 +1124,10 @@ class Marrison_Custom_Updater {
                 </table>
 
                 <p>
-                    <button class="button button-secondary">Aggiorna selezionati</button>
-                    <?php 
+                    <button class="button button-secondary">Aggiorna selezionati (Repository Privato)</button>
+                </p>
+
+                <?php 
                     // Controlla se ci sono plugin con auto-update attivati che hanno aggiornamenti (ESCLUSI QUELLI PRIVATI)
                     $auto_update_plugins = (array) get_site_option('auto_update_plugins', []);
                     
@@ -800,7 +1141,7 @@ class Marrison_Custom_Updater {
                         $private_slugs[] = $u['slug'];
                     }
                     
-                    $auto_update_available = false;
+                    $plugins_with_auto_update = [];
                     
                     if (!empty($transient->response)) {
                         foreach ($transient->response as $file => $data) {
@@ -812,55 +1153,69 @@ class Marrison_Custom_Updater {
                                 continue;
                             }
                             
-                            // Se ha auto-update attivo
-                            if (in_array($file, $auto_update_plugins)) {
-                                $auto_update_available = true;
-                                break;
-                            }
+                    // Se ha auto-update attivo (ORA: Includi tutti i plugin ufficiali)
+                            // if (in_array($file, $auto_update_plugins)) {
+                                $plugins_with_auto_update[$slug] = [
+                                    'file' => $file,
+                                    'new_version' => $data->new_version ?? '?',
+                                    'name' => isset($plugins[$file]['Name']) ? $plugins[$file]['Name'] : $slug,
+                                    'current_version' => isset($plugins[$file]['Version']) ? $plugins[$file]['Version'] : '?'
+                                ];
+                            // }
                         }
                     }
+                ?>
+
+                <hr style="margin-top: 30px;">
+                
+                <h2 style="margin-top: 30px;">Plugin Repository Ufficiale (WordPress)</h2>
+                
+                <?php if (!empty($plugins_with_auto_update)): ?>
+                    <table class="wp-list-table widefat striped">
+                        <thead>
+                            <tr>
+                                <th>Plugin</th>
+                                <th>Versione Attuale</th>
+                                <th>Nuova Versione</th>
+                                <th>Stato</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($plugins_with_auto_update as $slug => $info): ?>
+                                <tr>
+                                    <td><?php echo esc_html($info['name']); ?></td>
+                                    <td><?php echo esc_html($info['current_version']); ?></td>
+                                    <td><?php echo esc_html($info['new_version']); ?></td>
+                                    <td id="marrison-status-<?php echo esc_attr($slug); ?>"><span class="dashicons dashicons-clock" style="color: #dba617;"></span> In attesa</td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                     
-                    if ($auto_update_available): 
-                        $auto_update_nonce = wp_create_nonce('marrison_auto_update');
-                    ?>
+                    <p style="margin-top: 15px;">
+                        <?php $auto_update_nonce = wp_create_nonce('marrison_auto_update'); ?>
                         <button type="button" class="button button-primary marrison-auto-update-btn" 
-                                data-nonce="<?php echo esc_attr($auto_update_nonce); ?>"
-                                style="margin-left: 10px;">
+                                data-nonce="<?php echo esc_attr($auto_update_nonce); ?>">
                             <span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>
-                            Aggiorna tutti i plugin con auto-update
+                            Aggiorna tutti i plugin ufficiali
                         </button>
-                    <?php endif; ?>
-                </p>
+                    </p>
+                <?php else: ?>
+                    <p>Nessun plugin del repository ufficiale WordPress necessita di aggiornamento.</p>
+                <?php endif; ?>
+
             </form>
 
-            <hr>
-
-            <h2>Impostazioni Repository</h2>
-            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
-                <?php wp_nonce_field('marrison_save_repo_url'); ?>
-                <input type="hidden" name="action" value="marrison_save_repo_url">
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="marrison_repo_url">Indirizzo Repository</label></th>
-                        <td>
-                            <input type="url" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo esc_attr(get_option('marrison_repo_url', $this->updates_url)); ?>" class="regular-text">
-                            <p class="description">Inserisci l'URL del repository personalizzato.</p>
-                        </td>
-                    </tr>
-                </table>
-                <p class="submit">
-                    <button class="button button-primary" type="submit">Salva</button>
-                    <button class="button" type="submit" name="marrison_remove_repo_url" value="1">Rimuovi e ripristina default</button>
-                </p>
-            </form>
-
-            <hr>
-
+            <hr style="margin-top: 30px;">
+            
+            <h2 style="margin-top: 30px;">Strumenti</h2>
             <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
                 <?php wp_nonce_field('marrison_clear_cache'); ?>
                 <input type="hidden" name="action" value="marrison_clear_cache">
+                <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater&cache_cleared=1')); ?>">
                 <button class="button">Pulisci cache</button>
             </form>
+
         </div>
         <script>
             jQuery(document).ready(function($) {
@@ -1076,7 +1431,7 @@ class Marrison_Custom_Updater {
                     var nonce = $btn.data('nonce');
                     
                     // Conferma prima di procedere
-                    if (!confirm('Sei sicuro di voler aggiornare tutti i plugin con aggiornamenti automatici attivati?')) {
+                    if (!confirm('Sei sicuro di voler aggiornare tutti i plugin ufficiali disponibili?')) {
                         return;
                     }
                     
@@ -1091,7 +1446,7 @@ class Marrison_Custom_Updater {
                     var progressInterval = setInterval(function() {
                         progress += Math.random() * 8;
                         if (progress > 85) progress = 85;
-                        updateProgressBar(progress, 'Ricerca plugin con auto-update...', 'Analizzando i plugin');
+                        updateProgressBar(progress, 'Ricerca aggiornamenti plugin ufficiali...', 'Analizzando i plugin');
                     }, 300);
                     
                     // Esegui l'aggiornamento via AJAX
@@ -1112,6 +1467,10 @@ class Marrison_Custom_Updater {
                                 var updatedSlugs = response.data.results || {};
                                 Object.keys(updatedSlugs).forEach(function(slug) {
                                     if (updatedSlugs[slug]) {
+                                        // Aggiorna stato nella tabella plugin ufficiali
+                                        $('#marrison-status-' + slug).html('<span class="dashicons dashicons-yes" style="color: green;"></span> <strong style="color:green;">Aggiornato</strong>');
+                                        
+                                        // Fallback per pulsanti se presenti
                                         $('button[data-slug="' + slug + '"]').replaceWith('<strong style="color:green;">✓ Aggiornato</strong>');
                                     }
                                 });
@@ -1119,15 +1478,16 @@ class Marrison_Custom_Updater {
                                 // Nascondi il pulsante auto-update se non ci sono più plugin con auto-update disponibili
                                 if (response.data.success_count > 0) {
                                     $btn.fadeOut();
+                                    updateProgressBar(100, 'Aggiornamento completato!', 'Ricaricamento pagina in corso...');
                                 }
                                 
                                 // Ricarica la pagina dopo 2 secondi per mostrare lo stato aggiornato
                                 setTimeout(function() {
                                     location.reload();
-                                }, 2000);
+                                }, 1500);
                             } else {
                                 updateProgressBar(0, 'Errore durante l\'aggiornamento', response.data || 'Si è verificato un errore');
-                                $btn.prop('disabled', false).html('<span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>Aggiorna tutti i plugin con auto-update');
+                                $btn.prop('disabled', false).html('<span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>Aggiorna tutti i plugin ufficiali');
                             }
                             
                             hideProgressBar();
@@ -1135,7 +1495,7 @@ class Marrison_Custom_Updater {
                         error: function() {
                             clearInterval(progressInterval);
                             updateProgressBar(0, 'Errore di connessione', 'Impossibile contattare il server');
-                            $btn.prop('disabled', false).html('<span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>Aggiorna tutti i plugin con auto-update');
+                            $btn.prop('disabled', false).html('<span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>Aggiorna tutti i plugin ufficiali');
                             hideProgressBar();
                         }
                     });
