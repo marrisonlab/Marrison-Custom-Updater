@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 4.5
+ * Version: 4.6
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -36,6 +36,7 @@ class Marrison_Custom_Updater {
         
         // Hook per aggiungere link al plugin Marrison Updater nella pagina dei plugin
         add_filter('plugin_action_links', [$this, 'add_marrison_action_links'], 10, 2);
+        add_filter('plugin_row_meta', [$this, 'add_plugin_row_meta'], 10, 2);
         
         // Hook per aggiungere notifiche al menu
         add_action('admin_menu', [$this, 'add_menu_notification_badge'], 999);
@@ -421,7 +422,7 @@ class Marrison_Custom_Updater {
         $info->requires = '5.0';
         $info->tested = '6.4';
         $info->last_updated = current_time('mysql');
-        $info->homepage = 'https://marrisonlab.com';
+        $info->homepage = 'https://github.com/marrisonlab/marrison-custom-updater';
         $info->active_installs = 0;
         $info->rating = 100;
         $info->ratings = array(5 => 100);
@@ -451,6 +452,16 @@ class Marrison_Custom_Updater {
         );
 
         return $actions;
+    }
+
+    public function add_plugin_row_meta($links, $file) {
+        if (strpos($file, 'custom_updater.php') !== false || strpos($file, 'marrison-custom-updater') !== false) {
+            $row_meta = [
+                'docs' => '<a href="https://github.com/marrisonlab/marrison-custom-updater" target="_blank" aria-label="' . esc_attr__('Visita il sito del plugin', 'marrison-custom-updater') . '">' . esc_html__('Visita il sito del plugin', 'marrison-custom-updater') . '</a>',
+            ];
+            return array_merge($links, $row_meta);
+        }
+        return $links;
     }
 
     /* ===================== REAL UPDATE ENGINE ===================== */
