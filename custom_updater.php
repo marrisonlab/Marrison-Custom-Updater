@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 4.7
+ * Version: 4.8
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -945,6 +945,10 @@ class Marrison_Custom_Updater {
                 <div class="notice notice-info"><p>Cache pulita ✓</p></div>
             <?php endif; ?>
 
+            <?php if (isset($_GET['mcu_checked'])): ?>
+                <div class="notice notice-success is-dismissible"><p>Controllo aggiornamenti MCU forzato con successo.</p></div>
+            <?php endif; ?>
+
             <h2>Impostazioni Repository</h2>
             <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
                 <?php wp_nonce_field('marrison_save_repo_url'); ?>
@@ -962,6 +966,17 @@ class Marrison_Custom_Updater {
                     <button class="button button-primary" type="submit">Salva</button>
                     <button class="button" type="submit" name="marrison_remove_repo_url" value="1">Rimuovi e ripristina default</button>
                 </p>
+            </form>
+
+            <hr>
+
+            <h2>Strumenti Avanzati</h2>
+            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                <?php wp_nonce_field('marrison_force_check_mcu'); ?>
+                <input type="hidden" name="action" value="marrison_force_check_mcu">
+                <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater-settings&mcu_checked=1')); ?>">
+                <button class="button button-secondary">Forza controllo aggiornamenti MCU</button>
+                <p class="description">Usa questo pulsante se hai appena rilasciato una nuova versione su GitHub e non viene rilevata.</p>
             </form>
         </div>
         <?php
@@ -1280,21 +1295,12 @@ class Marrison_Custom_Updater {
             <hr style="margin-top: 30px;">
             
             <h2 style="margin-top: 30px;">Strumenti</h2>
-            <div style="display: flex; gap: 10px;">
-                <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
-                    <?php wp_nonce_field('marrison_clear_cache'); ?>
-                    <input type="hidden" name="action" value="marrison_clear_cache">
-                    <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater&cache_cleared=1')); ?>">
-                    <button class="button">Pulisci cache</button>
-                </form>
-
-                <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
-                    <?php wp_nonce_field('marrison_force_check_mcu'); ?>
-                    <input type="hidden" name="action" value="marrison_force_check_mcu">
-                    <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater&mcu_checked=1')); ?>">
-                    <button class="button button-secondary">Forza controllo aggiornamenti MCU</button>
-                </form>
-            </div>
+            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                <?php wp_nonce_field('marrison_clear_cache'); ?>
+                <input type="hidden" name="action" value="marrison_clear_cache">
+                <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater&cache_cleared=1')); ?>">
+                <button class="button">Pulisci cache</button>
+            </form>
 
         </div>
         <script>
