@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://marrisonlab.com
  * Description: Updater custom con repository remoto, update reale dei file, singolo e bulk.
- * Version: 1.9
+ * Version: 2
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -450,44 +450,31 @@ class Marrison_Custom_Updater {
 }
 
 new Marrison_Custom_Updater;
-
 /**
- * Fix GitHub updater: rinomina la cartella del plugin dopo l'install/update
- * evitando il suffisso del tag GitHub
+ * Fix definitivo: rinomina la cartella del plugin GitHub con suffisso versione
+ * (es. marrison-custom-updater-1.9 → marrison-custom-updater)
  */
-add_filter( 'upgrader_post_install', function ( $response, $hook_extra, $result ) {
+add_action( 'upgrader_process_complete', function ( $upgrader, $hook_extra ) {
 
-    if ( empty( $hook_extra['plugin'] ) ) {
-        return $response;
+    if ( empty( $hook_extra['type'] ) || $hook_extra['type'] !== 'plugin' ) {
+        return;
     }
 
-    $plugin = 'marrison-custom-updater/marrison-custom-updater.php';
+    $plugins_dir = WP_PLUGIN_DIR;
+    $expected    = $plugins_dir . '/marrison-custom-updater';
 
-    if ( $hook_extra['plugin'] !== $plugin ) {
-        return $response;
+    // Cerca cartelle tipo marrison-custom-updater-*
+    foreach ( glob( $plugins_dir . '/marrison-custom-updater-*', GLOB_ONLYDIR ) as $dir ) {
+
+        // Se esiste già quella corretta, rimuovi la vecchia
+        if ( is_dir( $expected ) ) {
+            // opzionale: cleanup
+            // WP_Filesystem può essere usato se vuoi essere ultra-safe
+            continue;
+        }
+
+        rename( $dir, $expected );
+        break;
     }
 
-    $plugins_dir  = WP_PLUGIN_DIR;
-    $correct_path = $plugins_dir . '/marrison-custom-updater';
-
-    // Se la directory corretta esiste già, ok
-    if ( is_dir( $correct_path ) ) {
-        return $response;
-    }
-
-    // Directory installata (es. marrison-custom-updater-1.8.0)
-    $source = $result['destination'];
-
-    if ( ! is_dir( $source ) ) {
-        return $response;
-    }
-
-    // Rinomina
-    rename( $source, $correct_path );
-
-    // Aggiorna destination per WP
-    $result['destination'] = $correct_path;
-
-    return $response;
-
-}, 10, 3 );
+}, 10, 2 );
