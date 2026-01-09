@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://marrisonlab.com
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 4.0
+ * Version: 1
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -39,6 +39,23 @@ class Marrison_Custom_Updater {
         add_action('admin_menu', [$this, 'add_menu_notification_badge'], 999);
         add_action('admin_head', [$this, 'add_menu_badge_styles']);
         add_action('admin_init', [$this, 'check_for_available_updates']);
+        
+        // Filtro per abilitare auto-update per questo plugin
+        add_filter('auto_update_plugin', [$this, 'auto_update_specific_plugins'], 10, 2);
+        
+        // Hook per pulire la cache GitHub quando si forza il controllo aggiornamenti WP
+        add_action('delete_site_transient_update_plugins', [$this, 'force_clear_github_cache']);
+    }
+
+    public function force_clear_github_cache() {
+        delete_transient('marrison_github_version');
+    }
+
+    public function auto_update_specific_plugins($update, $item) {
+        if (isset($item->slug) && $item->slug === 'marrison-custom-updater') {
+            return true;
+        }
+        return $update;
     }
 
     /* ===================== AUTO UPDATE AJAX HANDLER ===================== */
@@ -286,16 +303,26 @@ class Marrison_Custom_Updater {
         $installed = $plugins[$plugin_file]['Version'];
         $remote = $this->get_github_version();
 
-        if ($remote && version_compare($installed, $remote, '<')) {
-            $transient->response[$plugin_file] = (object)[
-                'slug'        => 'marrison-custom-updater',
-                'new_version' => $remote,
-                'package'     => 'https://github.com/marrisonlab/Marrison-Custom-Updater/archive/refs/tags/v' . $remote . '.zip',
-                'url'         => 'https://github.com/marrisonlab/Marrison-Custom-Updater',
-                'plugin'      => $plugin_file,
-                'tested'      => '6.4',
-                'requires_php' => '7.4',
-            ];
+        $item = (object)[
+            'id'          => 'marrison-custom-updater',
+            'slug'        => 'marrison-custom-updater',
+            'plugin'      => $plugin_file,
+            'new_version' => $remote,
+            'url'         => 'https://github.com/marrisonlab/Marrison-Custom-Updater',
+            'package'     => 'https://github.com/marrisonlab/Marrison-Custom-Updater/archive/refs/tags/v' . $remote . '.zip',
+            'tested'      => '6.6',
+            'requires_php' => '7.4',
+            'icons'       => [],
+            'banners'     => [],
+            'banners_rtl' => [],
+            'compatibility' => new stdClass(),
+        ];
+
+        if (version_compare($installed, $remote, '<')) {
+            $transient->response[$plugin_file] = $item;
+        } else {
+            // Importante: popolare no_update permette a WP di mostrare i controlli per auto-update
+            $transient->no_update[$plugin_file] = $item;
         }
 
         $transient->checked[$plugin_file] = $installed;
