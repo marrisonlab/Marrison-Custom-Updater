@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://marrisonlab.com
  * Description: Updater custom con repository remoto, update reale dei file, singolo e bulk.
- * Version: 1.8
+ * Version: 1.9
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -452,29 +452,42 @@ class Marrison_Custom_Updater {
 new Marrison_Custom_Updater;
 
 /**
- * Fix GitHub updater: rinomina la cartella del plugin dopo l'estrazione
- * per evitare il suffisso del tag (es. plugin-1.8.0)
+ * Fix GitHub updater: rinomina la cartella del plugin dopo l'install/update
+ * evitando il suffisso del tag GitHub
  */
-add_filter( 'upgrader_source_selection', function ( $source, $remote_source, $upgrader ) {
+add_filter( 'upgrader_post_install', function ( $response, $hook_extra, $result ) {
 
-    if ( empty( $upgrader->skin ) || empty( $upgrader->skin->plugin ) ) {
-        return $source;
+    if ( empty( $hook_extra['plugin'] ) ) {
+        return $response;
     }
 
-    if ( $upgrader->skin->plugin !== 'marrison-custom-updater/marrison-custom-updater.php' ) {
-        return $source;
+    $plugin = 'marrison-custom-updater/marrison-custom-updater.php';
+
+    if ( $hook_extra['plugin'] !== $plugin ) {
+        return $response;
     }
 
-    $correct_dir = trailingslashit( $remote_source ) . 'marrison-custom-updater';
+    $plugins_dir  = WP_PLUGIN_DIR;
+    $correct_path = $plugins_dir . '/marrison-custom-updater';
 
-    if ( basename( $source ) === 'marrison-custom-updater' ) {
-        return $source;
+    // Se la directory corretta esiste già, ok
+    if ( is_dir( $correct_path ) ) {
+        return $response;
     }
 
-    if ( @rename( $source, $correct_dir ) ) {
-        return $correct_dir;
+    // Directory installata (es. marrison-custom-updater-1.8.0)
+    $source = $result['destination'];
+
+    if ( ! is_dir( $source ) ) {
+        return $response;
     }
 
-    return $source;
+    // Rinomina
+    rename( $source, $correct_path );
+
+    // Aggiorna destination per WP
+    $result['destination'] = $correct_path;
+
+    return $response;
 
 }, 10, 3 );

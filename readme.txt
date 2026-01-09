@@ -15,7 +15,7 @@ Come installare il plugin.
 
 == Changelog ==
 
-= 1.8 =
+= 1.9 =
 * Fix: risolto bug X
 * Feature: aggiunta funzione Y
 * Improvement: miglioramento Z
