@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://marrisonlab.com
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 3.5
+ * Version: 3.5.1
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -62,58 +62,77 @@ class Marrison_Custom_Updater {
             wp_send_json_error('Nessun plugin ha gli aggiornamenti automatici attivati');
         }
 
-        // Ottieni tutti gli aggiornamenti disponibili
-        $updates = $this->get_available_updates();
-        $plugins = get_plugins();
-        $plugins_to_update = [];
+        // Forza il controllo degli aggiornamenti WordPress
+        wp_update_plugins();
+        $transient = get_site_transient('update_plugins');
         
-        // Trova i plugin che hanno sia aggiornamenti disponibili che auto-update attivato
-        foreach ($updates as $u) {
-            foreach ($plugins as $file => $data) {
-                $slug = dirname($file);
-                if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
-                
-                if ($slug === $u['slug'] && version_compare($data['Version'], $u['version'], '<')) {
-                    // Controlla se questo plugin ha l'auto-update attivato
-                    if (in_array($file, $auto_update_plugins)) {
-                        $plugins_to_update[] = $slug;
-                    }
-                    break;
-                }
+        if (empty($transient->response)) {
+            wp_send_json_error('Nessun aggiornamento disponibile');
+        }
+
+        // Identifica i plugin del repository privato per ESCLUDERLI
+        $private_updates = $this->get_available_updates();
+        $private_slugs = [];
+        foreach ($private_updates as $u) {
+            $private_slugs[] = $u['slug'];
+        }
+
+        $plugins_to_update = [];
+        $slugs_map = []; // Mappa slug => file
+        
+        foreach ($transient->response as $file => $data) {
+            $slug = dirname($file);
+            if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
+
+            // ESCLUDI i plugin del repository privato
+            if (in_array($slug, $private_slugs)) {
+                continue;
+            }
+
+            // Includi solo se ha auto-update attivo
+            if (in_array($file, $auto_update_plugins)) {
+                $plugins_to_update[] = $file;
+                $slugs_map[$slug] = $file;
             }
         }
         
         if (empty($plugins_to_update)) {
-            wp_send_json_error('Nessun plugin con aggiornamenti automatici attivati ha aggiornamenti disponibili');
+            wp_send_json_error('Nessun plugin "normale" con aggiornamenti automatici attivati ha aggiornamenti disponibili');
         }
 
-        $results = [];
-        $success_count = 0;
+        // Carica le classi necessarie per l'aggiornamento
+        include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+        include_once ABSPATH . 'wp-admin/includes/plugin.php';
         
-        foreach ($plugins_to_update as $slug) {
-            $result = false;
+        // Usa Automatic_Upgrader_Skin per evitare output HTML
+        $skin = new Automatic_Upgrader_Skin();
+        $upgrader = new Plugin_Upgrader($skin);
+        
+        // Esegui l'aggiornamento
+        $results = $upgrader->bulk_upgrade($plugins_to_update);
+        
+        $success_count = 0;
+        $formatted_results = [];
+
+        // Analizza i risultati
+        // bulk_upgrade restituisce un array indicizzato dai file path, con valore true/false/WP_Error/array info
+        foreach ($slugs_map as $slug => $file) {
+            $result = isset($results[$file]) ? $results[$file] : false;
             
-            // Controlla se è il plugin stesso (Marrison Custom Updater)
-            if ($slug === 'marrison-custom-updater') {
-                $transient = get_site_transient('update_plugins');
-                if (isset($transient->response[plugin_basename(__FILE__)])) {
-                    $update = $transient->response[plugin_basename(__FILE__)];
-                    $result = $this->perform_self_update($update->package);
-                }
-            } else {
-                $result = $this->perform_update($slug);
-            }
+            // Verifica se il risultato è positivo (non false e non WP_Error)
+            // A volte restituisce un array con 'destination_name', etc.
+            $is_success = $result && !is_wp_error($result);
+            $formatted_results[$slug] = $is_success;
             
-            $results[$slug] = $result;
-            if ($result) {
+            if ($is_success) {
                 $success_count++;
             }
         }
 
         if ($success_count > 0) {
             wp_send_json_success([
-                'message' => sprintf('%d plugin con auto-update aggiornati con successo', $success_count),
-                'results' => $results,
+                'message' => sprintf('%d plugin aggiornati con successo', $success_count),
+                'results' => $formatted_results,
                 'success_count' => $success_count,
                 'total_count' => count($plugins_to_update)
             ]);
@@ -768,22 +787,34 @@ class Marrison_Custom_Updater {
                 <p>
                     <button class="button button-secondary">Aggiorna selezionati</button>
                     <?php 
-                    // Controlla se ci sono plugin con auto-update attivati che hanno aggiornamenti
+                    // Controlla se ci sono plugin con auto-update attivati che hanno aggiornamenti (ESCLUSI QUELLI PRIVATI)
                     $auto_update_plugins = (array) get_site_option('auto_update_plugins', []);
-                    $updates = $this->get_available_updates();
-                    $plugins = get_plugins();
+                    
+                    // Ottieni aggiornamenti standard
+                    $transient = get_site_transient('update_plugins');
+                    
+                    // Ottieni aggiornamenti privati per esclusione
+                    $private_updates = $this->get_available_updates();
+                    $private_slugs = [];
+                    foreach ($private_updates as $u) {
+                        $private_slugs[] = $u['slug'];
+                    }
+                    
                     $auto_update_available = false;
                     
-                    foreach ($updates as $u) {
-                        foreach ($plugins as $file => $data) {
+                    if (!empty($transient->response)) {
+                        foreach ($transient->response as $file => $data) {
                             $slug = dirname($file);
                             if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
                             
-                            if ($slug === $u['slug'] && version_compare($data['Version'], $u['version'], '<')) {
-                                if (in_array($file, $auto_update_plugins)) {
-                                    $auto_update_available = true;
-                                    break 2;
-                                }
+                            // ESCLUDI i plugin del repository privato
+                            if (in_array($slug, $private_slugs)) {
+                                continue;
+                            }
+                            
+                            // Se ha auto-update attivo
+                            if (in_array($file, $auto_update_plugins)) {
+                                $auto_update_available = true;
                                 break;
                             }
                         }

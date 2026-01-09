@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.5
+Stable tag: 3.5.1
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -29,5 +29,5 @@ Upload the plugin to WordPress and activate it.
 
 == Changelog ==
 
-= 3.5 =
+= 3.5.1 =
 Gamma version
