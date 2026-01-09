@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://marrisonlab.com
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 2.2.2
+ * Version: 3
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -22,6 +22,12 @@ class Marrison_Custom_Updater {
         add_action('admin_post_marrison_bulk_update', [$this, 'bulk_update']);
         add_action('admin_post_marrison_clear_cache', [$this, 'clear_cache']);
         add_action('admin_post_marrison_save_repo_url', [$this, 'save_repo_url']);
+        
+        // Hook per AJAX
+        add_action('wp_ajax_marrison_update_plugin_ajax', [$this, 'update_plugin_ajax']);
+        
+        // Aggiungi script e stili per la pagina admin
+        add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
         
         // Hook per aggiungere link al plugin Marrison Updater nella pagina dei plugin
         add_filter('plugin_action_links', [$this, 'add_marrison_action_links'], 10, 2);
@@ -343,7 +349,61 @@ class Marrison_Custom_Updater {
         exit;
     }
 
+    /* ===================== AJAX HANDLER ===================== */
+
+    public function update_plugin_ajax() {
+        // Verifica il nonce
+        $slug = sanitize_text_field($_POST['slug'] ?? '');
+        $nonce = sanitize_text_field($_POST['nonce'] ?? '');
+        
+        if (!wp_verify_nonce($nonce, 'marrison_update_' . $slug)) {
+            wp_die('Security check failed');
+        }
+
+        // Verifica i permessi
+        if (!current_user_can('manage_options')) {
+            wp_die('Insufficient permissions');
+        }
+
+        // Esegui l'aggiornamento
+        $result = false;
+        
+        // Controlla se è il plugin stesso (Marrison Custom Updater)
+        if ($slug === 'marrison-custom-updater') {
+            $transient = get_site_transient('update_plugins');
+            if (isset($transient->response[plugin_basename(__FILE__)])) {
+                $update = $transient->response[plugin_basename(__FILE__)];
+                $result = $this->perform_self_update($update->package);
+            }
+        } else {
+            $result = $this->perform_update($slug);
+        }
+
+        if ($result) {
+            wp_send_json_success('Plugin aggiornato con successo');
+        } else {
+            wp_send_json_error('Errore durante l\'aggiornamento del plugin');
+        }
+    }
+
     /* ===================== ADMIN UI ===================== */
+
+    public function enqueue_admin_scripts($hook) {
+        // Carica gli script solo sulla nostra pagina
+        if ($hook !== 'tools_page_marrison-updater') {
+            return;
+        }
+        
+        // Assicurati che jQuery sia caricato
+        wp_enqueue_script('jquery');
+        
+        // Aggiungi lo script per la barra di caricamento
+        wp_add_inline_script('jquery', '
+            var marrisonUpdater = {
+                ajaxurl: "' . admin_url('admin-ajax.php') . '"
+            };
+        ');
+    }
 
     public function add_admin_menu() {
         add_submenu_page(
@@ -368,6 +428,20 @@ class Marrison_Custom_Updater {
         ?>
         <div class="wrap">
             <h1>Marrison Updater</h1>
+
+            <!-- Barra di caricamento -->
+            <div id="marrison-update-progress" class="notice notice-info" style="display:none; padding: 15px; margin: 20px 0;">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div class="spinner is-active" style="float:none; width:20px; height:20px; margin:0;"></div>
+                    <div style="flex: 1;">
+                        <div id="marrison-update-status" style="font-weight: 600; margin-bottom: 8px;">Aggiornamento in corso...</div>
+                        <div style="background: #f0f0f1; border-radius: 4px; height: 8px; overflow: hidden;">
+                            <div id="marrison-update-bar" style="background: #2271b1; height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                        </div>
+                        <div id="marrison-update-info" style="font-size: 12px; color: #646970; margin-top: 4px;"></div>
+                    </div>
+                </div>
+            </div>
 
             <?php if ($settingsUpdated === 'saved'): ?>
                 <div class="notice notice-success is-dismissible"><p>Impostazioni salvate correttamente.</p></div>
@@ -413,13 +487,15 @@ class Marrison_Custom_Updater {
                                 <?php if ($updated === $slug || in_array($slug, $bulkUpdated, true)): ?>
                                     <strong style="color:green;">✔ Aggiornato</strong>
                                 <?php else: ?>
-                                    <a class="button button-primary"
-                                       href="<?php echo wp_nonce_url(
-                                           admin_url('admin-post.php?action=marrison_update_plugin&slug=' . $slug),
-                                           'marrison_update_' . $slug
-                                       ); ?>">
+                                    <?php 
+                                    $is_self_update = ($slug === 'marrison-custom-updater');
+                                    $nonce = $is_self_update ? wp_create_nonce('marrison_update_marrison-custom-updater') : wp_create_nonce('marrison_update_' . $slug);
+                                    ?>
+                                    <button class="button button-primary marrison-update-btn" 
+                                            data-slug="<?php echo esc_attr($slug); ?>"
+                                            data-nonce="<?php echo esc_attr($nonce); ?>">
                                         Aggiorna
-                                    </a>
+                                    </button>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -474,7 +550,122 @@ class Marrison_Custom_Updater {
             </form>
         </div>
         <script>
-            document.addEventListener('DOMContentLoaded', function() {
+            jQuery(document).ready(function($) {
+                
+                function updateProgressBar(percent, status, info) {
+                    $('#marrison-update-bar').css('width', percent + '%');
+                    $('#marrison-update-status').text(status);
+                    if (info) {
+                        $('#marrison-update-info').text(info);
+                    }
+                }
+
+                function showProgressBar() {
+                    $('#marrison-update-progress').show();
+                    updateProgressBar(0, 'Preparazione aggiornamento...', '');
+                }
+
+                function hideProgressBar() {
+                    setTimeout(function() {
+                        $('#marrison-update-progress').fadeOut();
+                    }, 2000);
+                }
+
+                // Gestione click sui pulsanti di aggiornamento singoli
+                $('.marrison-update-btn').on('click', function(e) {
+                    e.preventDefault();
+                    
+                    var $btn = $(this);
+                    var slug = $btn.data('slug');
+                    var nonce = $btn.data('nonce');
+                    
+                    // Disabilita il pulsante
+                    $btn.prop('disabled', true).text('Aggiornamento...');
+                    
+                    // Mostra la barra di caricamento
+                    showProgressBar();
+                    
+                    // Simula progresso
+                    var progress = 0;
+                    var progressInterval = setInterval(function() {
+                        progress += Math.random() * 15;
+                        if (progress > 90) progress = 90;
+                        
+                        if (progress < 30) {
+                            updateProgressBar(progress, 'Download del plugin...', 'Scaricamento in corso');
+                        } else if (progress < 60) {
+                            updateProgressBar(progress, 'Estrazione file...', 'Decompressione archivio');
+                        } else if (progress < 90) {
+                            updateProgressBar(progress, 'Installazione aggiornamento...', 'Copia file');
+                        }
+                    }, 300);
+                    
+                    // Esegui l'aggiornamento via AJAX
+                    $.ajax({
+                        url: marrisonUpdater.ajaxurl,
+                        type: 'POST',
+                        data: {
+                            action: 'marrison_update_plugin_ajax',
+                            slug: slug,
+                            nonce: nonce
+                        },
+                        success: function(response) {
+                            clearInterval(progressInterval);
+                            
+                            if (response.success) {
+                                updateProgressBar(100, 'Aggiornamento completato!', 'Plugin aggiornato con successo');
+                                $btn.replaceWith('<strong style="color:green;">✔ Aggiornato</strong>');
+                                
+                                // Ricarica la pagina dopo 2 secondi per mostrare lo stato aggiornato
+                                setTimeout(function() {
+                                    location.reload();
+                                }, 2000);
+                            } else {
+                                updateProgressBar(0, 'Errore durante l\'aggiornamento', response.data || 'Si è verificato un errore');
+                                $btn.prop('disabled', false).text('Aggiorna');
+                            }
+                            
+                            hideProgressBar();
+                        },
+                        error: function() {
+                            clearInterval(progressInterval);
+                            updateProgressBar(0, 'Errore di connessione', 'Impossibile contattare il server');
+                            $btn.prop('disabled', false).text('Aggiorna');
+                            hideProgressBar();
+                        }
+                    });
+                });
+                
+                // Gestione aggiornamento multiplo
+                $('form[action*="marrison_bulk_update"]').on('submit', function(e) {
+                    var $checked = $('input[name="plugins[]"]:checked');
+                    if ($checked.length === 0) {
+                        e.preventDefault();
+                        return;
+                    }
+                    
+                    // Mostra la barra di caricamento per l'aggiornamento multiplo
+                    showProgressBar();
+                    updateProgressBar(0, 'Aggiornamento plugin selezionati...', '0 di ' + $checked.length + ' plugin');
+                    
+                    // Il form verrà inviato normalmente, ma mostriamo la barra di caricamento
+                    var total = $checked.length;
+                    var current = 0;
+                    
+                    // Simuliamo un progresso durante l'elaborazione del form
+                    var simulateProgress = setInterval(function() {
+                        current++;
+                        var percent = (current / total) * 100;
+                        updateProgressBar(percent, 'Aggiornamento plugin ' + current + ' di ' + total, 'Elaborazione in corso...');
+                        
+                        if (current >= total) {
+                            clearInterval(simulateProgress);
+                            updateProgressBar(100, 'Aggiornamento completato!', 'Tutti i plugin sono stati aggiornati');
+                        }
+                    }, 500);
+                });
+                
+                // Gestione checkbox "Seleziona tutto" (mantenuta dalla versione originale)
                 const selectAll1 = document.getElementById('cb-select-all-1');
                 const selectAll2 = document.getElementById('cb-select-all-2');
                 const checkboxes = document.querySelectorAll('input[name="plugins[]"]');
