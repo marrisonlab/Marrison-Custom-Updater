@@ -1,9 +1,8 @@
 <?php
 /**
  * Plugin Name: Marrison Custom Updater
- * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 2.2
+ * Version: 2.2.1
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -21,6 +20,7 @@ class Marrison_Custom_Updater {
         add_action('admin_post_marrison_update_plugin', [$this, 'update_plugin']);
         add_action('admin_post_marrison_bulk_update', [$this, 'bulk_update']);
         add_action('admin_post_marrison_clear_cache', [$this, 'clear_cache']);
+        add_action('admin_post_marrison_save_repo_url', [$this, 'save_repo_url']);
         
         // Hook per aggiungere link al plugin Marrison Updater nella pagina dei plugin
         add_filter('plugin_action_links', [$this, 'add_marrison_action_links'], 10, 2);
@@ -29,10 +29,13 @@ class Marrison_Custom_Updater {
     /* ===================== UPDATE SOURCE ===================== */
 
     private function get_available_updates() {
+        $custom_repo_url = get_option('marrison_repo_url');
+        $repo_url = !empty($custom_repo_url) ? trailingslashit($custom_repo_url) : $this->updates_url;
+
         $cached = get_transient('marrison_available_updates');
         if ($cached !== false) return $cached;
 
-        $response = wp_remote_get($this->updates_url . 'index.php', ['timeout' => 15]);
+        $response = wp_remote_get($repo_url . 'index.php', ['timeout' => 15]);
         if (is_wp_error($response)) return [];
 
         $updates = json_decode(wp_remote_retrieve_body($response), true);
@@ -196,7 +199,7 @@ class Marrison_Custom_Updater {
         $actions['marrison_settings'] = sprintf(
             '<a href="%s">%s</a>',
             esc_url(admin_url('tools.php?page=marrison-updater')),
-            esc_html__('Impostazioni', 'marrison-custom-updater')
+            esc_html__('Setting', 'marrison-custom-updater')
         );
 
         return $actions;
@@ -319,6 +322,26 @@ class Marrison_Custom_Updater {
         exit;
     }
 
+    public function save_repo_url() {
+        check_admin_referer('marrison_save_repo_url');
+
+        if (isset($_POST['marrison_remove_repo_url'])) {
+            delete_option('marrison_repo_url');
+            $redirect_url = admin_url('tools.php?page=marrison-updater&settings-updated=removed');
+        } else {
+            $url = sanitize_url($_POST['marrison_repo_url']);
+            update_option('marrison_repo_url', $url);
+            $redirect_url = admin_url('tools.php?page=marrison-updater&settings-updated=saved');
+        }
+
+        // Pulisce la cache dopo aver modificato l'URL
+        delete_transient('marrison_available_updates');
+        delete_site_transient('update_plugins');
+
+        wp_redirect($redirect_url);
+        exit;
+    }
+
     /* ===================== ADMIN UI ===================== */
 
     public function add_admin_menu() {
@@ -339,10 +362,17 @@ class Marrison_Custom_Updater {
         $updated     = $_GET['updated'] ?? '';
         $bulkUpdated = $_GET['bulk_updated'] ?? [];
         if (!is_array($bulkUpdated)) $bulkUpdated = [$bulkUpdated];
+        $settingsUpdated = $_GET['settings-updated'] ?? '';
 
         ?>
         <div class="wrap">
             <h1>Marrison Updater</h1>
+
+            <?php if ($settingsUpdated === 'saved'): ?>
+                <div class="notice notice-success is-dismissible"><p>Impostazioni salvate correttamente.</p></div>
+            <?php elseif ($settingsUpdated === 'removed'): ?>
+                <div class="notice notice-success is-dismissible"><p>URL del repository ripristinato ai valori predefiniti.</p></div>
+            <?php endif; ?>
 
             <?php if ($bulkUpdated): ?>
                 <div class="notice notice-success"><p>Bulk update completato ✔</p></div>
@@ -412,6 +442,29 @@ class Marrison_Custom_Updater {
                     <button class="button button-secondary">Aggiorna selezionati</button>
                 </p>
             </form>
+
+            <hr>
+
+            <h2>Impostazioni Repository</h2>
+            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                <?php wp_nonce_field('marrison_save_repo_url'); ?>
+                <input type="hidden" name="action" value="marrison_save_repo_url">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="marrison_repo_url">Indirizzo Repository</label></th>
+                        <td>
+                            <input type="url" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo esc_attr(get_option('marrison_repo_url', $this->updates_url)); ?>" class="regular-text">
+                            <p class="description">Inserisci l'URL del repository personalizzato.</p>
+                        </td>
+                    </tr>
+                </table>
+                <p class="submit">
+                    <button class="button button-primary" type="submit">Salva</button>
+                    <button class="button" type="submit" name="marrison_remove_repo_url" value="1">Rimuovi e ripristina default</button>
+                </p>
+            </form>
+
+            <hr>
 
             <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
                 <?php wp_nonce_field('marrison_clear_cache'); ?>
