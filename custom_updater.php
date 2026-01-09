@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 4.2
+ * Version: 4.3
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -14,7 +14,9 @@ class Marrison_Custom_Updater {
     private $cache_duration = 6 * HOUR_IN_SECONDS;
 
     public function __construct() {
-        add_filter('pre_set_site_transient_update_plugins', [$this, 'check_for_updates']);
+        // Usa site_transient_update_plugins invece di pre_set_site_transient_update_plugins
+        // per iniettare gli aggiornamenti in tempo reale quando WP controlla la cache
+        add_filter('site_transient_update_plugins', [$this, 'check_for_updates']);
         add_filter('plugins_api', [$this, 'plugin_info'], 10, 3);
 
         add_action('admin_menu', [$this, 'add_admin_menu']);
@@ -268,6 +270,15 @@ class Marrison_Custom_Updater {
 
     public function check_for_updates($transient) {
         if (!is_object($transient)) $transient = new stdClass();
+        
+        // Assicurati che le proprietà esistano
+        if (!isset($transient->response)) $transient->response = [];
+        if (!isset($transient->no_update)) $transient->no_update = [];
+        if (!isset($transient->checked)) $transient->checked = [];
+
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
         $plugins = get_plugins();
 
         foreach ($this->get_available_updates() as $update) {
@@ -334,7 +345,10 @@ class Marrison_Custom_Updater {
 
         $response = wp_remote_get('https://api.github.com/repos/marrisonlab/marrison-custom-updater/releases/latest', [
             'timeout' => 10,
-            'headers' => ['Accept' => 'application/vnd.github.v3+json']
+            'headers' => [
+                'Accept' => 'application/vnd.github.v3+json',
+                'User-Agent' => 'WordPress/MarrisonCustomUpdater'
+            ]
         ]);
 
         if (is_wp_error($response)) return false;
