@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://marrisonlab.com
  * Description: Updater custom con repository remoto, update reale dei file, singolo e bulk.
- * Version: 2
+ * Version: 2.1
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -450,12 +450,15 @@ class Marrison_Custom_Updater {
 }
 
 new Marrison_Custom_Updater;
+
 /**
- * Fix definitivo: rinomina la cartella del plugin GitHub con suffisso versione
- * (es. marrison-custom-updater-1.9 → marrison-custom-updater)
+ * Fix definitivo GitHub updater:
+ * - rinomina la cartella del plugin con suffisso versione (es. -1.9)
+ * - forza il refresh della cache plugin per mostrare la versione corretta in WP
  */
 add_action( 'upgrader_process_complete', function ( $upgrader, $hook_extra ) {
 
+    // Agisce solo sui plugin
     if ( empty( $hook_extra['type'] ) || $hook_extra['type'] !== 'plugin' ) {
         return;
     }
@@ -463,17 +466,19 @@ add_action( 'upgrader_process_complete', function ( $upgrader, $hook_extra ) {
     $plugins_dir = WP_PLUGIN_DIR;
     $expected    = $plugins_dir . '/marrison-custom-updater';
 
-    // Cerca cartelle tipo marrison-custom-updater-*
+    // Cerca directory tipo: marrison-custom-updater-*
     foreach ( glob( $plugins_dir . '/marrison-custom-updater-*', GLOB_ONLYDIR ) as $dir ) {
 
-        // Se esiste già quella corretta, rimuovi la vecchia
+        // Se la directory corretta esiste già, salta
         if ( is_dir( $expected ) ) {
-            // opzionale: cleanup
-            // WP_Filesystem può essere usato se vuoi essere ultra-safe
             continue;
         }
 
-        rename( $dir, $expected );
+        // Rinomina e pulisce la cache plugin
+        if ( rename( $dir, $expected ) ) {
+            wp_clean_plugins_cache( true );
+        }
+
         break;
     }
 

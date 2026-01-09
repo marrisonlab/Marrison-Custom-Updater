@@ -3,7 +3,7 @@ Contributors: marrisonlab
 Tags: updater, plugin-updates
 Requires at least: 5.0
 Requires PHP: 7.4
-Stable tag: 2
+Stable tag: 2.1
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -15,7 +15,7 @@ Come installare il plugin.
 
 == Changelog ==
 
-= 2 =
+= 2.1 =
 * Fix: risolto bug X
 * Feature: aggiunta funzione Y
 * Improvement: miglioramento Z
