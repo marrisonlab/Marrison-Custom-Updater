@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://marrisonlab.com
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 3
+ * Version: 3.5
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -25,12 +25,189 @@ class Marrison_Custom_Updater {
         
         // Hook per AJAX
         add_action('wp_ajax_marrison_update_plugin_ajax', [$this, 'update_plugin_ajax']);
+        add_action('wp_ajax_marrison_bulk_update_ajax', [$this, 'bulk_update_ajax']);
+        add_action('wp_ajax_marrison_auto_update_ajax', [$this, 'auto_update_ajax']);
         
         // Aggiungi script e stili per la pagina admin
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
         
         // Hook per aggiungere link al plugin Marrison Updater nella pagina dei plugin
         add_filter('plugin_action_links', [$this, 'add_marrison_action_links'], 10, 2);
+        
+        // Hook per aggiungere notifiche al menu
+        add_action('admin_menu', [$this, 'add_menu_notification_badge'], 999);
+        add_action('admin_head', [$this, 'add_menu_badge_styles']);
+        add_action('admin_init', [$this, 'check_for_available_updates']);
+    }
+
+    /* ===================== AUTO UPDATE AJAX HANDLER ===================== */
+
+    public function auto_update_ajax() {
+        // Verifica il nonce
+        $nonce = sanitize_text_field($_POST['nonce'] ?? '');
+        
+        if (!wp_verify_nonce($nonce, 'marrison_auto_update')) {
+            wp_die('Security check failed');
+        }
+
+        // Verifica i permessi
+        if (!current_user_can('manage_options')) {
+            wp_die('Insufficient permissions');
+        }
+
+        // Ottieni tutti i plugin con aggiornamenti automatici attivati
+        $auto_update_plugins = (array) get_site_option('auto_update_plugins', []);
+        
+        if (empty($auto_update_plugins)) {
+            wp_send_json_error('Nessun plugin ha gli aggiornamenti automatici attivati');
+        }
+
+        // Ottieni tutti gli aggiornamenti disponibili
+        $updates = $this->get_available_updates();
+        $plugins = get_plugins();
+        $plugins_to_update = [];
+        
+        // Trova i plugin che hanno sia aggiornamenti disponibili che auto-update attivato
+        foreach ($updates as $u) {
+            foreach ($plugins as $file => $data) {
+                $slug = dirname($file);
+                if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
+                
+                if ($slug === $u['slug'] && version_compare($data['Version'], $u['version'], '<')) {
+                    // Controlla se questo plugin ha l'auto-update attivato
+                    if (in_array($file, $auto_update_plugins)) {
+                        $plugins_to_update[] = $slug;
+                    }
+                    break;
+                }
+            }
+        }
+        
+        if (empty($plugins_to_update)) {
+            wp_send_json_error('Nessun plugin con aggiornamenti automatici attivati ha aggiornamenti disponibili');
+        }
+
+        $results = [];
+        $success_count = 0;
+        
+        foreach ($plugins_to_update as $slug) {
+            $result = false;
+            
+            // Controlla se è il plugin stesso (Marrison Custom Updater)
+            if ($slug === 'marrison-custom-updater') {
+                $transient = get_site_transient('update_plugins');
+                if (isset($transient->response[plugin_basename(__FILE__)])) {
+                    $update = $transient->response[plugin_basename(__FILE__)];
+                    $result = $this->perform_self_update($update->package);
+                }
+            } else {
+                $result = $this->perform_update($slug);
+            }
+            
+            $results[$slug] = $result;
+            if ($result) {
+                $success_count++;
+            }
+        }
+
+        if ($success_count > 0) {
+            wp_send_json_success([
+                'message' => sprintf('%d plugin con auto-update aggiornati con successo', $success_count),
+                'results' => $results,
+                'success_count' => $success_count,
+                'total_count' => count($plugins_to_update)
+            ]);
+            
+            // Aggiorna il conteggio delle notifiche
+            $this->check_for_available_updates();
+        } else {
+            wp_send_json_error('Nessun plugin è stato aggiornato');
+        }
+    }
+
+    /* ===================== MENU NOTIFICATION BADGE ===================== */
+
+    public function check_for_available_updates() {
+        // Salva il numero di aggiornamenti disponibili in un'opzione per accesso rapido
+        $updates = $this->get_available_updates();
+        $plugins = get_plugins();
+        $update_count = 0;
+        
+        foreach ($updates as $u) {
+            foreach ($plugins as $file => $data) {
+                $slug = dirname($file);
+                if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
+                
+                if ($slug === $u['slug'] && version_compare($data['Version'], $u['version'], '<')) {
+                    $update_count++;
+                    break;
+                }
+            }
+        }
+        
+        update_option('marrison_available_updates_count', $update_count);
+    }
+
+    public function add_menu_notification_badge() {
+        $update_count = get_option('marrison_available_updates_count', 0);
+        
+        if ($update_count > 0) {
+            global $menu;
+            
+            // Trova il menu Marrison Updater e aggiungi il conteggio
+            foreach ($menu as $key => $item) {
+                if (isset($item[2]) && $item[2] === 'marrison-updater') {
+                    $menu[$key][0] .= ' <span class="marrison-update-badge awaiting-mod count-' . $update_count . '">' . $update_count . '</span>';
+                    break;
+                }
+            }
+        }
+    }
+
+    public function add_menu_badge_styles() {
+        ?>
+        <style>
+        .marrison-update-badge {
+            display: inline-block;
+            background-color: #d63638;
+            color: #fff;
+            font-size: 9px;
+            line-height: 17px;
+            font-weight: 600;
+            margin: 1px 0 0 2px;
+            vertical-align: top;
+            -webkit-border-radius: 10px;
+            border-radius: 10px;
+            z-index: 26;
+            min-width: 7px;
+            padding: 0 6px;
+            text-align: center;
+        }
+        
+        #adminmenu .marrison-update-badge {
+            position: relative;
+            top: -1px;
+            left: 2px;
+        }
+        
+        #adminmenu .wp-submenu a[href="admin.php?page=marrison-updater"] {
+            position: relative;
+        }
+        
+        #adminmenu .wp-submenu a[href="admin.php?page=marrison-updater"]:after {
+            content: "";
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 8px;
+            height: 8px;
+            background-color: #d63638;
+            border-radius: 50%;
+            display: <?php echo get_option('marrison_available_updates_count', 0) > 0 ? 'block' : 'none'; ?>;
+        }
+        </style>
+        <?php
     }
 
     /* ===================== UPDATE SOURCE ===================== */
@@ -161,21 +338,26 @@ class Marrison_Custom_Updater {
         // Estrai la descrizione
         if (preg_match('/== Description ==\s*(.*?)\s*== /s', $readme, $match)) {
             $info->description = trim($match[1]);
+        } else {
+            $info->description = '';
         }
 
         // Estrai il changelog
         if (preg_match('/== Changelog ==\s*(.*?)$/s', $readme, $match)) {
             $info->changelog = trim($match[1]);
+        } else {
+            $info->changelog = '';
         }
 
         // Dati base
+        $github_version = $this->get_github_version();
         $info->name = 'Marrison Custom Updater';
         $info->slug = 'marrison-custom-updater';
-        $info->version = $this->get_github_version();
+        $info->version = $github_version ? $github_version : '1.0.0';
         $info->author = 'Angelo Marra';
         $info->author_profile = 'https://marrisonlab.com';
         $info->plugin_url = 'https://github.com/marrisonlab/marrison-custom-updater';
-        $info->download_url = 'https://github.com/marrisonlab/marrison-custom-updater/archive/refs/tags/v' . $info->version . '.zip';
+        $info->download_url = $info->version ? 'https://github.com/marrisonlab/marrison-custom-updater/archive/refs/tags/v' . $info->version . '.zip' : '';
         $info->requires_php = '7.4';
         $info->requires = '5.0';
         $info->tested = '6.4';
@@ -187,8 +369,8 @@ class Marrison_Custom_Updater {
         $info->num_ratings = 0;
         $info->support_url = 'https://github.com/marrisonlab/marrison-custom-updater/issues';
         $info->sections = array(
-            'description' => $info->description,
-            'changelog' => $info->changelog
+            'description' => $info->description ? $info->description : 'Plugin per aggiornamenti personalizzati',
+            'changelog' => $info->changelog ? $info->changelog : 'Consultare il repository GitHub'
         );
 
         return $info;
@@ -205,7 +387,7 @@ class Marrison_Custom_Updater {
         // Link alla pagina del Marrison Updater
         $actions['marrison_settings'] = sprintf(
             '<a href="%s">%s</a>',
-            esc_url(admin_url('tools.php?page=marrison-updater')),
+            esc_url(admin_url('admin.php?page=marrison-updater')),
             esc_html__('Setting', 'marrison-custom-updater')
         );
 
@@ -300,7 +482,7 @@ class Marrison_Custom_Updater {
 
         $this->perform_update($slug);
 
-        wp_redirect(admin_url('tools.php?page=marrison-updater&updated=' . $slug));
+        wp_redirect(admin_url('admin.php?page=marrison-updater&updated=' . $slug));
         exit;
     }
 
@@ -315,7 +497,7 @@ class Marrison_Custom_Updater {
         }
 
         $query = http_build_query(['bulk_updated' => $updated]);
-        wp_redirect(admin_url('tools.php?page=marrison-updater&' . $query));
+        wp_redirect(admin_url('admin.php?page=marrison-updater&' . $query));
         exit;
     }
 
@@ -325,7 +507,7 @@ class Marrison_Custom_Updater {
         delete_site_transient('update_plugins');
         wp_clean_plugins_cache(true);
 
-        wp_redirect(admin_url('tools.php?page=marrison-updater&cache_cleared=1'));
+        wp_redirect(admin_url('admin.php?page=marrison-updater&cache_cleared=1'));
         exit;
     }
 
@@ -334,11 +516,11 @@ class Marrison_Custom_Updater {
 
         if (isset($_POST['marrison_remove_repo_url'])) {
             delete_option('marrison_repo_url');
-            $redirect_url = admin_url('tools.php?page=marrison-updater&settings-updated=removed');
+            $redirect_url = admin_url('admin.php?page=marrison-updater&settings-updated=removed');
         } else {
             $url = sanitize_url($_POST['marrison_repo_url']);
             update_option('marrison_repo_url', $url);
-            $redirect_url = admin_url('tools.php?page=marrison-updater&settings-updated=saved');
+            $redirect_url = admin_url('admin.php?page=marrison-updater&settings-updated=saved');
         }
 
         // Pulisce la cache dopo aver modificato l'URL
@@ -352,17 +534,22 @@ class Marrison_Custom_Updater {
     /* ===================== AJAX HANDLER ===================== */
 
     public function update_plugin_ajax() {
-        // Verifica il nonce
+        // Verifica il nonce - accetta sia nonce specifico che generico
         $slug = sanitize_text_field($_POST['slug'] ?? '');
         $nonce = sanitize_text_field($_POST['nonce'] ?? '');
         
-        if (!wp_verify_nonce($nonce, 'marrison_update_' . $slug)) {
-            wp_die('Security check failed');
+        // Controlla nonce specifico per il plugin o nonce bulk generico
+        $nonce_valid = wp_verify_nonce($nonce, 'marrison_update_' . $slug) || 
+                       wp_verify_nonce($nonce, 'marrison_bulk_update') ||
+                       wp_verify_nonce($nonce, 'marrison_update_marrison-custom-updater');
+        
+        if (!$nonce_valid) {
+            wp_send_json_error('Security check failed');
         }
 
         // Verifica i permessi
         if (!current_user_can('manage_options')) {
-            wp_die('Insufficient permissions');
+            wp_send_json_error('Insufficient permissions');
         }
 
         // Esegui l'aggiornamento
@@ -381,8 +568,69 @@ class Marrison_Custom_Updater {
 
         if ($result) {
             wp_send_json_success('Plugin aggiornato con successo');
+            
+            // Aggiorna il conteggio delle notifiche
+            $this->check_for_available_updates();
         } else {
             wp_send_json_error('Errore durante l\'aggiornamento del plugin');
+        }
+    }
+
+    /* ===================== BULK UPDATE AJAX HANDLER ===================== */
+
+    public function bulk_update_ajax() {
+        // Verifica il nonce
+        $nonce = sanitize_text_field($_POST['nonce'] ?? '');
+        $plugins = isset($_POST['plugins']) ? array_map('sanitize_text_field', $_POST['plugins']) : [];
+        
+        if (!wp_verify_nonce($nonce, 'marrison_bulk_update')) {
+            wp_die('Security check failed');
+        }
+
+        // Verifica i permessi
+        if (!current_user_can('manage_options')) {
+            wp_die('Insufficient permissions');
+        }
+
+        if (empty($plugins)) {
+            wp_send_json_error('Nessun plugin selezionato');
+        }
+
+        $results = [];
+        $success_count = 0;
+        
+        foreach ($plugins as $slug) {
+            $result = false;
+            
+            // Controlla se è il plugin stesso (Marrison Custom Updater)
+            if ($slug === 'marrison-custom-updater') {
+                $transient = get_site_transient('update_plugins');
+                if (isset($transient->response[plugin_basename(__FILE__)])) {
+                    $update = $transient->response[plugin_basename(__FILE__)];
+                    $result = $this->perform_self_update($update->package);
+                }
+            } else {
+                $result = $this->perform_update($slug);
+            }
+            
+            $results[$slug] = $result;
+            if ($result) {
+                $success_count++;
+            }
+        }
+
+        if ($success_count > 0) {
+            wp_send_json_success([
+                'message' => sprintf('%d plugin aggiornati con successo', $success_count),
+                'results' => $results,
+                'success_count' => $success_count,
+                'total_count' => count($plugins)
+            ]);
+            
+            // Aggiorna il conteggio delle notifiche
+            $this->check_for_available_updates();
+        } else {
+            wp_send_json_error('Nessun plugin è stato aggiornato');
         }
     }
 
@@ -390,7 +638,7 @@ class Marrison_Custom_Updater {
 
     public function enqueue_admin_scripts($hook) {
         // Carica gli script solo sulla nostra pagina
-        if ($hook !== 'tools_page_marrison-updater') {
+        if ($hook !== 'toplevel_page_marrison-updater') {
             return;
         }
         
@@ -406,13 +654,15 @@ class Marrison_Custom_Updater {
     }
 
     public function add_admin_menu() {
-        add_submenu_page(
-            'tools.php',
+        // Aggiungi menu principale con icona carina
+        add_menu_page(
             'Marrison Updater',
-            'Marrison Updater',
+            'MCU',
             'manage_options',
             'marrison-updater',
-            [$this,'admin_page']
+            [$this,'admin_page'],
+            'dashicons-update', // Icona carina per aggiornamenti
+            30 // Posizione nel menu (dopo Dashboard e Media)
         );
     }
 
@@ -450,11 +700,11 @@ class Marrison_Custom_Updater {
             <?php endif; ?>
 
             <?php if ($bulkUpdated): ?>
-                <div class="notice notice-success"><p>Bulk update completato ✔</p></div>
+                <div class="notice notice-success"><p>Bulk update completato ✓</p></div>
             <?php endif; ?>
 
             <?php if (isset($_GET['cache_cleared'])): ?>
-                <div class="notice notice-info"><p>Cache pulita ✔</p></div>
+                <div class="notice notice-info"><p>Cache pulita ✓</p></div>
             <?php endif; ?>
 
             <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
@@ -485,7 +735,7 @@ class Marrison_Custom_Updater {
                             <td><?php echo esc_html($data['Version'] . ' → ' . $u['version']); ?></td>
                             <td>
                                 <?php if ($updated === $slug || in_array($slug, $bulkUpdated, true)): ?>
-                                    <strong style="color:green;">✔ Aggiornato</strong>
+                                    <strong style="color:green;">✓ Aggiornato</strong>
                                 <?php else: ?>
                                     <?php 
                                     $is_self_update = ($slug === 'marrison-custom-updater');
@@ -517,6 +767,38 @@ class Marrison_Custom_Updater {
 
                 <p>
                     <button class="button button-secondary">Aggiorna selezionati</button>
+                    <?php 
+                    // Controlla se ci sono plugin con auto-update attivati che hanno aggiornamenti
+                    $auto_update_plugins = (array) get_site_option('auto_update_plugins', []);
+                    $updates = $this->get_available_updates();
+                    $plugins = get_plugins();
+                    $auto_update_available = false;
+                    
+                    foreach ($updates as $u) {
+                        foreach ($plugins as $file => $data) {
+                            $slug = dirname($file);
+                            if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
+                            
+                            if ($slug === $u['slug'] && version_compare($data['Version'], $u['version'], '<')) {
+                                if (in_array($file, $auto_update_plugins)) {
+                                    $auto_update_available = true;
+                                    break 2;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if ($auto_update_available): 
+                        $auto_update_nonce = wp_create_nonce('marrison_auto_update');
+                    ?>
+                        <button type="button" class="button button-primary marrison-auto-update-btn" 
+                                data-nonce="<?php echo esc_attr($auto_update_nonce); ?>"
+                                style="margin-left: 10px;">
+                            <span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>
+                            Aggiorna tutti i plugin con auto-update
+                        </button>
+                    <?php endif; ?>
                 </p>
             </form>
 
@@ -614,7 +896,7 @@ class Marrison_Custom_Updater {
                             
                             if (response.success) {
                                 updateProgressBar(100, 'Aggiornamento completato!', 'Plugin aggiornato con successo');
-                                $btn.replaceWith('<strong style="color:green;">✔ Aggiornato</strong>');
+                                $btn.replaceWith('<strong style="color:green;">✓ Aggiornato</strong>');
                                 
                                 // Ricarica la pagina dopo 2 secondi per mostrare lo stato aggiornato
                                 setTimeout(function() {
@@ -636,33 +918,99 @@ class Marrison_Custom_Updater {
                     });
                 });
                 
-                // Gestione aggiornamento multiplo
-                $('form[action*="marrison_bulk_update"]').on('submit', function(e) {
+                // Gestione aggiornamento multiplo via AJAX - AGGIORNA UNO PER UNO
+                $('form input[name="action"][value="marrison_bulk_update"]').closest('form').on('submit', function(e) {
+                    e.preventDefault();
+                    console.log('Form submit intercettato');
+                    
                     var $checked = $('input[name="plugins[]"]:checked');
                     if ($checked.length === 0) {
-                        e.preventDefault();
+                        alert('Seleziona almeno un plugin da aggiornare');
                         return;
                     }
                     
-                    // Mostra la barra di caricamento per l'aggiornamento multiplo
+                    var plugins = [];
+                    $checked.each(function() {
+                        plugins.push($(this).val());
+                    });
+                    
+                    console.log('Plugin da aggiornare:', plugins);
+                    
+                    // Mostra la barra di caricamento
                     showProgressBar();
-                    updateProgressBar(0, 'Aggiornamento plugin selezionati...', '0 di ' + $checked.length + ' plugin');
+                    updateProgressBar(0, 'Preparazione aggiornamento...', 'Plugin selezionati: ' + plugins.length);
                     
-                    // Il form verrà inviato normalmente, ma mostriamo la barra di caricamento
-                    var total = $checked.length;
-                    var current = 0;
+                    // Nonce bulk generico (accettato da update_plugin_ajax)
+                    var bulkNonce = '<?php echo wp_create_nonce("marrison_bulk_update"); ?>';
                     
-                    // Simuliamo un progresso durante l'elaborazione del form
-                    var simulateProgress = setInterval(function() {
-                        current++;
-                        var percent = (current / total) * 100;
-                        updateProgressBar(percent, 'Aggiornamento plugin ' + current + ' di ' + total, 'Elaborazione in corso...');
-                        
-                        if (current >= total) {
-                            clearInterval(simulateProgress);
-                            updateProgressBar(100, 'Aggiornamento completato!', 'Tutti i plugin sono stati aggiornati');
+                    // Aggiorna i plugin uno per uno
+                    var currentIndex = 0;
+                    var successCount = 0;
+                    var failedPlugins = [];
+                    
+                    function updateNextPlugin() {
+                        if (currentIndex >= plugins.length) {
+                            // Tutti gli aggiornamenti completati
+                            console.log('Aggiornamenti completati. Successi: ' + successCount);
+                            
+                            if (successCount > 0) {
+                                updateProgressBar(100, 'Aggiornamento completato!', 'Aggiornati ' + successCount + ' di ' + plugins.length + ' plugin');
+                                
+                                // Aggiorna lo stato dei pulsanti
+                                plugins.forEach(function(slug) {
+                                    $('button[data-slug="' + slug + '"]').replaceWith('<strong style="color:green;">✓ Aggiornato</strong>');
+                                });
+                                
+                                // Ricarica dopo 2 secondi
+                                setTimeout(function() {
+                                    location.reload();
+                                }, 2000);
+                            } else {
+                                updateProgressBar(0, 'Errore durante l\'aggiornamento', 'Nessun plugin è stato aggiornato');
+                                hideProgressBar();
+                            }
+                            return;
                         }
-                    }, 500);
+                        
+                        var slug = plugins[currentIndex];
+                        var progressPercent = Math.round((currentIndex / plugins.length) * 100);
+                        
+                        // Aggiorna lo stato della barra
+                        updateProgressBar(progressPercent, 'Aggiornamento in corso...', 'Aggiornamento ' + (currentIndex + 1) + ' di ' + plugins.length + ': ' + slug);
+                        
+                        console.log('Aggiornamento plugin: ' + slug);
+                        
+                        // Esegui l'aggiornamento via AJAX
+                        $.ajax({
+                            url: marrisonUpdater.ajaxurl,
+                            type: 'POST',
+                            data: {
+                                action: 'marrison_update_plugin_ajax',
+                                slug: slug,
+                                nonce: bulkNonce
+                            },
+                            success: function(response) {
+                                console.log('Risposta AJAX per ' + slug + ':', response);
+                                if (response.success) {
+                                    successCount++;
+                                } else {
+                                    console.log('Errore per ' + slug + ':', response.data);
+                                    failedPlugins.push(slug);
+                                }
+                                currentIndex++;
+                                updateNextPlugin();
+                            },
+                            error: function(error) {
+                                console.log('Errore AJAX per ' + slug + ':', error);
+                                failedPlugins.push(slug);
+                                currentIndex++;
+                                updateNextPlugin();
+                            }
+                        });
+                    }
+                    
+                    // Avvia l'aggiornamento dei plugin
+                    updateNextPlugin();
                 });
                 
                 // Gestione checkbox "Seleziona tutto" (mantenuta dalla versione originale)
@@ -688,6 +1036,79 @@ class Marrison_Custom_Updater {
                         toggleCheckboxes(this);
                     });
                 }
+                
+                // Gestione aggiornamento automatico plugin
+                $('.marrison-auto-update-btn').on('click', function(e) {
+                    e.preventDefault();
+                    
+                    var $btn = $(this);
+                    var nonce = $btn.data('nonce');
+                    
+                    // Conferma prima di procedere
+                    if (!confirm('Sei sicuro di voler aggiornare tutti i plugin con aggiornamenti automatici attivati?')) {
+                        return;
+                    }
+                    
+                    // Disabilita il pulsante
+                    $btn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>Aggiornamento in corso...');
+                    
+                    // Mostra la barra di caricamento
+                    showProgressBar();
+                    
+                    // Simula progresso durante la preparazione
+                    var progress = 0;
+                    var progressInterval = setInterval(function() {
+                        progress += Math.random() * 8;
+                        if (progress > 85) progress = 85;
+                        updateProgressBar(progress, 'Ricerca plugin con auto-update...', 'Analizzando i plugin');
+                    }, 300);
+                    
+                    // Esegui l'aggiornamento via AJAX
+                    $.ajax({
+                        url: marrisonUpdater.ajaxurl,
+                        type: 'POST',
+                        data: {
+                            action: 'marrison_auto_update_ajax',
+                            nonce: nonce
+                        },
+                        success: function(response) {
+                            clearInterval(progressInterval);
+                            
+                            if (response.success) {
+                                updateProgressBar(100, 'Aggiornamento completato!', response.data.message);
+                                
+                                // Aggiorna i pulsanti per i plugin aggiornati
+                                var updatedSlugs = response.data.results || {};
+                                Object.keys(updatedSlugs).forEach(function(slug) {
+                                    if (updatedSlugs[slug]) {
+                                        $('button[data-slug="' + slug + '"]').replaceWith('<strong style="color:green;">✓ Aggiornato</strong>');
+                                    }
+                                });
+                                
+                                // Nascondi il pulsante auto-update se non ci sono più plugin con auto-update disponibili
+                                if (response.data.success_count > 0) {
+                                    $btn.fadeOut();
+                                }
+                                
+                                // Ricarica la pagina dopo 2 secondi per mostrare lo stato aggiornato
+                                setTimeout(function() {
+                                    location.reload();
+                                }, 2000);
+                            } else {
+                                updateProgressBar(0, 'Errore durante l\'aggiornamento', response.data || 'Si è verificato un errore');
+                                $btn.prop('disabled', false).html('<span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>Aggiorna tutti i plugin con auto-update');
+                            }
+                            
+                            hideProgressBar();
+                        },
+                        error: function() {
+                            clearInterval(progressInterval);
+                            updateProgressBar(0, 'Errore di connessione', 'Impossibile contattare il server');
+                            $btn.prop('disabled', false).html('<span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>Aggiorna tutti i plugin con auto-update');
+                            hideProgressBar();
+                        }
+                    });
+                });
             });
         </script>
         <?php
@@ -726,5 +1147,4 @@ add_action( 'upgrader_process_complete', function ( $upgrader, $hook_extra ) {
 
         break;
     }
-
 }, 10, 2 );
