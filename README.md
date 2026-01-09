@@ -1,1 +1,0 @@
-Stable tag: 1.6.5

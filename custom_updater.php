@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://marrisonlab.com
  * Description: Updater custom con repository remoto, update reale dei file, singolo e bulk.
- * Version: 1.6.5
+ * Version: 1.7
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -66,7 +66,54 @@ class Marrison_Custom_Updater {
             $transient->checked[$file] = $installed;
         }
 
+        // Controlla anche il plugin stesso da GitHub
+        $this->check_self_update($transient);
+
         return $transient;
+    }
+
+    private function check_self_update($transient) {
+        $plugin_file = plugin_basename(__FILE__);
+        $plugins = get_plugins();
+
+        if (!isset($plugins[$plugin_file])) return;
+
+        $installed = $plugins[$plugin_file]['Version'];
+        $remote = $this->get_github_version();
+
+        if ($remote && version_compare($installed, $remote, '<')) {
+            $transient->response[$plugin_file] = (object)[
+                'slug'        => 'marrison-custom-updater',
+                'new_version' => $remote,
+                'package'     => 'https://github.com/marrisonlab/Marrison-Custom-Updater/archive/refs/tags/v' . $remote . '.zip',
+                'url'         => 'https://github.com/marrisonlab/Marrison-Custom-Updater',
+                'plugin'      => $plugin_file,
+                'tested'      => '6.4',
+                'requires_php' => '7.4',
+            ];
+        }
+
+        $transient->checked[$plugin_file] = $installed;
+    }
+
+    private function get_github_version() {
+        $cached = get_transient('marrison_github_version');
+        if ($cached !== false) return $cached;
+
+        $response = wp_remote_get('https://api.github.com/repos/marrisonlab/marrison-custom-updater/releases/latest', [
+            'timeout' => 10,
+            'headers' => ['Accept' => 'application/vnd.github.v3+json']
+        ]);
+
+        if (is_wp_error($response)) return false;
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        if (empty($body['tag_name'])) return false;
+
+        $version = str_replace('v', '', $body['tag_name']);
+        set_transient('marrison_github_version', $version, 6 * HOUR_IN_SECONDS);
+
+        return $version;
     }
 
     private function find_plugin_file($slug) {
@@ -80,10 +127,61 @@ class Marrison_Custom_Updater {
 
     public function plugin_info($false, $action, $args) {
         if ($action !== 'plugin_information') return $false;
-        foreach ($this->get_available_updates() as $update) {
-            if ($update['slug'] === $args->slug) return (object)$update;
+        
+        // Controlla se è il nostro plugin
+        if ($args->slug !== 'marrison-custom-updater') return $false;
+
+        // Leggi le informazioni dal readme.txt su GitHub
+        $response = wp_remote_get('https://raw.githubusercontent.com/marrisonlab/marrison-custom-updater/stable/readme.txt', [
+            'timeout' => 10
+        ]);
+
+        if (is_wp_error($response)) return $false;
+
+        $readme = wp_remote_retrieve_body($response);
+        if (empty($readme)) return $false;
+
+        // Parsa il readme.txt
+        return $this->parse_readme($readme);
+    }
+
+    private function parse_readme($readme) {
+        $info = new stdClass();
+        
+        // Estrai la descrizione
+        if (preg_match('/== Description ==\s*(.*?)\s*== /s', $readme, $match)) {
+            $info->description = trim($match[1]);
         }
-        return $false;
+
+        // Estrai il changelog
+        if (preg_match('/== Changelog ==\s*(.*?)$/s', $readme, $match)) {
+            $info->changelog = trim($match[1]);
+        }
+
+        // Dati base
+        $info->name = 'Marrison Custom Updater';
+        $info->slug = 'marrison-custom-updater';
+        $info->version = $this->get_github_version();
+        $info->author = 'Angelo Marra';
+        $info->author_profile = 'https://marrisonlab.com';
+        $info->plugin_url = 'https://github.com/marrisonlab/marrison-custom-updater';
+        $info->download_url = 'https://github.com/marrisonlab/marrison-custom-updater/archive/refs/tags/v' . $info->version . '.zip';
+        $info->requires_php = '7.4';
+        $info->requires = '5.0';
+        $info->tested = '6.4';
+        $info->last_updated = current_time('mysql');
+        $info->homepage = 'https://marrisonlab.com';
+        $info->active_installs = 0;
+        $info->rating = 100;
+        $info->ratings = array(5 => 100);
+        $info->num_ratings = 0;
+        $info->support_url = 'https://github.com/marrisonlab/marrison-custom-updater/issues';
+        $info->sections = array(
+            'description' => $info->description,
+            'changelog' => $info->changelog
+        );
+
+        return $info;
     }
 
     /* ===================== PLUGIN ACTION LINKS ===================== */
@@ -146,6 +244,42 @@ class Marrison_Custom_Updater {
         }
 
         return false;
+    }
+
+    private function perform_self_update($download_url) {
+        global $wp_filesystem;
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        WP_Filesystem();
+
+        if (!$wp_filesystem) return false;
+
+        $zip = download_url($download_url);
+        if (is_wp_error($zip)) return false;
+
+        $upgrade_dir = WP_CONTENT_DIR . '/upgrade/marrison-custom-updater-temp';
+        wp_mkdir_p($upgrade_dir);
+
+        unzip_file($zip, $upgrade_dir);
+        unlink($zip);
+
+        // Trova la cartella estratta (potrebbe avere nome diverso come marrison-custom-updater-v1.5)
+        $dirs = glob($upgrade_dir . '/*', GLOB_ONLYDIR);
+        if (empty($dirs)) return false;
+
+        $source = trailingslashit($dirs[0]);
+        $dest   = trailingslashit(WP_PLUGIN_DIR . '/marrison-custom-updater');
+
+        if ($wp_filesystem->is_dir($dest)) {
+            $wp_filesystem->delete($dest, true);
+        }
+
+        copy_dir($source, $dest);
+        $wp_filesystem->delete($upgrade_dir, true);
+
+        delete_site_transient('update_plugins');
+        wp_clean_plugins_cache(true);
+
+        return true;
     }
 
     /* ===================== ACTIONS ===================== */
