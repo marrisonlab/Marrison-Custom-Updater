@@ -8,22 +8,25 @@ Stable tag: 2.2
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
+
 == Description ==
+
 This plugin is used to add a personal repository for updating plugins.
 
 
 == Installation ==
-Download the plugin zip file from the latest release on GitHub.
 
-Log in to your WordPress admin dashboard.
+Download the file marrison-custom-updater-stable.zip.
 
-Go to Plugins then select Add New.
+Extract the folder named marrison-custom-updater-stable.
 
-Click on the Upload Plugin button at the top of the page.
+Rename the folder to marrison-custom-updater.
 
-Choose the zip file you just downloaded and click Install Now.
+Compress the folder into a new zip file.
 
-Once the installation is complete, click on Activate Plugin.
+Upload the plugin to WordPress and activate it.
+
+
 == Changelog ==
 
 = 2.2 =
