@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: Marrison Custom Updater
- * Plugin URI: https://marrisonlab.com
+ * Plugin URI:  https://marrisonlab.com
  * Description: Updater custom con repository remoto, update reale dei file, singolo e bulk.
- * Version: 1.4.7
+ * Version: 1.5
  * Author: Angelo Marra
- * Author URI: https://marrisonlab.com
+ * Author URI:  https://marrisonlab.com
  */
 
 class Marrison_Custom_Updater {
@@ -21,6 +21,9 @@ class Marrison_Custom_Updater {
         add_action('admin_post_marrison_update_plugin', [$this, 'update_plugin']);
         add_action('admin_post_marrison_bulk_update', [$this, 'bulk_update']);
         add_action('admin_post_marrison_clear_cache', [$this, 'clear_cache']);
+        
+        // Hook per aggiungere link al plugin Marrison Updater nella pagina dei plugin
+        add_filter('plugin_action_links', [$this, 'add_marrison_action_links'], 10, 2);
     }
 
     /* ===================== UPDATE SOURCE ===================== */
@@ -81,6 +84,24 @@ class Marrison_Custom_Updater {
             if ($update['slug'] === $args->slug) return (object)$update;
         }
         return $false;
+    }
+
+    /* ===================== PLUGIN ACTION LINKS ===================== */
+
+    public function add_marrison_action_links($actions, $plugin_file) {
+        // Controlla se è il file del plugin Marrison Custom Updater
+        if (strpos($plugin_file, 'custom_updater.php') === false && strpos($plugin_file, 'marrison') === false) {
+            return $actions;
+        }
+
+        // Link alla pagina del Marrison Updater
+        $actions['marrison_settings'] = sprintf(
+            '<a href="%s">%s</a>',
+            esc_url(admin_url('tools.php?page=marrison-updater')),
+            esc_html__('Impostazioni', 'marrison-custom-updater')
+        );
+
+        return $actions;
     }
 
     /* ===================== REAL UPDATE ENGINE ===================== */
@@ -177,12 +198,6 @@ class Marrison_Custom_Updater {
         );
     }
 
-    public function add_action_links($links) {
-        $settings_link = '<a href="' . admin_url('tools.php?page=marrison-updater') . '">Impostazioni</a>';
-        array_unshift($links, $settings_link);
-        return $links;
-    }
-
     public function admin_page() {
 
         $updates     = $this->get_available_updates();
@@ -196,11 +211,11 @@ class Marrison_Custom_Updater {
             <h1>Marrison Updater</h1>
 
             <?php if ($bulkUpdated): ?>
-                <div class="notice notice-success"><p>Bulk update completato ✓</p></div>
+                <div class="notice notice-success"><p>Bulk update completato ✔</p></div>
             <?php endif; ?>
 
             <?php if (isset($_GET['cache_cleared'])): ?>
-                <div class="notice notice-info"><p>Cache pulita ✓</p></div>
+                <div class="notice notice-info"><p>Cache pulita ✔</p></div>
             <?php endif; ?>
 
             <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
@@ -231,7 +246,7 @@ class Marrison_Custom_Updater {
                             <td><?php echo esc_html($data['Version'] . ' → ' . $u['version']); ?></td>
                             <td>
                                 <?php if ($updated === $slug || in_array($slug, $bulkUpdated, true)): ?>
-                                    <strong style="color:green;">✓ Aggiornato</strong>
+                                    <strong style="color:green;">✔ Aggiornato</strong>
                                 <?php else: ?>
                                     <a class="button button-primary"
                                        href="<?php echo wp_nonce_url(
