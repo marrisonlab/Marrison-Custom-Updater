@@ -1,7 +1,7 @@
 === Marrison Custom Updater ===
 Contributors: Angelo Marra
 Tags: updater, plugin-updates
-Requires at least: 5.0
+Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
 Stable tag: 5.0
@@ -29,5 +29,5 @@ Upload the plugin to WordPress and activate it.
 
 == Changelog ==
 
-= 5.0 =
+= 6.0 =
 Gamma version

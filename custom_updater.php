@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 5.0
+ * Version: 6.0
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -12,6 +12,7 @@ class Marrison_Custom_Updater {
 
     private $updates_url = 'https://marrisonlab.com/wp-repo/';
     private $cache_duration = 6 * HOUR_IN_SECONDS;
+    private $runtime_permissions_cache = null;
 
     public function __construct() {
         // Usa site_transient_update_plugins invece di pre_set_site_transient_update_plugins
@@ -27,6 +28,7 @@ class Marrison_Custom_Updater {
         add_action('admin_post_marrison_save_repo_url', [$this, 'save_repo_url']);
         add_action('admin_post_marrison_force_check_mcu', [$this, 'force_check_mcu']);
         add_action('admin_post_marrison_bulk_install', [$this, 'bulk_install']);
+        add_action('admin_post_marrison_check_permissions', [$this, 'check_permissions_action']);
         
         // Hook per AJAX
         add_action('wp_ajax_marrison_update_plugin_ajax', [$this, 'update_plugin_ajax']);
@@ -62,6 +64,66 @@ class Marrison_Custom_Updater {
             return true;
         }
         return $update;
+    }
+
+    /* ===================== PERMISSIONS CHECK ===================== */
+
+    public function check_permissions_action() {
+        check_admin_referer('marrison_check_permissions');
+        delete_transient('marrison_remote_permissions');
+        
+        $redirect = !empty($_REQUEST['redirect_to']) ? $_REQUEST['redirect_to'] : admin_url('admin.php?page=marrison-updater');
+        wp_redirect($redirect);
+        exit;
+    }
+
+    private function check_remote_permissions() {
+        // Cache runtime (per singola richiesta) per evitare chiamate multiple nella stessa pagina
+        if ($this->runtime_permissions_cache !== null) {
+            return $this->runtime_permissions_cache;
+        }
+
+        // NOTA: Cache persistente (transient) rimossa per garantire controllo in tempo reale
+
+        $current_domain = parse_url(get_site_url(), PHP_URL_HOST);
+        // Remove www. if present for better matching
+        $current_domain = preg_replace('/^www\./', '', $current_domain);
+
+        $response = wp_remote_get('https://www.marrisonlab.com/wp-json/custom-api/v1/gestione-siti', ['timeout' => 15]);
+        
+        $permissions = [
+            'updater' => false,
+            'installer' => false
+        ];
+
+        if (is_wp_error($response)) {
+            $this->runtime_permissions_cache = $permissions;
+            return $permissions;
+        }
+
+        $data = json_decode(wp_remote_retrieve_body($response), true);
+        
+        if (!is_array($data)) {
+            $this->runtime_permissions_cache = $permissions;
+            return $permissions;
+        }
+
+        foreach ($data as $site) {
+            if (!isset($site['url'])) continue;
+            
+            $site_url = $site['url'];
+            // Normalize site url
+            $site_url = preg_replace('/^www\./', '', $site_url);
+            
+            if ($site_url === $current_domain) {
+                $permissions['updater'] = isset($site['updater']) ? filter_var($site['updater'], FILTER_VALIDATE_BOOLEAN) : false;
+                $permissions['installer'] = isset($site['installer']) ? filter_var($site['installer'], FILTER_VALIDATE_BOOLEAN) : false;
+                break;
+            }
+        }
+
+        $this->runtime_permissions_cache = $permissions;
+        return $permissions;
     }
 
     /* ===================== AUTO UPDATE AJAX HANDLER ===================== */
@@ -709,48 +771,87 @@ class Marrison_Custom_Updater {
     }
 
     private function perform_restore($filename) {
-        $backup_dir = $this->get_backup_dir();
-        $zip_file = $backup_dir . '/' . $filename;
+        try {
+            $backup_dir = $this->get_backup_dir();
+            $zip_file = $backup_dir . '/' . $filename;
 
-        if (!file_exists($zip_file)) {
-            return new WP_Error('not_found', 'Backup not found');
-        }
-        
-        // Estrai slug dal filename
-        $slug = '';
-        if (preg_match('/^(.*)-v(.*)-backup\.zip$/', $filename, $matches)) {
-            $slug = $matches[1];
-        } else {
-            $slug = str_replace('-backup.zip', '', $filename);
-        }
-
-        global $wp_filesystem;
-        require_once ABSPATH . 'wp-admin/includes/file.php';
-        WP_Filesystem();
-
-        if (!$wp_filesystem) return new WP_Error('fs_error', 'Filesystem error');
-
-        // Elimina plugin corrente
-        $dest = WP_PLUGIN_DIR . '/' . $slug;
-        if ($wp_filesystem->is_dir($dest)) {
-            if (!$wp_filesystem->delete($dest, true)) {
-                // Se fallisce, potrebbe essere in uso (Windows). 
-                // Proviamo a continuare, unzip potrebbe sovrascrivere.
+            if (!file_exists($zip_file)) {
+                return new WP_Error('not_found', 'Backup not found');
             }
+            
+            // Estrai slug dal filename
+            $slug = '';
+            if (preg_match('/^(.*)-v(.*)-backup\.zip$/', $filename, $matches)) {
+                $slug = $matches[1];
+            } else {
+                $slug = str_replace('-backup.zip', '', $filename);
+            }
+            
+            if (empty($slug) || strpos($slug, '.') !== false || strpos($slug, '/') !== false || strpos($slug, '\\') !== false) {
+                 return new WP_Error('invalid_slug', 'Invalid plugin slug derived from filename');
+            }
+
+            global $wp_filesystem;
+            if (!function_exists('WP_Filesystem')) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+            }
+            
+            // Tenta inizializzazione Filesystem
+            if ( ! WP_Filesystem() ) {
+                return new WP_Error('fs_error', 'Filesystem error - Could not initialize');
+            }
+
+            if (!$wp_filesystem) {
+                return new WP_Error('fs_error', 'Filesystem error - Object is null');
+            }
+
+            // Elimina plugin corrente
+            $dest = WP_PLUGIN_DIR . '/' . $slug;
+            
+            // Protezione extra
+            if (realpath($dest) === realpath(WP_PLUGIN_DIR)) {
+                 return new WP_Error('invalid_dest', 'Destination invalid');
+            }
+
+            if ($wp_filesystem->is_dir($dest)) {
+                // Tenta cancellazione diretta
+                $deleted = $wp_filesystem->delete($dest, true);
+                
+                // Se fallisce (es. Windows file lock), prova strategia move-then-delete
+                if (!$deleted) {
+                     $trash_dir = WP_PLUGIN_DIR . '/.' . $slug . '_trash_' . time();
+                     if ($wp_filesystem->move($dest, $trash_dir)) {
+                         // Se spostato con successo, prova a cancellare il trash (se fallisce non importa, è nascosto)
+                         $wp_filesystem->delete($trash_dir, true);
+                     } else {
+                         // Se non riesco nemmeno a spostare, potrebbe fallire unzip se non sovrascrive tutto
+                         // Ma proviamo comunque a continuare
+                     }
+                }
+            }
+
+            // Estrai backup
+            $result = unzip_file($zip_file, WP_PLUGIN_DIR);
+
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            // Pulisce cache
+            delete_site_transient('update_plugins');
+            wp_clean_plugins_cache(true);
+
+            // Pulisce OPcache se attiva per evitare di servire file vecchi/misti
+            if (function_exists('opcache_reset')) {
+                @opcache_reset();
+            }
+
+            return $slug;
+        } catch (Throwable $e) {
+            return new WP_Error('exception', 'Critical error during restore: ' . $e->getMessage());
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Exception during restore: ' . $e->getMessage());
         }
-
-        // Estrai backup
-        $result = unzip_file($zip_file, WP_PLUGIN_DIR);
-
-        if (is_wp_error($result)) {
-            return $result;
-        }
-        
-        // Pulisce cache
-        delete_site_transient('update_plugins');
-        wp_clean_plugins_cache(true);
-
-        return $slug;
     }
 
     /* ===================== ACTIONS ===================== */
@@ -1074,6 +1175,25 @@ class Marrison_Custom_Updater {
     }
 
     public function installer_page() {
+        // Controllo permessi remoti
+        $permissions = $this->check_remote_permissions();
+        
+        if (!$permissions['installer']) {
+            ?>
+            <div class="wrap">
+                <h1>Installer - Repository Privato</h1>
+                <div class="notice notice-error"><p>Non sei autorizzato a visualizzare questa pagina.</p></div>
+                <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                    <?php wp_nonce_field('marrison_check_permissions'); ?>
+                    <input type="hidden" name="action" value="marrison_check_permissions">
+                    <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater-installer')); ?>">
+                    <button class="button button-secondary">Verifica permessi</button>
+                </form>
+            </div>
+            <?php
+            return;
+        }
+
         $updates = $this->get_available_updates();
         $plugins = get_plugins();
         $installed_slugs = $_GET['installed'] ?? [];
@@ -1446,6 +1566,25 @@ class Marrison_Custom_Updater {
     }
 
     public function admin_page() {
+
+        // Controllo permessi remoti
+        $permissions = $this->check_remote_permissions();
+        
+        if (!$permissions['updater']) {
+            ?>
+            <div class="wrap">
+                <h1>Marrison Updater</h1>
+                <div class="notice notice-error"><p>Non sei autorizzato a visualizzare questa pagina.</p></div>
+                <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                    <?php wp_nonce_field('marrison_check_permissions'); ?>
+                    <input type="hidden" name="action" value="marrison_check_permissions">
+                    <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater')); ?>">
+                    <button class="button button-secondary">Verifica permessi</button>
+                </form>
+            </div>
+            <?php
+            return;
+        }
 
         $updates     = $this->get_available_updates();
         $plugins     = get_plugins();
