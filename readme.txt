@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 6.1
+Stable tag: 6.2
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -29,5 +29,8 @@ Upload the plugin to WordPress and activate it.
 
 == Changelog ==
 
-= 6.1 =
-Gamma version
+= 6.2 =
+* Removed authorization logic from JSON response
+* Removed Installer component (kept Updater only)
+* Updated plugin icon to use icon.svg with native WordPress style
+* Removed default private repository URL (configuration required)

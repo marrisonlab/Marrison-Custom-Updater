@@ -3,14 +3,14 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 6.1
+ * Version: 6.2
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
 
 class Marrison_Custom_Updater {
 
-    private $updates_url = 'https://marrisonlab.com/wp-repo/';
+    private $updates_url = '';
     private $cache_duration = 6 * HOUR_IN_SECONDS;
     private $runtime_permissions_cache = null;
 
@@ -278,8 +278,13 @@ class Marrison_Custom_Updater {
     /* ===================== UPDATE SOURCE ===================== */
 
     private function get_available_updates() {
-        $custom_repo_url = get_option('marrison_repo_url');
-        $repo_url = !empty($custom_repo_url) ? trailingslashit($custom_repo_url) : $this->updates_url;
+        $repo_url = get_option('marrison_repo_url');
+        
+        if (empty($repo_url)) {
+            return [];
+        }
+        
+        $repo_url = trailingslashit($repo_url);
 
         // Prova a recuperare la cache
         $cached = get_transient('marrison_available_updates');
@@ -880,8 +885,14 @@ class Marrison_Custom_Updater {
             $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=removed');
         } else {
             $url = sanitize_url($_POST['marrison_repo_url']);
-            update_option('marrison_repo_url', $url);
-            $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=saved');
+            
+            if (empty($url)) {
+                delete_option('marrison_repo_url');
+                $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=removed');
+            } else {
+                update_option('marrison_repo_url', $url);
+                $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=saved');
+            }
         }
 
         // Pulisce la cache dopo aver modificato l'URL
@@ -1085,7 +1096,7 @@ class Marrison_Custom_Updater {
                     <tr>
                         <th scope="row"><label for="marrison_repo_url">Indirizzo Repository</label></th>
                         <td>
-                            <input type="url" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo esc_attr(get_option('marrison_repo_url', $this->updates_url)); ?>" class="regular-text">
+                            <input type="url" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo esc_attr(get_option('marrison_repo_url', '')); ?>" class="regular-text" placeholder="https://example.com/wp-repo/">
                             <p class="description">Inserisci l'URL del repository personalizzato.</p>
                         </td>
                     </tr>
