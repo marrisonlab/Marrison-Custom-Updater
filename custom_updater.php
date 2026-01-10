@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 6.0
+ * Version: 6.1
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -27,8 +27,6 @@ class Marrison_Custom_Updater {
         add_action('admin_post_marrison_clear_cache', [$this, 'clear_cache']);
         add_action('admin_post_marrison_save_repo_url', [$this, 'save_repo_url']);
         add_action('admin_post_marrison_force_check_mcu', [$this, 'force_check_mcu']);
-        add_action('admin_post_marrison_bulk_install', [$this, 'bulk_install']);
-        add_action('admin_post_marrison_check_permissions', [$this, 'check_permissions_action']);
         
         // Hook per AJAX
         add_action('wp_ajax_marrison_update_plugin_ajax', [$this, 'update_plugin_ajax']);
@@ -68,62 +66,11 @@ class Marrison_Custom_Updater {
 
     /* ===================== PERMISSIONS CHECK ===================== */
 
-    public function check_permissions_action() {
-        check_admin_referer('marrison_check_permissions');
-        delete_transient('marrison_remote_permissions');
-        
-        $redirect = !empty($_REQUEST['redirect_to']) ? $_REQUEST['redirect_to'] : admin_url('admin.php?page=marrison-updater');
-        wp_redirect($redirect);
-        exit;
-    }
-
     private function check_remote_permissions() {
-        // Cache runtime (per singola richiesta) per evitare chiamate multiple nella stessa pagina
-        if ($this->runtime_permissions_cache !== null) {
-            return $this->runtime_permissions_cache;
-        }
-
-        // NOTA: Cache persistente (transient) rimossa per garantire controllo in tempo reale
-
-        $current_domain = parse_url(get_site_url(), PHP_URL_HOST);
-        // Remove www. if present for better matching
-        $current_domain = preg_replace('/^www\./', '', $current_domain);
-
-        $response = wp_remote_get('https://www.marrisonlab.com/wp-json/custom-api/v1/gestione-siti', ['timeout' => 15]);
-        
-        $permissions = [
-            'updater' => false,
+        return [
+            'updater' => true,
             'installer' => false
         ];
-
-        if (is_wp_error($response)) {
-            $this->runtime_permissions_cache = $permissions;
-            return $permissions;
-        }
-
-        $data = json_decode(wp_remote_retrieve_body($response), true);
-        
-        if (!is_array($data)) {
-            $this->runtime_permissions_cache = $permissions;
-            return $permissions;
-        }
-
-        foreach ($data as $site) {
-            if (!isset($site['url'])) continue;
-            
-            $site_url = $site['url'];
-            // Normalize site url
-            $site_url = preg_replace('/^www\./', '', $site_url);
-            
-            if ($site_url === $current_domain) {
-                $permissions['updater'] = isset($site['updater']) ? filter_var($site['updater'], FILTER_VALIDATE_BOOLEAN) : false;
-                $permissions['installer'] = isset($site['installer']) ? filter_var($site['installer'], FILTER_VALIDATE_BOOLEAN) : false;
-                break;
-            }
-        }
-
-        $this->runtime_permissions_cache = $permissions;
-        return $permissions;
     }
 
     /* ===================== AUTO UPDATE AJAX HANDLER ===================== */
@@ -270,6 +217,21 @@ class Marrison_Custom_Updater {
     public function add_menu_badge_styles() {
         ?>
         <style>
+        #toplevel_page_marrison-updater .wp-menu-image img {
+            display: none;
+        }
+        #toplevel_page_marrison-updater .wp-menu-image {
+            background-color: currentColor !important;
+            -webkit-mask-image: url('<?php echo plugin_dir_url(__FILE__) . 'icon.svg'; ?>');
+            mask-image: url('<?php echo plugin_dir_url(__FILE__) . 'icon.svg'; ?>');
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+            -webkit-mask-position: center;
+            mask-position: center;
+            -webkit-mask-size: 20px auto;
+            mask-size: 20px auto;
+        }
+
         .marrison-update-badge {
             display: inline-block;
             background-color: #d63638;
@@ -881,22 +843,6 @@ class Marrison_Custom_Updater {
         exit;
     }
 
-    public function bulk_install() {
-        check_admin_referer('marrison_bulk_install');
-
-        $installed = [];
-        foreach ($_POST['plugins'] ?? [] as $slug) {
-            // perform_update gestisce anche l'installazione (scarica e copia)
-            if ($this->perform_update(sanitize_text_field($slug))) {
-                $installed[] = $slug;
-            }
-        }
-
-        $query = http_build_query(['installed' => $installed]);
-        wp_redirect(admin_url('admin.php?page=marrison-updater-installer&' . $query));
-        exit;
-    }
-
     public function clear_cache() {
         check_admin_referer('marrison_clear_cache');
         delete_transient('marrison_available_updates');
@@ -1076,7 +1022,7 @@ class Marrison_Custom_Updater {
             'manage_options',
             'marrison-updater',
             [$this,'admin_page'],
-            'dashicons-update', // Icona carina per aggiornamenti
+            plugin_dir_url(__FILE__) . 'icon.svg', // Icona personalizzata
             30 // Posizione nel menu (dopo Dashboard e Media)
         );
 
@@ -1108,16 +1054,6 @@ class Marrison_Custom_Updater {
             'manage_options',
             'marrison-updater-backups',
             [$this, 'backup_page']
-        );
-
-        // Sottomenu Installer
-        add_submenu_page(
-            'marrison-updater',
-            'Installer',
-            'Installer',
-            'manage_options',
-            'marrison-updater-installer',
-            [$this, 'installer_page']
         );
     }
 
@@ -1170,195 +1106,6 @@ class Marrison_Custom_Updater {
                 <button class="button button-secondary">Forza controllo aggiornamenti MCU</button>
                 <p class="description">Usa questo pulsante se hai appena rilasciato una nuova versione su GitHub e non viene rilevata.</p>
             </form>
-        </div>
-        <?php
-    }
-
-    public function installer_page() {
-        // Controllo permessi remoti
-        $permissions = $this->check_remote_permissions();
-        
-        if (!$permissions['installer']) {
-            ?>
-            <div class="wrap">
-                <h1>Installer - Repository Privato</h1>
-                <div class="notice notice-error"><p>Non sei autorizzato a visualizzare questa pagina.</p></div>
-                <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
-                    <?php wp_nonce_field('marrison_check_permissions'); ?>
-                    <input type="hidden" name="action" value="marrison_check_permissions">
-                    <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater-installer')); ?>">
-                    <button class="button button-secondary">Verifica permessi</button>
-                </form>
-            </div>
-            <?php
-            return;
-        }
-
-        $updates = $this->get_available_updates();
-        $plugins = get_plugins();
-        $installed_slugs = $_GET['installed'] ?? [];
-        if (!is_array($installed_slugs)) $installed_slugs = [$installed_slugs];
-        ?>
-        <div class="wrap">
-            <h1>Installer - Repository Privato</h1>
-
-            <?php if (!empty($installed_slugs)): ?>
-                <div class="notice notice-success is-dismissible">
-                    <p><?php echo count($installed_slugs); ?> plugin installati con successo.</p>
-                </div>
-            <?php endif; ?>
-
-            <!-- Barra di caricamento installazione -->
-            <div id="marrison-install-progress" class="notice notice-info" style="display:none; padding: 15px; margin: 20px 0;">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div class="spinner is-active" style="float:none; width:20px; height:20px; margin:0;"></div>
-                    <div style="flex: 1;">
-                        <div id="marrison-install-status" style="font-weight: 600; margin-bottom: 8px;">Installazione in corso...</div>
-                        <div style="background: #f0f0f1; border-radius: 4px; height: 8px; overflow: hidden;">
-                            <div id="marrison-install-bar" style="background: #2271b1; height: 100%; width: 0%; transition: width 0.3s ease;"></div>
-                        </div>
-                        <div id="marrison-install-info" style="font-size: 12px; color: #646970; margin-top: 4px;">In attesa...</div>
-                    </div>
-                </div>
-            </div>
-
-            <form id="marrison-install-form" method="post" action="<?php echo admin_url('admin-post.php'); ?>">
-                <?php wp_nonce_field('marrison_bulk_install'); ?>
-                <input type="hidden" name="action" value="marrison_bulk_install">
-
-                <div class="tablenav top">
-                    <div class="alignleft actions">
-                        <label style="font-weight: 600;"><input type="checkbox" id="marrison-select-all"> Seleziona tutti</label>
-                    </div>
-                    <div class="alignleft actions">
-                         <button type="submit" id="marrison-install-btn" class="button button-primary">Installa selezionati</button>
-                    </div>
-                </div>
-
-                <div class="marrison-grid-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px;">
-                    <?php if (empty($updates)): ?>
-                        <p>Nessun plugin disponibile nel repository.</p>
-                    <?php else: ?>
-                        <?php foreach ($updates as $u): 
-                            if (!isset($u['slug'])) continue;
-                            
-                            $slug = $u['slug'];
-                            $plugin_file = $this->find_plugin_file($slug);
-                            $is_installed = !empty($plugin_file);
-                            $is_active = $is_installed && is_plugin_active($plugin_file);
-                            
-                            // Disabilita se installato (sia attivo che inattivo)
-                            $disabled = $is_installed;
-                            $card_style = $disabled ? 'opacity: 0.6; background: #f6f7f7;' : 'background: #fff;';
-                            $card_style .= ' border: 1px solid #c3c4c7; padding: 12px; border-radius: 4px; box-shadow: 0 1px 1px rgba(0,0,0,.04); position: relative;';
-                        ?>
-                            <div class="marrison-plugin-card" style="<?php echo $card_style; ?>">
-                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                                    <h3 style="margin: 0; font-size: 1em; line-height: 1.3;"><?php echo esc_html($u['name']); ?></h3>
-                                    <?php if (!$disabled): ?>
-                                        <input type="checkbox" name="plugins[]" value="<?php echo esc_attr($slug); ?>" class="marrison-plugin-cb" style="transform: scale(1.1);">
-                                    <?php else: ?>
-                                        <input type="checkbox" disabled checked style="transform: scale(1.1);">
-                                    <?php endif; ?>
-                                </div>
-                                
-                                <p style="margin: 4px 0; font-size: 0.9em;"><strong>v</strong> <?php echo esc_html($u['version']); ?></p>
-                                
-                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #f0f0f1; font-size: 0.85em;">
-                                    <?php if ($is_active): ?>
-                                        <span class="dashicons dashicons-yes" style="color: #00a32a; font-size: 16px; width: 16px; height: 16px;"></span> <span style="color: #00a32a; font-weight: 600;">Attivo</span>
-                                    <?php elseif ($is_installed): ?>
-                                        <span class="dashicons dashicons-warning" style="color: #dba617; font-size: 16px; width: 16px; height: 16px;"></span> <span style="color: #dba617; font-weight: 600;">Installato (Inattivo)</span>
-                                    <?php else: ?>
-                                        <span class="dashicons dashicons-download" style="color: #2271b1; font-size: 16px; width: 16px; height: 16px;"></span> <span style="color: #2271b1; font-weight: 600;">Disponibile</span>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </form>
-            
-            <script>
-            jQuery(document).ready(function($) {
-                // Seleziona tutto
-                $('#marrison-select-all').on('change', function() {
-                    $('.marrison-plugin-cb').prop('checked', $(this).is(':checked'));
-                });
-
-                // Gestione installazione AJAX
-                $('#marrison-install-form').on('submit', function(e) {
-                    var selected = $('.marrison-plugin-cb:checked');
-                    if (selected.length === 0) {
-                        alert('Seleziona almeno un plugin da installare.');
-                        return false;
-                    }
-
-                    // Se confermato, procedi con AJAX
-                    e.preventDefault();
-                    
-                    var plugins = [];
-                    selected.each(function() {
-                        plugins.push($(this).val());
-                    });
-
-                    var total = plugins.length;
-                    var processed = 0;
-                    var success = 0;
-
-                    // Mostra barra di progresso
-                    $('#marrison-install-progress').slideDown();
-                    $('#marrison-install-btn').prop('disabled', true).text('Installazione in corso...');
-                    $('.marrison-plugin-cb').prop('disabled', true);
-
-                    function processNext() {
-                        if (processed >= total) {
-                            // Finito
-                            $('#marrison-install-status').text('Completato!');
-                            $('#marrison-install-info').text(success + ' su ' + total + ' plugin installati correttamente. Ricaricamento...');
-                            setTimeout(function() {
-                                location.reload();
-                            }, 1500);
-                            return;
-                        }
-
-                        var slug = plugins[processed];
-                        var percent = Math.round((processed / total) * 100);
-                        
-                        $('#marrison-install-bar').css('width', percent + '%');
-                        $('#marrison-install-info').text('Installazione di ' + slug + ' (' + (processed + 1) + '/' + total + ')...');
-
-                        $.ajax({
-                            url: ajaxurl,
-                            type: 'POST',
-                            data: {
-                                action: 'marrison_update_plugin_ajax', // Usiamo lo stesso handler dell'aggiornamento
-                                slug: slug,
-                                nonce: '<?php echo wp_create_nonce("marrison_bulk_update"); ?>' // Usa nonce bulk generico
-                            },
-                            success: function(response) {
-                                if (response.success) {
-                                    success++;
-                                } else {
-                                    console.error('Errore installazione ' + slug + ':', response);
-                                }
-                            },
-                            error: function(xhr, status, error) {
-                                console.error('Errore AJAX ' + slug + ':', error);
-                            },
-                            complete: function() {
-                                processed++;
-                                $('#marrison-install-bar').css('width', Math.round((processed / total) * 100) + '%');
-                                processNext();
-                            }
-                        });
-                    }
-
-                    // Avvia processo
-                    processNext();
-                });
-            });
-            </script>
         </div>
         <?php
     }
