@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 7.0
+Stable tag: 7.1
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -28,6 +28,10 @@ Upload the plugin to WordPress and activate it.
 
 
 == Changelog ==
+
+= 7.1 =
+* Rimossa URL di default della repository.
+* Correzioni e miglioramenti minori.
 
 = 7.0 =
 * Rimossa autorizzazione tramite JSON.

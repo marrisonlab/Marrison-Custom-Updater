@@ -1,16 +1,16 @@
-﻿<?php
+<?php
 /**
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 7.0
+ * Version: 7.1
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
 
 class Marrison_Custom_Updater {
 
-    private $updates_url = 'https://marrisonlab.com/wp-repo/';
+    private $updates_url = '';
     private $cache_duration = 6 * HOUR_IN_SECONDS;
 
     public function __construct() {
@@ -259,6 +259,8 @@ class Marrison_Custom_Updater {
     private function get_available_updates() {
         $custom_repo_url = get_option('marrison_repo_url');
         $repo_url = !empty($custom_repo_url) ? trailingslashit($custom_repo_url) : $this->updates_url;
+
+        if (empty($repo_url)) return [];
 
         // Prova a recuperare la cache
         $cached = get_transient('marrison_available_updates');
@@ -1061,7 +1063,7 @@ class Marrison_Custom_Updater {
             <?php if ($settingsUpdated === 'saved'): ?>
                 <div class="notice notice-success is-dismissible"><p>Impostazioni salvate correttamente.</p></div>
             <?php elseif ($settingsUpdated === 'removed'): ?>
-                <div class="notice notice-success is-dismissible"><p>URL del repository ripristinato ai valori predefiniti.</p></div>
+                <div class="notice notice-success is-dismissible"><p>URL del repository rimosso.</p></div>
             <?php endif; ?>
 
             <?php if (isset($_GET['cache_cleared'])): ?>
@@ -1080,14 +1082,14 @@ class Marrison_Custom_Updater {
                     <tr>
                         <th scope="row"><label for="marrison_repo_url">Indirizzo Repository</label></th>
                         <td>
-                            <input type="url" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo esc_attr(get_option('marrison_repo_url', $this->updates_url)); ?>" class="regular-text">
+                            <input type="url" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo esc_attr(get_option('marrison_repo_url', '')); ?>" class="regular-text">
                             <p class="description">Inserisci l'URL del repository personalizzato.</p>
                         </td>
                     </tr>
                 </table>
                 <p class="submit">
                     <button class="button button-primary" type="submit">Salva</button>
-                    <button class="button" type="submit" name="marrison_remove_repo_url" value="1">Rimuovi e ripristina default</button>
+                    <button class="button" type="submit" name="marrison_remove_repo_url" value="1">Rimuovi URL</button>
                 </p>
             </form>
 
