@@ -14,6 +14,8 @@ class Marrison_Custom_Updater {
     private $cache_duration = 6 * HOUR_IN_SECONDS;
 
     public function __construct() {
+        add_action('plugins_loaded', [$this, 'load_textdomain']);
+
         // Usa site_transient_update_plugins invece di pre_set_site_transient_update_plugins
         // per iniettare gli aggiornamenti in tempo reale quando WP controlla la cache
         add_filter('site_transient_update_plugins', [$this, 'check_for_updates'], 999);
@@ -56,6 +58,10 @@ class Marrison_Custom_Updater {
         
         // Hook per pulire la cache GitHub quando si forza il controllo aggiornamenti WP
         add_action('delete_site_transient_update_plugins', [$this, 'force_clear_github_cache']);
+    }
+
+    public function load_textdomain() {
+        load_plugin_textdomain('marrison-custom-updater', false, dirname(plugin_basename(__FILE__)) . '/languages');
     }
 
     public function force_clear_github_cache() {
