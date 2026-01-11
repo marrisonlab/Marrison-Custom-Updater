@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 7.1
+ * Version: 7.9.4
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -16,8 +16,12 @@ class Marrison_Custom_Updater {
     public function __construct() {
         // Usa site_transient_update_plugins invece di pre_set_site_transient_update_plugins
         // per iniettare gli aggiornamenti in tempo reale quando WP controlla la cache
-        add_filter('site_transient_update_plugins', [$this, 'check_for_updates']);
-        add_filter('plugins_api', [$this, 'plugin_info'], 10, 3);
+        add_filter('site_transient_update_plugins', [$this, 'check_for_updates'], 999);
+        add_filter('plugins_api', [$this, 'plugin_info'], 20, 3);
+
+        // Sincronizza la pulizia della cache
+        add_action('delete_site_transient_update_plugins', [$this, 'delete_internal_cache']);
+        add_action('upgrader_process_complete', [$this, 'delete_internal_cache'], 10, 2);
 
         add_action('admin_menu', [$this, 'add_admin_menu']);
         add_action('admin_post_marrison_update_plugin', [$this, 'update_plugin']);
@@ -171,21 +175,36 @@ class Marrison_Custom_Updater {
 
     /* ===================== MENU NOTIFICATION BADGE ===================== */
 
+    private function update_known_private_slugs($updates) {
+        if (!is_array($updates)) return;
+        
+        $slugs = [];
+        foreach ($updates as $u) {
+            if (isset($u['slug'])) {
+                $slugs[] = $u['slug'];
+            }
+        }
+        
+        // Salva solo se abbiamo trovato slug, altrimenti mantieni i vecchi se il fetch fallisce
+        if (!empty($slugs)) {
+            update_option('marrison_known_private_slugs', $slugs, false); // autoload = false
+        }
+    }
+
     public function check_for_available_updates() {
         // Salva il numero di aggiornamenti disponibili in un'opzione per accesso rapido
         $updates = $this->get_available_updates();
+        
+        // Aggiorna la lista dei plugin conosciuti per il blocco futuro
+        $this->update_known_private_slugs($updates);
+        
         $plugins = get_plugins();
         $update_count = 0;
         
         foreach ($updates as $u) {
-            foreach ($plugins as $file => $data) {
-                $slug = dirname($file);
-                if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
-                
-                if ($slug === $u['slug'] && version_compare($data['Version'], $u['version'], '<')) {
-                    $update_count++;
-                    break;
-                }
+            $file = $this->find_plugin_file($u['slug']);
+            if ($file && isset($plugins[$file]) && version_compare($plugins[$file]['Version'], $u['version'], '<')) {
+                $update_count++;
             }
         }
         
@@ -263,9 +282,9 @@ class Marrison_Custom_Updater {
         if (empty($repo_url)) return [];
 
         // Prova a recuperare la cache
-        $cached = get_transient('marrison_available_updates');
+        $cached = get_transient('marrison_available_updates_v2');
         
-        // Se la cache esiste, controlla se Ã¨ pulita
+        // Se la cache esiste, controlla se è pulita
         if ($cached !== false && is_array($cached)) {
             $is_clean = true;
             foreach ($cached as $u) {
@@ -284,19 +303,27 @@ class Marrison_Custom_Updater {
         $updates = json_decode(wp_remote_retrieve_body($response), true);
         if (!is_array($updates)) return [];
 
-        // Filtra risultati che sembrano contenere codice PHP (errore nel generatore JSON lato server)
-        $updates = array_filter($updates, function($u) {
-            if (!isset($u['slug'])) return false;
-            // Rimuove elementi con variabili PHP o regex nel nome/versione
-            if (isset($u['name']) && (strpos($u['name'], '$') !== false || strpos($u['name'], '/i\'') !== false)) return false;
-            if (isset($u['version']) && strpos($u['version'], '$') !== false) return false;
-            return true;
-        });
+        // Filtra e pulisci i risultati
+        $cleaned_updates = [];
+        foreach ($updates as $u) {
+            if (!isset($u['slug'])) continue;
+            
+            // Pulisci i dati
+            $u['slug'] = trim($u['slug']);
+            if (isset($u['version'])) $u['version'] = trim($u['version']);
+            if (isset($u['name'])) $u['name'] = trim($u['name']);
+            
+            // Rimuove elementi con variabili PHP o regex nel nome/versione (protezione)
+            if (isset($u['name']) && (strpos($u['name'], '$') !== false || strpos($u['name'], '/i\'') !== false)) continue;
+            if (isset($u['version']) && strpos($u['version'], '$') !== false) continue;
+            
+            $cleaned_updates[] = $u;
+        }
+        $updates = $cleaned_updates;
 
-        // Re-index array
-        $updates = array_values($updates);
+        // Re-index array (già fatto sopra)
 
-        set_transient('marrison_available_updates', $updates, $this->cache_duration);
+        set_transient('marrison_available_updates_v2', $updates, $this->cache_duration);
         return $updates;
     }
 
@@ -305,7 +332,7 @@ class Marrison_Custom_Updater {
     public function check_for_updates($transient) {
         if (!is_object($transient)) $transient = new stdClass();
         
-        // Assicurati che le proprietÃ  esistano
+        // Assicurati che le proprietà esistano
         if (!isset($transient->response)) $transient->response = [];
         if (!isset($transient->no_update)) $transient->no_update = [];
         if (!isset($transient->checked)) $transient->checked = [];
@@ -315,9 +342,66 @@ class Marrison_Custom_Updater {
         }
         $plugins = get_plugins();
 
+        // 1. Usa la lista persistente di slug privati per BLOCCARE gli aggiornamenti pubblici
+        // Questo protegge anche nel caso in cui get_available_updates() fallisca (es. server down)
+        $known_slugs = get_option('marrison_known_private_slugs', []);
+        
+        if (is_array($known_slugs) && !empty($known_slugs)) {
+            // Pulizia aggressiva basata sullo SLUG, non solo sul file path
+            // Questo gestisce casi in cui WP rileva il plugin in un path diverso (es. cartella standard vs rinominata)
+            
+            // Pulisci response
+            if (!empty($transient->response)) {
+                foreach ($transient->response as $file => $data) {
+                    $check_slugs = [];
+                    $check_slugs[] = dirname($file);
+                    $check_slugs[] = basename($file, '.php');
+                    if (isset($data->slug)) $check_slugs[] = $data->slug;
+                    
+                    // Rimuovi duplicati e valori vuoti/punto
+                    $check_slugs = array_filter(array_unique($check_slugs), function($s) {
+                        return $s !== '.' && $s !== '';
+                    });
+
+                    foreach ($check_slugs as $s) {
+                        if (in_array($s, $known_slugs)) {
+                            unset($transient->response[$file]);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Pulisci no_update
+            if (!empty($transient->no_update)) {
+                foreach ($transient->no_update as $file => $data) {
+                    $check_slugs = [];
+                    $check_slugs[] = dirname($file);
+                    $check_slugs[] = basename($file, '.php');
+                    if (isset($data->slug)) $check_slugs[] = $data->slug;
+                    
+                    $check_slugs = array_filter(array_unique($check_slugs), function($s) {
+                        return $s !== '.' && $s !== '';
+                    });
+
+                    foreach ($check_slugs as $s) {
+                        if (in_array($s, $known_slugs)) {
+                            unset($transient->no_update[$file]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Inietta i NUOVI aggiornamenti dal repository privato (se disponibili)
         foreach ($this->get_available_updates() as $update) {
             $file = $this->find_plugin_file($update['slug']);
             if (!$file || !isset($plugins[$file])) continue;
+
+            // Rimuovi di nuovo per sicurezza (ridondante ma sicuro)
+            if (isset($transient->response[$file])) unset($transient->response[$file]);
+            if (isset($transient->no_update[$file])) unset($transient->no_update[$file]);
 
             $installed = $plugins[$file]['Version'];
             $remote    = $update['version'];
@@ -327,6 +411,15 @@ class Marrison_Custom_Updater {
                     'slug'        => $update['slug'],
                     'new_version' => $remote,
                     'package'     => $update['download_url'],
+                    'url'         => '', // Rimuovi URL per evitare link a wp.org
+                ];
+            } else {
+                 $transient->no_update[$file] = (object)[
+                    'slug'        => $update['slug'],
+                    'new_version' => $remote,
+                    'package'     => $update['download_url'],
+                    'url'         => '',
+                    'plugin'      => $file,
                 ];
             }
 
@@ -397,11 +490,22 @@ class Marrison_Custom_Updater {
     }
 
     private function find_plugin_file($slug) {
-        foreach (get_plugins() as $file => $data) {
+        $slug = trim($slug);
+        $plugins = get_plugins();
+        
+        // 1. Cerca corrispondenza esatta della cartella (o nome file per plugin singoli)
+        foreach ($plugins as $file => $data) {
             $dir = dirname($file);
             if ($dir === '.' || $dir === '') $dir = basename($file, '.php');
             if ($dir === $slug) return $file;
         }
+
+        // 2. Tentativo secondario: Cerca corrispondenza esatta del file .php principale
+        // Utile se la cartella ha un nome diverso ma il file del plugin corrisponde allo slug
+        foreach ($plugins as $file => $data) {
+             if (basename($file, '.php') === $slug) return $file;
+        }
+
         return null;
     }
 
@@ -539,7 +643,17 @@ class Marrison_Custom_Updater {
             if (empty($dirs)) return false;
 
             $source = trailingslashit($dirs[0]);
-            $dest   = trailingslashit(WP_PLUGIN_DIR . '/' . $slug);
+            
+            // Determina la cartella di destinazione corretta mantenendo quella attuale
+            $dest_folder = $slug;
+            if ($plugin_file) {
+                $installed_dir = dirname($plugin_file);
+                if ($installed_dir !== '.' && $installed_dir !== '') {
+                    $dest_folder = $installed_dir;
+                }
+            }
+            
+            $dest = trailingslashit(WP_PLUGIN_DIR . '/' . $dest_folder);
 
             if ($wp_filesystem->is_dir($dest)) {
                 $wp_filesystem->delete($dest, true);
@@ -840,9 +954,15 @@ class Marrison_Custom_Updater {
         exit;
     }
 
+    public function delete_internal_cache() {
+        delete_transient('marrison_available_updates');
+        delete_transient('marrison_available_updates_v2');
+    }
+
     public function clear_cache() {
         check_admin_referer('marrison_clear_cache');
-        delete_transient('marrison_available_updates');
+        
+        $this->delete_internal_cache();
         delete_site_transient('update_plugins');
         wp_clean_plugins_cache(true);
 
@@ -1103,6 +1223,75 @@ class Marrison_Custom_Updater {
                 <button class="button button-secondary">Forza controllo aggiornamenti MCU</button>
                 <p class="description">Usa questo pulsante se hai appena rilasciato una nuova versione su GitHub e non viene rilevata.</p>
             </form>
+
+            <hr>
+
+            <h2>Diagnostica Repository Privato</h2>
+            <?php
+            $updates = $this->get_available_updates();
+            $plugins = get_plugins();
+            $repo_count = count($updates);
+            $installed_count = 0;
+            $installed_list = [];
+
+            if (!empty($updates)) {
+                foreach ($updates as $u) {
+                    $file = $this->find_plugin_file($u['slug']);
+                    if ($file && isset($plugins[$file])) {
+                        $installed_count++;
+                        $installed_list[] = [
+                            'name' => $u['name'],
+                            'file' => $file,
+                            'version' => $plugins[$file]['Version'],
+                            'remote_version' => $u['version'],
+                            'status' => '<span class="dashicons dashicons-yes" style="color:green;"></span> Monitorato'
+                        ];
+                    }
+                }
+            }
+            ?>
+
+            <div class="card" style="max-width: 100%; margin-top: 20px; padding: 15px;">
+                <h3 style="margin-top: 0;">Sommario Repository</h3>
+                <p>
+                    <strong>Stato connessione:</strong> 
+                    <?php echo !empty($updates) ? '<span style="color:green;">Connesso</span>' : '<span style="color:red;">Non connesso o vuoto</span>'; ?>
+                </p>
+                <p>
+                    <strong>Plugin totali nel repository:</strong> <?php echo $repo_count; ?>
+                </p>
+                <p>
+                    <strong>Plugin installati e monitorati:</strong> <?php echo $installed_count; ?>
+                </p>
+            </div>
+
+            <?php if ($installed_count > 0): ?>
+                <h3 style="margin-top: 30px;">Plugin Monitorati su questo sito</h3>
+                <table class="widefat striped">
+                    <thead>
+                        <tr>
+                            <th>Plugin Installato</th>
+                            <th>File</th>
+                            <th>Versione Installata</th>
+                            <th>Versione Repository</th>
+                            <th>Stato</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($installed_list as $item): ?>
+                            <tr>
+                                <td><?php echo esc_html($item['name']); ?></td>
+                                <td><?php echo esc_html($item['file']); ?></td>
+                                <td><?php echo esc_html($item['version']); ?></td>
+                                <td><?php echo esc_html($item['remote_version']); ?></td>
+                                <td><?php echo $item['status']; ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php else: ?>
+                <p style="margin-top: 20px;"><em>Nessun plugin del repository privato è attualmente installato su questo sito.</em></p>
+            <?php endif; ?>
         </div>
         <?php
     }
@@ -1563,11 +1752,15 @@ class Marrison_Custom_Updater {
                     <?php 
                     $has_repo_updates = false;
                     foreach ($updates as $u):
-                        foreach ($plugins as $file => $data) {
-                            $slug = dirname($file);
-                            if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
+                        // Usa la funzione centralizzata per trovare il plugin installato
+                        $file = $this->find_plugin_file($u['slug']);
+                        
+                        if ($file && isset($plugins[$file])) {
+                            $data = $plugins[$file];
+                            // Usa lo slug del repo, non quello calcolato dalla cartella che potrebbe essere diverso
+                            $slug = $u['slug']; 
 
-                            if ($slug === $u['slug'] && version_compare($data['Version'], $u['version'], '<')):
+                            if (version_compare(trim($data['Version']), trim($u['version']), '<')):
                                 $has_repo_updates = true;
                     ?>
                         <tr>
@@ -1610,6 +1803,32 @@ class Marrison_Custom_Updater {
                     </tfoot>
                 </table>
 
+                <!-- Lista plugin monitorati ma aggiornati (per conferma visiva) -->
+                <div style="margin-top: 10px;">
+                    <p><strong>Plugin monitorati aggiornati:</strong></p>
+                    <ul style="list-style: disc; padding-left: 20px; color: #646970;">
+                        <?php 
+                        $monitorati_count = 0;
+                        foreach ($updates as $u):
+                            $file = $this->find_plugin_file($u['slug']);
+                            if ($file && isset($plugins[$file])):
+                                $data = $plugins[$file];
+                                if (!version_compare(trim($data['Version']), trim($u['version']), '<')):
+                                    $monitorati_count++;
+                                    $is_active = is_plugin_active($file);
+                                    $status_text = $is_active ? '<span style="color:green;">&#10003; Aggiornato</span>' : '<span style="color:orange;">&#10003; Aggiornato (Inattivo)</span>';
+                        ?>
+                                <li><?php echo esc_html($u['name']); ?> (v<?php echo esc_html($data['Version']); ?>) - <?php echo $status_text; ?></li>
+                        <?php 
+                                endif;
+                            endif;
+                        endforeach; 
+                        
+                        if ($monitorati_count === 0) echo '<li>Nessun altro plugin monitorato.</li>';
+                        ?>
+                    </ul>
+                </div>
+
                 <p>
                     <button class="button button-secondary">Aggiorna selezionati (Repository Privato)</button>
                 </p>
@@ -1624,21 +1843,47 @@ class Marrison_Custom_Updater {
                     // Ottieni aggiornamenti privati per esclusione
                     $private_updates = $this->get_available_updates();
                     $private_slugs = [];
+                    $private_files = []; // Lista di file path esatti dei plugin privati
+                    
+                    // Aggiungi slug dai risultati attuali
                     foreach ($private_updates as $u) {
                         $private_slugs[] = $u['slug'];
+                        $found_file = $this->find_plugin_file($u['slug']);
+                        if ($found_file) {
+                            $private_files[] = $found_file;
+                        }
+                    }
+
+                    // Aggiungi anche slug conosciuti dalla cache persistente (per robustezza)
+                    $known_slugs = get_option('marrison_known_private_slugs', []);
+                    if (is_array($known_slugs)) {
+                        $private_slugs = array_unique(array_merge($private_slugs, $known_slugs));
                     }
                     
                     $plugins_with_auto_update = [];
                     
                     if (!empty($transient->response)) {
                         foreach ($transient->response as $file => $data) {
-                            $slug = dirname($file);
-                            if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
                             
-                            // ESCLUDI i plugin del repository privato
-                            if (in_array($slug, $private_slugs)) {
+                            // ESCLUDI i plugin del repository privato (check prioritario su file path)
+                            if (in_array($file, $private_files)) {
                                 continue;
                             }
+
+                            $check_slugs = [];
+                            $check_slugs[] = dirname($file);
+                            $check_slugs[] = basename($file, '.php');
+                            if (isset($data->slug)) $check_slugs[] = $data->slug;
+                            
+                            $found_private = false;
+                            foreach ($check_slugs as $s) {
+                                if ($s !== '.' && $s !== '' && in_array($s, $private_slugs)) {
+                                    $found_private = true;
+                                    break;
+                                }
+                            }
+                            
+                            if ($found_private) continue;
                             
                     // Se ha auto-update attivo (ORA: Includi tutti i plugin ufficiali)
                             // if (in_array($file, $auto_update_plugins)) {

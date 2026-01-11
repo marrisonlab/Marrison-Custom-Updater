@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 7.1
+Stable tag: 7.9.4
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -29,6 +29,51 @@ Upload the plugin to WordPress and activate it.
 
 == Changelog ==
 
+= 7.9.4 =
+* Aggiornata la diagnostica per la privacy: ora mostra solo un sommario e i dettagli dei plugin effettivamente installati, nascondendo la lista completa del repository remoto.
+
+= 7.9.3 =
+* Implementata esclusione "tripla" dei plugin privati dalla lista ufficiale (check su dirname, filename e slug interno) per risolvere definitivamente i conflitti.
+* Aggiunta indicazione "Inattivo" nella lista dei plugin monitorati per identificare meglio versioni duplicate o non utilizzate.
+
+= 7.9.2 =
+* Risolto problema discrepanza versioni tra lista ufficiale e privata: ora i plugin privati sono esclusi aggressivamente dagli aggiornamenti ufficiali basandosi sullo slug, risolvendo conflitti con installazioni duplicate o rinominate.
+* Aggiunta lista visiva dei plugin monitorati ma già aggiornati nel pannello privato.
+
+= 7.9.1 =
+* Risolto problema di visualizzazione aggiornamenti per plugin installati in sottocartelle non standard (confronto versioni ora supporta spazi vuoti e percorsi complessi).
+* Migliorata l'esclusione dei plugin privati dalla lista del repository ufficiale, utilizzando il controllo diretto sul file path.
+
+= 7.9 =
+* Migliorata la pulizia dei dati dal repository per evitare problemi di confronto versioni (trimming spazi).
+* Forzato aggiornamento cache plugin (v2) per applicare le correzioni immediatamente.
+* Migliorato rilevamento plugin installati in cartelle con nomi non standard.
+
+= 7.8 =
+* Implementato sistema di persistenza degli slug conosciuti: i plugin privati vengono ora nascosti dagli aggiornamenti pubblici anche se il server del repository è momentaneamente irraggiungibile.
+
+= 7.7 =
+* Corretto bug nell'installazione degli aggiornamenti: ora viene rispettata la cartella di installazione originale anche se diversa dallo slug del repository.
+
+= 7.6 =
+* Standardizzata logica di rilevamento plugin in tutta l'interfaccia.
+* Risolto problema di visualizzazione aggiornamenti per plugin con nome cartella diverso dallo slug.
+
+= 7.5 =
+* Migliorato algoritmo di rilevamento plugin: ora cerca anche per nome file se la cartella non corrisponde.
+* Pulizia automatica degli slug dal repository remoto.
+
+= 7.4 =
+* Aggiunta sezione di diagnostica nelle impostazioni.
+* Migliorata logica di sovrascrittura degli aggiornamenti ufficiali.
+
+= 7.3 =
+* Risolto problema di sincronizzazione cache tra WP e repository privato.
+* Aumentata priorità del filtro aggiornamenti per garantire la precedenza del repository privato.
+
+= 7.2 =
+* Priorità assoluta al repository privato: se un plugin è presente nel repository privato, gli aggiornamenti dal repository ufficiale vengono ignorati.
+
 = 7.1 =
 * Rimossa URL di default della repository.
 * Correzioni e miglioramenti minori.
@@ -40,4 +85,32 @@ Upload the plugin to WordPress and activate it.
 * Aggiornamento core plugin.
 
 = 6.0 =
-Gamma version
+* Introdotto supporto per aggiornamento traduzioni.
+* Miglioramenti alle performance del checker.
+
+= 5.0 =
+* Aggiunta pagina Installer per installazione rapida plugin raccomandati.
+* Integrazione con sistema di autorizzazione JSON remoto.
+
+= 4.5 =
+* Risolti problemi di compatibilità con versioni recenti di WordPress.
+* Aggiunto supporto per aggiornamento temi da repository privato.
+
+= 4.0 =
+* Rifacimento interfaccia utente pannello opzioni.
+* Aggiunto controllo integrità pacchetti ZIP.
+
+= 3.0 =
+* Implementato sistema di caching per ridurre chiamate API al repository.
+* Ottimizzazione gestione transienti.
+
+= 2.1 =
+* Bugfix: correzione errore su server con configurazioni PHP restrittive.
+
+= 2.0 =
+* Aggiunta pagina di configurazione URL repository personalizzato.
+* Migliorata gestione errori download.
+
+= 1.0 =
+* Rilascio iniziale.
+* Funzionalità base di aggiornamento plugin da repository privato.
