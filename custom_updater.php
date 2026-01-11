@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 7.9.4
+ * Version: 7.9.5
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -52,7 +52,7 @@ class Marrison_Custom_Updater {
         add_action('admin_init', [$this, 'check_for_available_updates']);
         
         // Filtro per abilitare auto-update per questo plugin
-        add_filter('auto_update_plugin', [$this, 'auto_update_specific_plugins'], 10, 2);
+        // add_filter('auto_update_plugin', [$this, 'auto_update_specific_plugins'], 10, 2);
         
         // Hook per pulire la cache GitHub quando si forza il controllo aggiornamenti WP
         add_action('delete_site_transient_update_plugins', [$this, 'force_clear_github_cache']);
@@ -1627,7 +1627,7 @@ class Marrison_Custom_Updater {
                 $('.marrison-restore-btn').on('click', function(e) {
                     e.preventDefault();
                     
-                    if (!confirm('Sei sicuro di voler ripristinare questo backup? La versione corrente verrÃ  sovrascritta.')) {
+                    if (!confirm('Sei sicuro di voler ripristinare questo backup? La versione corrente verr\u00E0 sovrascritta.')) {
                         return;
                     }
                     
@@ -1769,7 +1769,7 @@ class Marrison_Custom_Updater {
                             <td><?php echo esc_html($data['Version']) . ' &rarr; ' . esc_html($u['version']); ?></td>
                             <td>
                                 <?php if ($updated === $slug || in_array($slug, $bulkUpdated, true)): ?>
-                                    <strong style="color:green;">&#10003; Aggiornato</strong>
+                                    <strong style="color:green;">&#10003; Aggiornato</strong> (v<?php echo esc_html($u['version']); ?>)
                                 <?php else: ?>
                                     <?php 
                                     $is_self_update = ($slug === 'marrison-custom-updater');
@@ -1777,6 +1777,7 @@ class Marrison_Custom_Updater {
                                     ?>
                                     <button class="button button-primary marrison-update-btn" 
                                             data-slug="<?php echo esc_attr($slug); ?>"
+                                            data-version="<?php echo esc_attr($u['version']); ?>"
                                             data-nonce="<?php echo esc_attr($nonce); ?>">
                                         Aggiorna
                                     </button>
@@ -1864,6 +1865,8 @@ class Marrison_Custom_Updater {
                     
                     if (!empty($transient->response)) {
                         foreach ($transient->response as $file => $data) {
+                            $slug = isset($data->slug) ? $data->slug : dirname($file);
+                            if ($slug === '.') $slug = basename($file, '.php');
                             
                             // ESCLUDI i plugin del repository privato (check prioritario su file path)
                             if (in_array($file, $private_files)) {
@@ -2027,17 +2030,19 @@ class Marrison_Custom_Updater {
                             nonce: nonce
                         },
                         success: function(response) {
-                            clearInterval(progressInterval);
-                            
-                            if (response.success) {
-                                updateProgressBar(100, 'Aggiornamento completato!', 'Plugin aggiornato con successo');
-                                $btn.replaceWith('<strong style="color:green;">&#10003; Aggiornato</strong>');
+                                clearInterval(progressInterval);
                                 
-                                // Ricarica la pagina dopo 2 secondi per mostrare lo stato aggiornato
-                                setTimeout(function() {
-                                    location.reload();
-                                }, 2000);
-                            } else {
+                                if (response.success) {
+                                    updateProgressBar(100, 'Aggiornamento completato!', 'Plugin aggiornato con successo');
+                                    var newVer = $btn.data('version');
+                                    var verText = newVer ? ' (v' + newVer + ')' : '';
+                                    $btn.replaceWith('<strong style="color:green;">&#10003; Aggiornato</strong>' + verText);
+                                    
+                                    // Ricarica la pagina dopo 2 secondi per mostrare lo stato aggiornato
+                                    setTimeout(function() {
+                                        location.reload();
+                                    }, 2000);
+                                } else {
                                 updateProgressBar(0, 'Errore durante l\'aggiornamento', response.data || 'Si \u00E8 verificato un errore');
                                 $btn.prop('disabled', false).text('Aggiorna');
                             }

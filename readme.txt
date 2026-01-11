@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 7.9.4
+Stable tag: 7.9.5
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -28,6 +28,13 @@ Upload the plugin to WordPress and activate it.
 
 
 == Changelog ==
+
+= 7.9.5 =
+* Risolto problema di visualizzazione del numero di versione nel messaggio di conferma dopo l'aggiornamento di un singolo plugin.
+* Corretto errore di codifica caratteri nel popup di conferma ripristino backup.
+* Risolto warning "Undefined variable $slug" nella generazione della lista plugin.
+* Ripristinato il funzionamento AJAX "one-click" per il pulsante "Aggiorna tutti i plugin ufficiali".
+* Disabilitato il filtro che forzava l'aggiornamento automatico, permettendo ora la gestione standard tramite interfaccia WordPress.
 
 = 7.9.4 =
 * Aggiornata la diagnostica per la privacy: ora mostra solo un sommario e i dettagli dei plugin effettivamente installati, nascondendo la lista completa del repository remoto.
