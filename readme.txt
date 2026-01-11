@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 7.9.6
+Stable tag: 7.9.7
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -28,6 +28,11 @@ Upload the plugin to WordPress and activate it.
 
 
 == Changelog ==
+
+= 7.9.7 =
+* Aggiornato nome menu plugin in "AM Updater".
+* Aggiunta icona personalizzata (SVG) al menu di amministrazione, integrata con lo stile nativo di WordPress.
+* Spostata icona nella cartella `assets/`.
 
 = 7.9.6 =
 * Aggiunto supporto multilingua (i18n).
