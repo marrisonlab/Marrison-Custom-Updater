@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 7.9.5
+ * Version: 7.9.6
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -84,12 +84,12 @@ class Marrison_Custom_Updater {
         $nonce = sanitize_text_field($_POST['nonce'] ?? '');
         
         if (!wp_verify_nonce($nonce, 'marrison_auto_update')) {
-            wp_die('Security check failed');
+            wp_die(__('Security check failed', 'marrison-custom-updater'));
         }
 
         // Verifica i permessi
         if (!current_user_can('manage_options')) {
-            wp_die('Insufficient permissions');
+            wp_die(__('Insufficient permissions', 'marrison-custom-updater'));
         }
 
         // Ottieni tutti i plugin con aggiornamenti automatici attivati
@@ -100,7 +100,7 @@ class Marrison_Custom_Updater {
         $transient = get_site_transient('update_plugins');
         
         if (empty($transient->response)) {
-            wp_send_json_error('Nessun aggiornamento disponibile');
+            wp_send_json_error(__('Nessun aggiornamento disponibile', 'marrison-custom-updater'));
         }
 
         // Identifica i plugin del repository privato per ESCLUDERLI
@@ -128,7 +128,7 @@ class Marrison_Custom_Updater {
         }
         
         if (empty($plugins_to_update)) {
-            wp_send_json_error('Nessun plugin "normale" ha aggiornamenti disponibili');
+            wp_send_json_error(__('Nessun plugin "normale" ha aggiornamenti disponibili', 'marrison-custom-updater'));
         }
 
         // Carica le classi necessarie per l'aggiornamento
@@ -166,7 +166,7 @@ class Marrison_Custom_Updater {
             delete_site_transient('update_plugins');
 
             wp_send_json_success([
-                'message' => sprintf('%d plugin aggiornati con successo', $success_count),
+                'message' => sprintf(__('%d plugin aggiornati con successo', 'marrison-custom-updater'), $success_count),
                 'results' => $formatted_results,
                 'success_count' => $success_count,
                 'total_count' => count($plugins_to_update)
@@ -175,7 +175,7 @@ class Marrison_Custom_Updater {
             // Aggiorna il conteggio delle notifiche
             $this->check_for_available_updates();
         } else {
-            wp_send_json_error('Nessun plugin è stato aggiornato');
+            wp_send_json_error(__('Nessun plugin è stato aggiornato', 'marrison-custom-updater'));
         }
     }
 
@@ -234,8 +234,25 @@ class Marrison_Custom_Updater {
     }
 
     public function add_menu_badge_styles() {
+        $icon_url = plugin_dir_url(__FILE__) . 'assets/icon.svg';
         ?>
         <style>
+        /* Custom Icon Styles */
+        #toplevel_page_marrison-updater .wp-menu-image:before {
+            display: none;
+        }
+        #toplevel_page_marrison-updater .wp-menu-image {
+            background-color: currentColor;
+            -webkit-mask-image: url('<?php echo esc_url($icon_url); ?>');
+            mask-image: url('<?php echo esc_url($icon_url); ?>');
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+            -webkit-mask-position: center;
+            mask-position: center;
+            -webkit-mask-size: 20px;
+            mask-size: 20px;
+        }
+
         .marrison-update-badge {
             display: inline-block;
             background-color: #d63638;
@@ -1140,12 +1157,12 @@ class Marrison_Custom_Updater {
     public function add_admin_menu() {
         // Aggiungi menu principale con icona carina
         add_menu_page(
-            'Marrison Updater',
-            'MCU',
+            'AM Updater',
+            'AM Updater',
             'manage_options',
             'marrison-updater',
             [$this,'admin_page'],
-            'dashicons-update', // Icona carina per aggiornamenti
+            'dashicons-update', // Icona placeholder (sovrascritta via CSS)
             30 // Posizione nel menu (dopo Dashboard e Media)
         );
 
@@ -1309,13 +1326,13 @@ class Marrison_Custom_Updater {
         if (!$permissions['installer']) {
             ?>
             <div class="wrap">
-                <h1>Installer - Repository Privato</h1>
-                <div class="notice notice-error"><p>Non sei autorizzato a visualizzare questa pagina.</p></div>
+                <h1><?php esc_html_e('Installer - Repository Privato', 'marrison-custom-updater'); ?></h1>
+                <div class="notice notice-error"><p><?php esc_html_e('Non sei autorizzato a visualizzare questa pagina.', 'marrison-custom-updater'); ?></p></div>
                 <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
                     <?php wp_nonce_field('marrison_check_permissions'); ?>
                     <input type="hidden" name="action" value="marrison_check_permissions">
                     <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater-installer')); ?>">
-                    <button class="button button-secondary">Verifica permessi</button>
+                    <button class="button button-secondary"><?php esc_html_e('Verifica permessi', 'marrison-custom-updater'); ?></button>
                 </form>
             </div>
             <?php
@@ -1328,11 +1345,11 @@ class Marrison_Custom_Updater {
         if (!is_array($installed_slugs)) $installed_slugs = [$installed_slugs];
         ?>
         <div class="wrap">
-            <h1>Installer - Repository Privato</h1>
+            <h1><?php esc_html_e('Installer - Repository Privato', 'marrison-custom-updater'); ?></h1>
 
             <?php if (!empty($installed_slugs)): ?>
                 <div class="notice notice-success is-dismissible">
-                    <p><?php echo count($installed_slugs); ?> plugin installati con successo.</p>
+                    <p><?php printf(esc_html__('%d plugin installati con successo.', 'marrison-custom-updater'), count($installed_slugs)); ?></p>
                 </div>
             <?php endif; ?>
 

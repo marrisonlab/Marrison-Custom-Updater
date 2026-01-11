@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 7.9.5
+Stable tag: 7.9.6
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -28,6 +28,11 @@ Upload the plugin to WordPress and activate it.
 
 
 == Changelog ==
+
+= 7.9.6 =
+* Aggiunto supporto multilingua (i18n).
+* Create cartelle e file per le traduzioni (.pot, .po).
+* Aggiornate le stringhe del codice per essere traducibili.
 
 = 7.9.5 =
 * Risolto problema di visualizzazione del numero di versione nel messaggio di conferma dopo l'aggiornamento di un singolo plugin.
