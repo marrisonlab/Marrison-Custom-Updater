@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 7.9.7
+Stable tag: 7.9.8
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -28,6 +28,13 @@ Upload the plugin to WordPress and activate it.
 
 
 == Changelog ==
+
+= 7.9.9 =
+* Fix: Risolto conflitto cache chiavi con Marrison Custom Installer.
+
+= 7.9.8 =
+* Verificato che l'indirizzo del repository privato non abbia valori di default.
+* Correzioni minori.
 
 = 7.9.7 =
 * Aggiornato nome menu plugin in "AM Updater".

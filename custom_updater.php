@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 7.9.7
+ * Version: 7.9.9
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -65,7 +65,7 @@ class Marrison_Custom_Updater {
     }
 
     public function force_clear_github_cache() {
-        delete_transient('marrison_github_version');
+        delete_transient('marrison_updater_github_version');
     }
 
     public function auto_update_specific_plugins($update, $item) {
@@ -471,7 +471,7 @@ class Marrison_Custom_Updater {
             'new_version' => $remote,
             'url'         => 'https://github.com/marrisonlab/Marrison-Custom-Updater',
             'package'     => 'https://github.com/marrisonlab/Marrison-Custom-Updater/archive/refs/tags/v' . $remote . '.zip',
-            'tested'      => '6.6',
+            'tested'      => '6.9',
             'requires_php' => '7.4',
             'icons'       => [],
             'banners'     => [],
@@ -490,7 +490,7 @@ class Marrison_Custom_Updater {
     }
 
     private function get_github_version() {
-        $cached = get_transient('marrison_github_version');
+        $cached = get_transient('marrison_updater_github_version');
         if ($cached !== false) return $cached;
 
         $response = wp_remote_get('https://api.github.com/repos/marrisonlab/marrison-custom-updater/releases/latest', [
@@ -507,7 +507,7 @@ class Marrison_Custom_Updater {
         if (empty($body['tag_name'])) return false;
 
         $version = str_replace('v', '', $body['tag_name']);
-        set_transient('marrison_github_version', $version, 6 * HOUR_IN_SECONDS);
+        set_transient('marrison_updater_github_version', $version, 6 * HOUR_IN_SECONDS);
 
         return $version;
     }
@@ -998,7 +998,7 @@ class Marrison_Custom_Updater {
         check_admin_referer('marrison_force_check_mcu');
         
         // Pulisce cache specifica GitHub
-        delete_transient('marrison_github_version');
+        delete_transient('marrison_updater_github_version');
         
         // Forza controllo aggiornamenti WP
         delete_site_transient('update_plugins');
