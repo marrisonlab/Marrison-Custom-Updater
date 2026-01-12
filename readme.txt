@@ -37,10 +37,12 @@ Questo plugin è essenziale per agenzie, sviluppatori freelance e organizzazioni
 
 == Changelog ==
 
-= 8.0.3 =
+= 8.0.4 =
 
 * Fix: Risolto problema di visualizzazione del changelog nella finestra dei dettagli (ora supporta HTML).
 * Fix: Risolto problema di rilevamento versione e compatibilità (lettura metadati da file locale).
+* Fix: Migliorata logica avvisi configurazione repository temi e plugin nella dashboard.
+* Fix: Rimossi avvisi ridondanti.
 
 = 8.0.2 =
 

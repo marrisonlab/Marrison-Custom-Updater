@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.0.3
+ * Version: 8.0.4
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -2449,9 +2449,7 @@ class Marrison_Custom_Updater {
 
         // Check if repo URL is configured
         $repo_url_config = get_option('marrison_repo_url');
-        if (empty($repo_url_config)) {
-             echo '<div class="mcu-notice mcu-notice-error"><span class="dashicons dashicons-warning"></span> Repository URL non configurato. <a href="'.admin_url('admin.php?page=marrison-updater-settings').'">Vai alle impostazioni</a></div>';
-        }
+        $theme_repo_url_config = get_option('marrison_themes_repo_url');
 
         // Calcola aggiornamenti pubblici Plugin
         $transient_plugins = get_site_transient('update_plugins');
@@ -2568,9 +2566,15 @@ class Marrison_Custom_Updater {
             <!-- Dashboard Stats -->
             <div class="mcu-dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
                 <div class="mcu-card mcu-stat-card">
-                    <div class="mcu-stat-number" style="color: <?php echo $repo_updates_count > 0 ? 'var(--mcu-danger)' : 'var(--mcu-success)'; ?>;">
-                        <?php echo $repo_updates_count > 0 ? $repo_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
-                    </div>
+                    <?php if (empty($repo_url_config)): ?>
+                        <div class="mcu-stat-number" style="color: var(--mcu-warning);">
+                            <span class="dashicons dashicons-warning" style="font-size: 36px; height: 36px; width: 36px;"></span>
+                        </div>
+                    <?php else: ?>
+                        <div class="mcu-stat-number" style="color: <?php echo $repo_updates_count > 0 ? 'var(--mcu-danger)' : 'var(--mcu-success)'; ?>;">
+                            <?php echo $repo_updates_count > 0 ? $repo_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
+                        </div>
+                    <?php endif; ?>
                     <div class="mcu-stat-label">Plugin Privati</div>
                 </div>
                 <div class="mcu-card mcu-stat-card">
@@ -2580,9 +2584,15 @@ class Marrison_Custom_Updater {
                     <div class="mcu-stat-label">Plugin Pubblici</div>
                 </div>
                 <div class="mcu-card mcu-stat-card">
-                    <div class="mcu-stat-number" style="color: <?php echo $theme_updates_count > 0 ? 'var(--mcu-danger)' : 'var(--mcu-success)'; ?>;">
-                        <?php echo $theme_updates_count > 0 ? $theme_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
-                    </div>
+                    <?php if (empty($theme_repo_url_config)): ?>
+                        <div class="mcu-stat-number" style="color: var(--mcu-warning);">
+                            <span class="dashicons dashicons-warning" style="font-size: 36px; height: 36px; width: 36px;"></span>
+                        </div>
+                    <?php else: ?>
+                        <div class="mcu-stat-number" style="color: <?php echo $theme_updates_count > 0 ? 'var(--mcu-danger)' : 'var(--mcu-success)'; ?>;">
+                            <?php echo $theme_updates_count > 0 ? $theme_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
+                        </div>
+                    <?php endif; ?>
                     <div class="mcu-stat-label">Temi Privati</div>
                 </div>
                  <div class="mcu-card mcu-stat-card">
@@ -2708,7 +2718,7 @@ class Marrison_Custom_Updater {
                         <?php endif; ?>
                     </div>
 
-                    <?php if (empty($theme_updates) && empty($repo_url_config)): ?>
+                    <?php if (empty($theme_repo_url_config)): ?>
                          <div class="mcu-empty-state">
                             <span class="dashicons dashicons-warning" style="color: var(--mcu-warning);"></span>
                             <p>Repository Temi non configurato.</p>
