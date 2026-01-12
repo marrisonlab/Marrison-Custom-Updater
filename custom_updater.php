@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.0.2
+ * Version: 8.0.3
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -782,17 +782,14 @@ class Marrison_Custom_Updater {
     public function plugin_info($false, $action, $args) {
         if ($action !== 'plugin_information') return $false;
         
-        // Controlla se Ã¨ il nostro plugin
+        // Controlla se è il nostro plugin
         if ($args->slug !== 'marrison-custom-updater') return $false;
 
-        // Leggi le informazioni dal readme.txt su GitHub
-        $response = wp_remote_get('https://raw.githubusercontent.com/marrisonlab/marrison-custom-updater/stable/readme.txt', [
-            'timeout' => 10
-        ]);
-
-        if (is_wp_error($response)) return $false;
-
-        $readme = wp_remote_retrieve_body($response);
+        // Leggi le informazioni dal file locale invece che da GitHub
+        $readme_file = plugin_dir_path(__FILE__) . 'readme.txt';
+        if (!file_exists($readme_file)) return $false;
+        
+        $readme = file_get_contents($readme_file);
         if (empty($readme)) return $false;
 
         // Parsa il readme.txt
@@ -804,30 +801,56 @@ class Marrison_Custom_Updater {
         
         // Estrai la descrizione
         if (preg_match('/== Description ==\s*(.*?)\s*== /s', $readme, $match)) {
-            $info->description = trim($match[1]);
+            $description = trim($match[1]);
+            // Converti semplice markdown in HTML
+            $description = $this->markdown_to_html($description);
+            $info->description = $description;
         } else {
             $info->description = '';
         }
 
         // Estrai il changelog
         if (preg_match('/== Changelog ==\s*(.*?)$/s', $readme, $match)) {
-            $info->changelog = trim($match[1]);
+            $changelog = trim($match[1]);
+            // Converti semplice markdown in HTML
+            $changelog = $this->markdown_to_html($changelog);
+            $info->changelog = $changelog;
         } else {
             $info->changelog = '';
         }
 
+        // Estrai metadata dal readme
+        $version = '1.0.0';
+        if (preg_match('/Stable tag:\s*([0-9\.]+)/i', $readme, $match)) {
+            $version = trim($match[1]);
+        }
+
+        $tested = '6.0';
+        if (preg_match('/Tested up to:\s*([0-9\.]+)/i', $readme, $match)) {
+            $tested = trim($match[1]);
+        }
+
+        $requires = '5.0';
+        if (preg_match('/Requires at least:\s*([0-9\.]+)/i', $readme, $match)) {
+            $requires = trim($match[1]);
+        }
+
+        $requires_php = '7.4';
+        if (preg_match('/Requires PHP:\s*([0-9\.]+)/i', $readme, $match)) {
+            $requires_php = trim($match[1]);
+        }
+
         // Dati base
-        $github_version = $this->get_github_version();
         $info->name = 'Marrison Custom Updater';
         $info->slug = 'marrison-custom-updater';
-        $info->version = $github_version ? $github_version : '1.0.0';
+        $info->version = $version;
         $info->author = 'Angelo Marra';
         $info->author_profile = 'https://marrisonlab.com';
         $info->plugin_url = 'https://github.com/marrisonlab/marrison-custom-updater';
-        $info->download_url = $info->version ? 'https://github.com/marrisonlab/marrison-custom-updater/archive/refs/tags/v' . $info->version . '.zip' : '';
-        $info->requires_php = '7.4';
-        $info->requires = '5.0';
-        $info->tested = '6.4';
+        $info->download_url = 'https://github.com/marrisonlab/marrison-custom-updater/archive/refs/tags/v' . $version . '.zip';
+        $info->requires_php = $requires_php;
+        $info->requires = $requires;
+        $info->tested = $tested;
         $info->last_updated = current_time('mysql');
         $info->homepage = 'https://github.com/marrisonlab/marrison-custom-updater';
         $info->active_installs = 0;
@@ -841,6 +864,27 @@ class Marrison_Custom_Updater {
         );
 
         return $info;
+    }
+
+    private function markdown_to_html($text) {
+        // Converti header changelog (= 1.0.0 =)
+        $text = preg_replace('/^=\s*(.*?)\s*=\s*$/m', '<h4>$1</h4>', $text);
+        
+        // Converti grassetto (**text**)
+        $text = preg_replace('/\*\*(.*?)\*\*/s', '<strong>$1</strong>', $text);
+        
+        // Converti liste puntate (* item)
+        // Aggiungi newline prima delle liste per sicurezza
+        $text = preg_replace('/^\*\s+(.*?)$/m', '<li>$1</li>', $text);
+        
+        // Avvolgi liste (questo è un po\' grezzo ma funziona per readme standard)
+        // Cerchiamo gruppi di <li> e li avvolgiamo in <ul>
+        $text = preg_replace('/(<li>.*?<\/li>(\s*<li>.*?<\/li>)*)/s', '<ul>$1</ul>', $text);
+        
+        // Converti paragrafi (doppio newline)
+        $text = wpautop($text);
+        
+        return $text;
     }
 
     /* ===================== PLUGIN ACTION LINKS ===================== */

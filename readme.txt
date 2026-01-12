@@ -4,43 +4,59 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.0.2
+Stable tag: 8.0.3
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
 
 == Description ==
 
-This plugin is used to add a personal repository for updating plugins.
+**Marrison Custom Updater** è una soluzione avanzata per gestire aggiornamenti di plugin e temi privati in WordPress. Permette di collegare il tuo sito WordPress a un repository personalizzato, consentendo di distribuire aggiornamenti per i tuoi plugin e temi proprietari con la stessa facilità di quelli ufficiali di WordPress.org.
+
+**Funzionalità Principali:**
+
+*   **Repository Privato:** Collega il tuo sito a una fonte esterna per ricevere aggiornamenti per plugin e temi non presenti nella directory ufficiale.
+*   **Gestione Aggiornamenti Unificata:** Visualizza e installa aggiornamenti per plugin e temi privati direttamente dalla dashboard.
+*   **Sistema di Backup Integrato:** Esegue automaticamente backup dei plugin prima dell'aggiornamento, permettendo il ripristino rapido (rollback) in caso di problemi.
+*   **Supporto Temi e Plugin:** Gestisce sia estensioni (plugin) che temi grafici.
+*   **Aggiornamenti Massivi:** Funzionalità "Aggiorna Tutto" per plugin, temi e traduzioni.
+*   **Protezione dai Conflitti:** Sistema intelligente per evitare conflitti di versione con plugin ufficiali aventi lo stesso slug.
+*   **Cache Ottimizzata:** Sistema di caching per ridurre le richieste al server remoto e migliorare le prestazioni della dashboard.
+*   **Interfaccia Intuitiva:** Pannello di controllo chiaro con indicatori di stato, log delle versioni e gestione delle impostazioni.
+
+Questo plugin è essenziale per agenzie, sviluppatori freelance e organizzazioni che mantengono un ecosistema di plugin personalizzati su molteplici installazioni WordPress.
 
 
 == Installation ==
 
-Download the file marrison-custom-updater-stable.zip.
-
-Extract the folder named marrison-custom-updater-stable.
-
-Rename the folder to marrison-custom-updater.
-
-Compress the folder into a new zip file.
-
-Upload the plugin to WordPress and activate it.
+1. Scarica il file zip del plugin.
+2. Carica il plugin nella tua installazione WordPress tramite la dashboard (Plugin > Aggiungi nuovo > Carica plugin) o via FTP nella cartella `/wp-content/plugins/`.
+3. Attiva il plugin tramite il menu 'Plugin' di WordPress.
+4. Vai alla pagina 'Impostazioni' del plugin per configurare l'URL del tuo repository privato.
 
 
 == Changelog ==
 
+= 8.0.3 =
+
+* Fix: Risolto problema di visualizzazione del changelog nella finestra dei dettagli (ora supporta HTML).
+* Fix: Risolto problema di rilevamento versione e compatibilità (lettura metadati da file locale).
+
 = 8.0.2 =
+
 * Riorganizzato il menu di amministrazione: ordine Aggiornamenti, Backup, Impostazioni.
 * Aggiunta tab "Guida & Download" nella pagina Impostazioni.
 * Abilitato il download dei file index.php per la configurazione dei repository plugin e temi.
 
 = 8.0.1 =
+
 * Aggiunti pulsanti per aggiornamento massivo di tutti i temi e tutte le traduzioni.
 * Migliorata visualizzazione contatori: ora mostrano una spunta verde quando tutto è aggiornato.
 * Risolto problema rilevamento traduzioni.
 * Aggiunto scroll automatico alla barra di avanzamento durante gli aggiornamenti.
 
 = 8.0.0 =
+
 * Aggiunto supporto completo per Repository Privato Temi: ora è possibile aggiornare temi privati con la stessa logica dei plugin.
 * Nuova sezione "Temi Repository Privato" nella dashboard aggiornamenti con funzionalità di aggiornamento singolo e bulk.
 * Aggiunto campo URL Repository Temi nelle impostazioni.
