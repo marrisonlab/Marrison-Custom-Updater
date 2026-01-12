@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.0.0
+Stable tag: 8.0.2
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -28,6 +28,17 @@ Upload the plugin to WordPress and activate it.
 
 
 == Changelog ==
+
+= 8.0.2 =
+* Riorganizzato il menu di amministrazione: ordine Aggiornamenti, Backup, Impostazioni.
+* Aggiunta tab "Guida & Download" nella pagina Impostazioni.
+* Abilitato il download dei file index.php per la configurazione dei repository plugin e temi.
+
+= 8.0.1 =
+* Aggiunti pulsanti per aggiornamento massivo di tutti i temi e tutte le traduzioni.
+* Migliorata visualizzazione contatori: ora mostrano una spunta verde quando tutto è aggiornato.
+* Risolto problema rilevamento traduzioni.
+* Aggiunto scroll automatico alla barra di avanzamento durante gli aggiornamenti.
 
 = 8.0.0 =
 * Aggiunto supporto completo per Repository Privato Temi: ora è possibile aggiornare temi privati con la stessa logica dei plugin.

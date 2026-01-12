@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.0.0
+ * Version: 8.0.2
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -34,16 +34,20 @@ class Marrison_Custom_Updater {
         add_action('admin_post_marrison_clear_cache', [$this, 'clear_cache']);
         add_action('admin_post_marrison_save_repo_url', [$this, 'save_repo_url']);
         add_action('admin_post_marrison_force_check_mcu', [$this, 'force_check_mcu']);
+        add_action('admin_post_marrison_download_repo_file', [$this, 'download_repo_file']);
         
         // Hook per AJAX
         add_action('wp_ajax_marrison_update_plugin_ajax', [$this, 'update_plugin_ajax']);
         add_action('wp_ajax_marrison_bulk_update_ajax', [$this, 'bulk_update_ajax']);
         add_action('wp_ajax_marrison_auto_update_ajax', [$this, 'auto_update_ajax']);
+        add_action('wp_ajax_marrison_get_official_updates_ajax', [$this, 'get_official_updates_ajax']);
+        add_action('wp_ajax_marrison_update_official_plugin_ajax', [$this, 'update_official_plugin_ajax']);
         add_action('wp_ajax_marrison_restore_plugin_ajax', [$this, 'restore_plugin_ajax']);
         add_action('wp_ajax_marrison_update_private_theme_ajax', [$this, 'update_private_theme_ajax']);
         add_action('wp_ajax_marrison_bulk_update_private_themes_ajax', [$this, 'bulk_update_private_themes_ajax']);
         add_action('wp_ajax_marrison_update_all_themes_ajax', [$this, 'update_all_themes_ajax']);
         add_action('wp_ajax_marrison_update_translations_ajax', [$this, 'update_translations_ajax']);
+        add_action('wp_ajax_marrison_get_all_updates_ajax', [$this, 'get_all_updates_ajax']);
         
         // Aggiungi script e stili per la pagina admin
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
@@ -180,6 +184,111 @@ class Marrison_Custom_Updater {
             $this->check_for_available_updates();
         } else {
             wp_send_json_error(__('Nessun plugin è stato aggiornato', 'marrison-custom-updater'));
+        }
+    }
+
+    public function get_official_updates_ajax() {
+        $nonce = sanitize_text_field($_POST['nonce'] ?? '');
+        if (!wp_verify_nonce($nonce, 'marrison_auto_update')) {
+            wp_send_json_error(__('Security check failed', 'marrison-custom-updater'));
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Insufficient permissions', 'marrison-custom-updater'));
+        }
+
+        // Forza controllo aggiornamenti
+        wp_update_plugins();
+        $transient = get_site_transient('update_plugins');
+
+        if (empty($transient->response)) {
+            wp_send_json_success([]);
+        }
+
+        $private_updates = $this->get_available_updates();
+        $private_slugs = array_map(function($u) { return $u['slug']; }, $private_updates);
+
+        $plugins_to_update = [];
+        
+        foreach ($transient->response as $file => $data) {
+            $slug = dirname($file);
+            if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
+
+            if (in_array($slug, $private_slugs)) continue;
+
+            $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $file);
+            
+            $plugins_to_update[] = [
+                'file' => $file,
+                'slug' => $slug,
+                'name' => $plugin_data['Name'] ?? $slug,
+                'version' => $data->new_version,
+                'package' => $data->package ?? '',
+                'url' => $data->url ?? ''
+            ];
+        }
+        
+        wp_send_json_success($plugins_to_update);
+    }
+
+    public function update_official_plugin_ajax() {
+        $nonce = sanitize_text_field($_POST['nonce'] ?? '');
+        $file = sanitize_text_field($_POST['file'] ?? '');
+        $package = isset($_POST['package']) ? esc_url_raw($_POST['package']) : '';
+        $new_version = sanitize_text_field($_POST['new_version'] ?? '');
+
+        if (!wp_verify_nonce($nonce, 'marrison_auto_update')) {
+            wp_send_json_error(__('Security check failed', 'marrison-custom-updater'));
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Insufficient permissions', 'marrison-custom-updater'));
+        }
+        
+        if (empty($file)) {
+             wp_send_json_error(__('Missing file parameter', 'marrison-custom-updater'));
+        }
+
+        include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+        include_once ABSPATH . 'wp-admin/includes/plugin.php';
+        
+        // Ensure update info is present in transient
+        $transient = get_site_transient('update_plugins');
+        if (!is_object($transient)) {
+            $transient = new stdClass();
+        }
+        if (!isset($transient->response)) {
+            $transient->response = [];
+        }
+
+        // Inject update info if missing and package is provided
+        if (!isset($transient->response[$file]) && !empty($package)) {
+            $obj = new stdClass();
+            $obj->slug = dirname($file);
+            if ($obj->slug == '.' || $obj->slug == '') $obj->slug = basename($file, '.php');
+            $obj->plugin = $file;
+            $obj->package = $package;
+            $obj->new_version = $new_version; 
+            $obj->url = ''; 
+            
+            $transient->response[$file] = $obj;
+            set_site_transient('update_plugins', $transient);
+        } elseif (!isset($transient->response[$file])) {
+            // Fallback if no package provided: force remote check
+            wp_update_plugins();
+        }
+        
+        $skin = new Automatic_Upgrader_Skin();
+        $upgrader = new Plugin_Upgrader($skin);
+        
+        $result = $upgrader->upgrade($file);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error($result->get_error_message());
+        } elseif (!$result) {
+            wp_send_json_error(__('Update failed', 'marrison-custom-updater'));
+        } else {
+             wp_send_json_success(__('Plugin updated', 'marrison-custom-updater'));
         }
     }
 
@@ -982,7 +1091,7 @@ class Marrison_Custom_Updater {
         @ignore_user_abort(true);
         @set_time_limit(0);
 
-        $filename = sanitize_file_name($_POST['file'] ?? '');
+        $filename = sanitize_file_name($_POST['filename'] ?? '');
         $nonce = $_POST['nonce'] ?? '';
 
         if (!wp_verify_nonce($nonce, 'marrison_restore_' . $filename)) {
@@ -1526,20 +1635,19 @@ class Marrison_Custom_Updater {
     /* ===================== ADMIN UI ===================== */
 
     public function enqueue_admin_scripts($hook) {
-        // Carica gli script solo sulla nostra pagina
-        if ($hook !== 'toplevel_page_marrison-updater') {
+        // Load on all plugin subpages
+        if (strpos($hook, 'marrison-updater') === false) {
             return;
         }
         
-        // Assicurati che jQuery sia caricato
-        wp_enqueue_script('jquery');
+        // Load Custom Styles and Scripts
+        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], '1.0.2');
+        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . 'assets/js/admin-script.js', ['jquery'], '1.0.2', true);
         
-        // Aggiungi lo script per la barra di caricamento
-        wp_add_inline_script('jquery', '
-            var marrisonUpdater = {
-                ajaxurl: "' . admin_url('admin-ajax.php') . '"
-            };
-        ');
+        wp_localize_script('mcu-admin-script', 'marrisonUpdater', [
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('marrison_ajax_nonce')
+        ]);
     }
 
     public function add_admin_menu() {
@@ -1564,16 +1672,6 @@ class Marrison_Custom_Updater {
             [$this, 'admin_page']
         );
 
-        // Sottomenu Impostazioni
-        add_submenu_page(
-            'marrison-updater',
-            'Impostazioni',
-            'Impostazioni',
-            'manage_options',
-            'marrison-updater-settings',
-            [$this, 'settings_page']
-        );
-
         // Sottomenu Backup
         add_submenu_page(
             'marrison-updater',
@@ -1583,223 +1681,329 @@ class Marrison_Custom_Updater {
             'marrison-updater-backups',
             [$this, 'backup_page']
         );
+
+        // Sottomenu Impostazioni
+        add_submenu_page(
+            'marrison-updater',
+            'Impostazioni',
+            'Impostazioni',
+            'manage_options',
+            'marrison-updater-settings',
+            [$this, 'settings_page']
+        );
     }
 
     public function settings_page() {
         $settingsUpdated = $_GET['settings-updated'] ?? '';
+        $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'general';
         ?>
-        <div class="wrap">
-            <h1>Impostazioni Marrison Updater</h1>
+        <div class="mcu-wrap">
+            <div class="mcu-header">
+                <h1><span class="dashicons dashicons-admin-settings"></span> Impostazioni</h1>
+            </div>
+            
+            <h2 class="nav-tab-wrapper" style="margin-bottom: 20px;">
+                <a href="?page=marrison-updater-settings&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">Generale</a>
+                <a href="?page=marrison-updater-settings&tab=howto" class="nav-tab <?php echo $active_tab == 'howto' ? 'nav-tab-active' : ''; ?>">Guida & Download</a>
+            </h2>
 
             <?php if ($settingsUpdated === 'saved'): ?>
-                <div class="notice notice-success is-dismissible"><p>Impostazioni salvate correttamente.</p></div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Impostazioni salvate correttamente.</div>
             <?php elseif ($settingsUpdated === 'removed'): ?>
-                <div class="notice notice-success is-dismissible"><p>URL del repository rimosso.</p></div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> URL del repository rimosso.</div>
             <?php endif; ?>
 
             <?php if (isset($_GET['cache_cleared'])): ?>
-                <div class="notice notice-info"><p>Cache pulita &#10003;</p></div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Cache pulita.</div>
             <?php endif; ?>
 
             <?php if (isset($_GET['mcu_checked'])): ?>
-                <div class="notice notice-success is-dismissible"><p>Controllo aggiornamenti MCU forzato con successo.</p></div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Controllo aggiornamenti MCU forzato con successo.</div>
             <?php endif; ?>
 
-            <h2>Impostazioni Repository</h2>
-            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
-                <?php wp_nonce_field('marrison_save_repo_url'); ?>
-                <input type="hidden" name="action" value="marrison_save_repo_url">
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="marrison_repo_url">Indirizzo Repository Plugin</label></th>
-                        <td>
-                            <input type="url" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo esc_attr(get_option('marrison_repo_url', '')); ?>" class="regular-text">
-                            <p class="description">Inserisci l'URL del repository personalizzato per i PLUGIN.</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="marrison_themes_repo_url">Indirizzo Repository Temi</label></th>
-                        <td>
-                            <input type="url" id="marrison_themes_repo_url" name="marrison_themes_repo_url" value="<?php echo esc_attr(get_option('marrison_themes_repo_url', '')); ?>" class="regular-text">
-                            <p class="description">Inserisci l'URL del repository personalizzato per i TEMI.</p>
-                        </td>
-                    </tr>
-                </table>
-                <p class="submit">
-                    <button class="button button-primary" type="submit">Salva</button>
-                    <button class="button" type="submit" name="marrison_remove_repo_url" value="1">Rimuovi URL</button>
-                </p>
-            </form>
-
-            <hr>
-
-            <h2>Strumenti Avanzati</h2>
-            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
-                <?php wp_nonce_field('marrison_force_check_mcu'); ?>
-                <input type="hidden" name="action" value="marrison_force_check_mcu">
-                <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater-settings&mcu_checked=1')); ?>">
-                <button class="button button-secondary">Forza controllo aggiornamenti MCU</button>
-                <p class="description">Usa questo pulsante se hai appena rilasciato una nuova versione su GitHub e non viene rilevata.</p>
-            </form>
-
-            <hr>
-
-            <h2>Diagnostica Repository Privato</h2>
-            <?php
-            $updates = $this->get_available_updates();
-            $plugins = get_plugins();
-            $repo_count = count($updates);
-            $installed_count = 0;
-            $installed_list = [];
-
-            if (!empty($updates)) {
-                foreach ($updates as $u) {
-                    $file = $this->find_plugin_file($u['slug']);
-                    if ($file && isset($plugins[$file])) {
-                        $installed_count++;
-                        $installed_list[] = [
-                            'name' => $u['name'],
-                            'file' => $file,
-                            'version' => $plugins[$file]['Version'],
-                            'remote_version' => $u['version'],
-                            'status' => '<span class="dashicons dashicons-yes" style="color:green;"></span> Monitorato'
-                        ];
-                    }
-                }
-            }
-            ?>
-
-            <div class="card" style="max-width: 100%; margin-top: 20px; padding: 15px;">
-                <h3 style="margin-top: 0;">Sommario Repository</h3>
-                <p>
-                    <strong>Stato connessione:</strong> 
-                    <?php echo !empty($updates) ? '<span style="color:green;">Connesso</span>' : '<span style="color:red;">Non connesso o vuoto</span>'; ?>
-                </p>
-                <p>
-                    <strong>Plugin totali nel repository:</strong> <?php echo $repo_count; ?>
-                </p>
-                <p>
-                    <strong>Plugin installati e monitorati:</strong> <?php echo $installed_count; ?>
-                </p>
-            </div>
-
-            <?php if ($installed_count > 0): ?>
-                <h3 style="margin-top: 30px;">Plugin Monitorati su questo sito</h3>
-                <table class="widefat striped">
-                    <thead>
-                        <tr>
-                            <th>Plugin Installato</th>
-                            <th>File</th>
-                            <th>Versione Installata</th>
-                            <th>Versione Repository</th>
-                            <th>Stato</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($installed_list as $item): ?>
+            <?php if ($active_tab == 'general'): ?>
+                <div class="mcu-card">
+                    <div class="mcu-card-header">
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-database"></span> Impostazioni Repository</h2>
+                    </div>
+                    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                        <?php wp_nonce_field('marrison_save_repo_url'); ?>
+                        <input type="hidden" name="action" value="marrison_save_repo_url">
+                        
+                        <table class="form-table">
                             <tr>
-                                <td><?php echo esc_html($item['name']); ?></td>
-                                <td><?php echo esc_html($item['file']); ?></td>
-                                <td><?php echo esc_html($item['version']); ?></td>
-                                <td><?php echo esc_html($item['remote_version']); ?></td>
-                                <td><?php echo $item['status']; ?></td>
+                                <th scope="row"><label for="marrison_repo_url">Indirizzo Repository Plugin</label></th>
+                                <td>
+                                    <input type="url" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo esc_attr(get_option('marrison_repo_url', '')); ?>" class="regular-text" style="width: 100%; max-width: 500px;">
+                                    <p class="description">Inserisci l'URL del repository personalizzato per i PLUGIN.</p>
+                                </td>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            <?php else: ?>
-                <p style="margin-top: 20px;"><em>Nessun plugin del repository privato è attualmente installato su questo sito.</em></p>
-            <?php endif; ?>
+                            <tr>
+                                <th scope="row"><label for="marrison_themes_repo_url">Indirizzo Repository Temi</label></th>
+                                <td>
+                                    <input type="url" id="marrison_themes_repo_url" name="marrison_themes_repo_url" value="<?php echo esc_attr(get_option('marrison_themes_repo_url', '')); ?>" class="regular-text" style="width: 100%; max-width: 500px;">
+                                    <p class="description">Inserisci l'URL del repository personalizzato per i TEMI.</p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <div style="margin-top: 20px; display: flex; gap: 10px;">
+                            <button class="mcu-button mcu-button-primary" type="submit">Salva Impostazioni</button>
+                            <button class="mcu-button mcu-button-secondary" type="submit" name="marrison_remove_repo_url" value="1" onclick="return confirm('Sei sicuro di voler rimuovere gli URL?');">Rimuovi URL</button>
+                        </div>
+                    </form>
+                </div>
 
-            <hr style="margin-top: 30px;">
+                <div class="mcu-card" style="margin-top: 30px;">
+                    <div class="mcu-card-header">
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-admin-tools"></span> Strumenti Avanzati</h2>
+                    </div>
+                    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="padding: 10px 0;">
+                        <?php wp_nonce_field('marrison_force_check_mcu'); ?>
+                        <input type="hidden" name="action" value="marrison_force_check_mcu">
+                        <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater-settings&mcu_checked=1')); ?>">
+                        
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <button class="mcu-button mcu-button-secondary">Forza controllo aggiornamenti MCU</button>
+                            <span class="description">Usa questo pulsante se hai appena rilasciato una nuova versione su GitHub e non viene rilevata.</span>
+                        </div>
+                    </form>
+                </div>
 
-            <h2>Diagnostica Repository Temi</h2>
-            <?php
-            $theme_updates = $this->get_available_theme_updates();
-            $theme_repo_count = count($theme_updates);
-            $theme_installed_count = 0;
-            $theme_installed_list = [];
+                <?php
+                $updates = $this->get_available_updates();
+                $plugins = get_plugins();
+                $repo_count = count($updates);
+                $installed_count = 0;
+                $installed_list = [];
 
-            if (!empty($theme_updates)) {
-                $installed_themes = wp_get_themes(); // Pre-fetch di tutti i temi
-                
-                foreach ($theme_updates as $u) {
-                    $slug = $u['slug'];
-                    $theme = wp_get_theme($slug);
-                    $is_installed = $theme->exists();
-                    $detected_slug = $slug;
-
-                    // Logica di fallback migliorata per diagnostica
-                    if (!$is_installed) {
-                        foreach ($installed_themes as $t_slug => $t_obj) {
-                            if (strcasecmp($t_obj->get('Name'), $u['name']) === 0 || $t_obj->get('TextDomain') === $slug) {
-                                $theme = $t_obj;
-                                $is_installed = true;
-                                $detected_slug = $t_slug;
-                                break;
-                            }
+                if (!empty($updates)) {
+                    foreach ($updates as $u) {
+                        $file = $this->find_plugin_file($u['slug']);
+                        if ($file && isset($plugins[$file])) {
+                            $installed_count++;
+                            $installed_list[] = [
+                                'name' => $u['name'],
+                                'file' => $file,
+                                'version' => $plugins[$file]['Version'],
+                                'remote_version' => $u['version'],
+                                'status' => '<span class="mcu-badge mcu-badge-success">Monitorato</span>'
+                            ];
                         }
                     }
-                    
-                    if ($is_installed) {
-                        $theme_installed_count++;
+                }
+                ?>
+
+                <div class="mcu-dashboard-grid" style="margin-top: 30px;">
+                    <div class="mcu-card mcu-stat-card">
+                        <div class="mcu-stat-number"><?php echo !empty($updates) ? '<span class="dashicons dashicons-yes" style="color:var(--mcu-success); font-size: 36px; height: 36px; width: 36px;"></span>' : '<span class="dashicons dashicons-no" style="color:var(--mcu-danger); font-size: 36px; height: 36px; width: 36px;"></span>'; ?></div>
+                        <div class="mcu-stat-label">Stato Plugin</div>
+                    </div>
+                    <div class="mcu-card mcu-stat-card">
+                        <div class="mcu-stat-number"><?php echo $repo_count; ?></div>
+                        <div class="mcu-stat-label">Plugin nel Repo</div>
+                    </div>
+                    <div class="mcu-card mcu-stat-card">
+                        <div class="mcu-stat-number"><?php echo $installed_count; ?></div>
+                        <div class="mcu-stat-label">Plugin Monitorati</div>
+                    </div>
+                </div>
+
+                <?php if ($installed_count > 0): ?>
+                    <div class="mcu-card">
+                        <div class="mcu-card-header">
+                            <h2 class="mcu-card-title">Plugin Monitorati su questo sito</h2>
+                        </div>
+                        <table class="mcu-table">
+                            <thead>
+                                <tr>
+                                    <th>Plugin Installato</th>
+                                    <th>File</th>
+                                    <th>Versione Installata</th>
+                                    <th>Versione Repository</th>
+                                    <th>Stato</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($installed_list as $item): ?>
+                                    <tr>
+                                        <td><strong><?php echo esc_html($item['name']); ?></strong></td>
+                                        <td><code><?php echo esc_html($item['file']); ?></code></td>
+                                        <td><?php echo esc_html($item['version']); ?></td>
+                                        <td><?php echo esc_html($item['remote_version']); ?></td>
+                                        <td><?php echo $item['status']; ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+
+                <?php
+                $theme_updates = $this->get_available_theme_updates();
+                $theme_repo_count = count($theme_updates);
+                $theme_installed_count = 0;
+                $theme_installed_list = [];
+
+                if (!empty($theme_updates)) {
+                    $installed_themes = wp_get_themes();
+                    foreach ($theme_updates as $u) {
+                        $slug = $u['slug'];
+                        $theme = wp_get_theme($slug);
+                        $is_installed = $theme->exists();
+                        $detected_slug = $slug;
+
+                        if (!$is_installed) {
+                            foreach ($installed_themes as $t_slug => $t_obj) {
+                                if (strcasecmp($t_obj->get('Name'), $u['name']) === 0 || $t_obj->get('TextDomain') === $slug) {
+                                    $theme = $t_obj;
+                                    $is_installed = true;
+                                    $detected_slug = $t_slug;
+                                    break;
+                                }
+                            }
+                        }
                         
-                        $theme_installed_list[] = [
-                            'name' => $u['name'],
-                            'slug' => $detected_slug, // Mostra lo slug reale installato
-                            'version' => $is_installed ? $theme->get('Version') : '-',
-                            'remote_version' => $u['version'],
-                            'status' => '<span class="dashicons dashicons-yes" style="color:green;"></span> Monitorato'
-                        ];
+                        if ($is_installed) {
+                            $theme_installed_count++;
+                            $theme_installed_list[] = [
+                                'name' => $u['name'],
+                                'slug' => $detected_slug,
+                                'version' => $is_installed ? $theme->get('Version') : '-',
+                                'remote_version' => $u['version'],
+                                'status' => '<span class="mcu-badge mcu-badge-success">Monitorato</span>'
+                            ];
+                        }
                     }
                 }
-            }
-            ?>
+                ?>
 
-            <div class="card" style="max-width: 100%; margin-top: 20px; padding: 15px;">
-                <h3 style="margin-top: 0;">Sommario Repository Temi</h3>
-                <p>
-                    <strong>Stato connessione:</strong> 
-                    <?php echo !empty($theme_updates) ? '<span style="color:green;">Connesso</span>' : '<span style="color:red;">Non connesso o vuoto</span>'; ?>
-                </p>
-                <p>
-                    <strong>Temi totali nel repository:</strong> <?php echo $theme_repo_count; ?>
-                </p>
-                <p>
-                    <strong>Temi installati e monitorati:</strong> <?php echo $theme_installed_count; ?>
-                </p>
-            </div>
+                <div class="mcu-dashboard-grid" style="margin-top: 30px;">
+                    <div class="mcu-card mcu-stat-card">
+                        <div class="mcu-stat-number"><?php echo !empty($theme_updates) ? '<span class="dashicons dashicons-yes" style="color:var(--mcu-success); font-size: 36px; height: 36px; width: 36px;"></span>' : '<span class="dashicons dashicons-no" style="color:var(--mcu-danger); font-size: 36px; height: 36px; width: 36px;"></span>'; ?></div>
+                        <div class="mcu-stat-label">Stato Temi</div>
+                    </div>
+                    <div class="mcu-card mcu-stat-card">
+                        <div class="mcu-stat-number"><?php echo $theme_repo_count; ?></div>
+                        <div class="mcu-stat-label">Temi nel Repo</div>
+                    </div>
+                    <div class="mcu-card mcu-stat-card">
+                        <div class="mcu-stat-number"><?php echo $theme_installed_count; ?></div>
+                        <div class="mcu-stat-label">Temi Monitorati</div>
+                    </div>
+                </div>
 
-            <?php if (!empty($theme_installed_list)): ?>
-                <h3 style="margin-top: 30px;">Temi Installati Monitorati</h3>
-                <table class="widefat striped">
-                    <thead>
-                        <tr>
-                            <th>Tema</th>
-                            <th>Slug (Cartella)</th>
-                            <th>Versione Installata</th>
-                            <th>Versione Repository</th>
-                            <th>Stato</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($theme_installed_list as $item): ?>
-                            <tr>
-                                <td><?php echo esc_html($item['name']); ?></td>
-                                <td><?php echo esc_html($item['slug']); ?></td>
-                                <td><?php echo esc_html($item['version']); ?></td>
-                                <td><?php echo esc_html($item['remote_version']); ?></td>
-                                <td><?php echo $item['status']; ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <?php if (!empty($theme_installed_list)): ?>
+                    <div class="mcu-card">
+                        <div class="mcu-card-header">
+                            <h2 class="mcu-card-title">Temi Installati Monitorati</h2>
+                        </div>
+                        <table class="mcu-table">
+                            <thead>
+                                <tr>
+                                    <th>Tema</th>
+                                    <th>Slug (Cartella)</th>
+                                    <th>Versione Installata</th>
+                                    <th>Versione Repository</th>
+                                    <th>Stato</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($theme_installed_list as $item): ?>
+                                    <tr>
+                                        <td><strong><?php echo esc_html($item['name']); ?></strong></td>
+                                        <td><code><?php echo esc_html($item['slug']); ?></code></td>
+                                        <td><?php echo esc_html($item['version']); ?></td>
+                                        <td><?php echo esc_html($item['remote_version']); ?></td>
+                                        <td><?php echo $item['status']; ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+
             <?php else: ?>
-                <p style="margin-top: 20px;"><em>Nessun tema del repository privato è attualmente installato su questo sito.</em></p>
+                <!-- HOW TO TAB -->
+                <div class="mcu-card">
+                    <div class="mcu-card-header">
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-book"></span> Guida all'uso</h2>
+                    </div>
+                    <div style="padding: 10px 0;">
+                        <p>Per trasformare una cartella del tuo server in un Repository Privato compatibile con Marrison Custom Updater, segui questi passaggi:</p>
+                        
+                        <h3 style="margin-top: 20px;">1. Repository Plugin</h3>
+                        <ol style="margin-left: 20px; list-style: decimal;">
+                            <li>Crea una cartella pubblica sul tuo server (es. <code>https://tuosito.com/my-repo/plugins/</code>).</li>
+                            <li>Scarica il file <code>index.php</code> qui sotto.</li>
+                            <li>Carica il file nella cartella appena creata.</li>
+                            <li>Carica i file <code>.zip</code> dei tuoi plugin nella stessa cartella.</li>
+                            <li>Inserisci l'URL della cartella (es. <code>https://tuosito.com/my-repo/plugins/</code>) nelle Impostazioni di questo plugin.</li>
+                        </ol>
+                        <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin-top: 15px;">
+                            <?php wp_nonce_field('marrison_download_repo_file'); ?>
+                            <input type="hidden" name="action" value="marrison_download_repo_file">
+                            <input type="hidden" name="file_type" value="plugin">
+                            <button type="submit" class="mcu-button mcu-button-primary"><span class="dashicons dashicons-download"></span> Scarica index.php per Plugin</button>
+                        </form>
+
+                        <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
+
+                        <h3>2. Repository Temi</h3>
+                        <ol style="margin-left: 20px; list-style: decimal;">
+                            <li>Crea una cartella pubblica sul tuo server (es. <code>https://tuosito.com/my-repo/themes/</code>).</li>
+                            <li>Scarica il file <code>index.php</code> qui sotto (specifico per i temi).</li>
+                            <li>Rinomina il file scaricato in <code>index.php</code> se necessario, oppure caricalo così com'è se supportato, ma solitamente deve chiamarsi index.php per essere servito di default. <em>Nota: il file scaricato si chiamerà index-themes.php, rinominalo in index.php sul server.</em></li>
+                            <li>Carica il file nella cartella appena creata.</li>
+                            <li>Carica i file <code>.zip</code> dei tuoi temi nella stessa cartella.</li>
+                            <li>Inserisci l'URL della cartella (es. <code>https://tuosito.com/my-repo/themes/</code>) nelle Impostazioni di questo plugin.</li>
+                        </ol>
+                        <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin-top: 15px;">
+                            <?php wp_nonce_field('marrison_download_repo_file'); ?>
+                            <input type="hidden" name="action" value="marrison_download_repo_file">
+                            <input type="hidden" name="file_type" value="theme">
+                            <button type="submit" class="mcu-button mcu-button-primary"><span class="dashicons dashicons-download"></span> Scarica index.php per Temi</button>
+                        </form>
+                    </div>
+                </div>
             <?php endif; ?>
         </div>
         <?php
     }
+
+    public function download_repo_file() {
+        check_admin_referer('marrison_download_repo_file');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Permessi insufficienti');
+        }
+
+        $type = $_POST['file_type'] ?? 'plugin';
+        $source_dir = plugin_dir_path(__FILE__) . 'add_this_file_to_your_repo_folder/';
+        
+        if ($type === 'theme') {
+            $file = $source_dir . 'index-themes.php';
+            $filename = 'index-themes.php';
+        } else {
+            $file = $source_dir . 'index.php';
+            $filename = 'index.php';
+        }
+
+        if (!file_exists($file)) {
+            wp_die('File non trovato: ' . esc_html($file));
+        }
+
+        header('Content-Description: File Transfer');
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
+        header('Expires: 0');
+        header('Cache-Control: must-revalidate');
+        header('Pragma: public');
+        header('Content-Length: ' . filesize($file));
+        readfile($file);
+        exit;
+    }
+
 
     public function installer_page() {
         // Controllo permessi remoti
@@ -1991,47 +2195,39 @@ class Marrison_Custom_Updater {
     }
 
     public function backup_page() {
-        // Disabilita caricamento plugin esterni in questa pagina per evitare conflitti (es. JetEngine)
-        // Nota: questo funziona solo se i plugin non sono giÃ  stati caricati, ma in admin_page di solito lo sono.
-        // L'errore indica che JetEngine non trova una classe quando viene inizializzato.
-        // Proviamo a catturare l'errore o a non istanziare classi problematiche.
-        
         $restored = $_GET['restored'] ?? '';
         
-        // Usa una funzione helper sicura per ottenere i plugin senza crash
         if (!function_exists('get_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
         $plugins = get_plugins();
         ?>
-        <div class="wrap">
-            <h1>Backup Disponibili</h1>
+        <div class="mcu-wrap">
+            <div class="mcu-header">
+                <h1><span class="dashicons dashicons-backup"></span> Backup Disponibili</h1>
+            </div>
             
-            <!-- Barra di caricamento ripristino -->
-            <div id="marrison-restore-progress" class="notice notice-warning" style="display:none; padding: 15px; margin: 20px 0;">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div class="spinner is-active" style="float:none; width:20px; height:20px; margin:0;"></div>
-                    <div style="flex: 1;">
-                        <div id="marrison-restore-status" style="font-weight: 600; margin-bottom: 8px;">Ripristino in corso...</div>
-                        <div style="background: #fff; border-radius: 4px; height: 8px; overflow: hidden; border:1px solid #ddd;">
-                            <div id="marrison-restore-bar" style="background: #d63638; height: 100%; width: 100%;"></div>
-                        </div>
-                        <div id="marrison-restore-info" style="font-size: 12px; color: #646970; margin-top: 4px;">Attendere prego, non chiudere la pagina...</div>
-                    </div>
+            <!-- Progress Bar -->
+            <div class="mcu-progress-container">
+                <div class="mcu-progress-header">
+                    <span id="mcu-progress-title">Ripristino in corso...</span>
+                    <span id="mcu-progress-percentage"></span>
                 </div>
+                <div class="mcu-progress-track">
+                    <div class="mcu-progress-bar"></div>
+                </div>
+                <div class="mcu-progress-status" id="mcu-progress-status-text">Inizializzazione...</div>
             </div>
 
             <?php if ($restored): ?>
-                <div class="notice notice-success is-dismissible"><p>Plugin <?php echo esc_html($restored); ?> ripristinato con successo.</p></div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Plugin <?php echo esc_html($restored); ?> ripristinato con successo.</div>
             <?php endif; ?>
 
             <?php 
-            // Cerca backup disponibili
             $backup_dir = WP_CONTENT_DIR . '/marrison-backups';
             $backups = [];
             if (is_dir($backup_dir)) {
                 $files = glob($backup_dir . '/*-backup.zip');
-                // Ordina per data (piÃ¹ recenti prima)
                 usort($files, function($a, $b) {
                     return filemtime($b) - filemtime($a);
                 });
@@ -2039,12 +2235,10 @@ class Marrison_Custom_Updater {
                 foreach ($files as $file) {
                     $filename = basename($file);
                     
-                    // Parsa nome file per estrarre slug e versione
                     $slug = '';
                     $backup_version = 'N/A';
                     $type_label = 'Plugin';
                     
-                    // Handle new format with type prefix
                     $parse_name = $filename;
                     if (strpos($filename, 'theme-') === 0) {
                         $type_label = 'Tema';
@@ -2060,7 +2254,6 @@ class Marrison_Custom_Updater {
                     } elseif (preg_match('/^(.*?)-backup\.zip$/', $parse_name, $matches)) {
                         $slug = $matches[1];
                     } else {
-                        // Fallback legacy
                         if (preg_match('/^(.*)-v(.*)-backup\.zip$/', $filename, $matches)) {
                             $slug = $matches[1];
                             $backup_version = $matches[2];
@@ -2080,159 +2273,94 @@ class Marrison_Custom_Updater {
                     ];
                 }
             }
+            ?>
 
-            if (!empty($backups)): ?>
-                <table class="wp-list-table widefat striped">
-                    <thead>
-                        <tr>
-                            <th>Plugin (Slug)</th>
-                            <th>Versione Backup</th>
-                            <th>Versione Attuale</th>
-                            <th>Data Backup</th>
-                            <th>Dimensione</th>
-                            <th>Azione</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($backups as $info): 
-                             $plugin_name = $info['slug'];
-                             $current_version = 'Non installato';
-                             $version_class = '';
-                             
-                             if (isset($info['type_label']) && $info['type_label'] === 'Tema') {
-                                 // Gestione Temi
-                                 $theme = wp_get_theme($info['slug']);
-                                 if ($theme->exists()) {
-                                     $plugin_name = $theme->get('Name');
-                                     $current_version = $theme->get('Version');
-                                 }
-                             } else {
-                                 // Gestione Plugin
-                                 $found_file = $this->find_plugin_file($info['slug']);
-                                 if ($found_file && isset($plugins[$found_file])) {
-                                     $plugin_name = $plugins[$found_file]['Name'];
-                                     $current_version = $plugins[$found_file]['Version'];
-                                 }
-                             }
+            <div class="mcu-card">
+                <div class="mcu-card-header">
+                    <h2 class="mcu-card-title"><span class="dashicons dashicons-list-view"></span> Lista Backup</h2>
+                    <span class="mcu-badge mcu-badge-primary"><?php echo count($backups); ?> Backup</span>
+                </div>
 
-                             if ($info['backup_version'] !== 'N/A' && $info['backup_version'] !== $current_version) {
-                                 $version_class = 'color: #d63638; font-weight: bold;';
-                             }
-                        ?>
+                <?php if (!empty($backups)): ?>
+                    <table class="mcu-table">
+                        <thead>
                             <tr>
-                                <td>
-                                    <strong><?php echo esc_html($plugin_name); ?></strong>
-                                    <span class="badge" style="background:#e0e0e0; font-size:10px; padding:2px 4px; border-radius:3px; vertical-align:text-top; margin-left:5px;"><?php echo esc_html($info['type_label'] ?? 'Plugin'); ?></span>
-                                    <br><small><?php echo esc_html($info['slug']); ?></small>
-                                </td>
-                                <td>
-                                    <span class="badge" style="background: #f0f0f1; padding: 2px 6px; border-radius: 4px;">
-                                        <?php echo esc_html($info['backup_version']); ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <span style="<?php echo $version_class; ?>">
-                                        <?php echo esc_html($current_version); ?>
-                                    </span>
-                                </td>
-                                <td><?php echo esc_html($info['date']); ?></td>
-                                <td><?php echo esc_html($info['size']); ?></td>
-                                <td>
-                                    <?php 
-                                    // Usa il nome file completo per il nonce e l'azione
-                                    $restore_nonce = wp_create_nonce('marrison_restore_' . $info['filename']); 
-                                    ?>
-                                    <button type="button" 
-                                            class="button marrison-restore-btn" 
-                                            data-filename="<?php echo esc_attr($info['filename']); ?>"
-                                            data-nonce="<?php echo esc_attr($restore_nonce); ?>">
-                                        Ripristina
-                                    </button>
-                                </td>
+                                <th>Elemento</th>
+                                <th>Versione Backup</th>
+                                <th>Versione Attuale</th>
+                                <th>Data Backup</th>
+                                <th>Dimensione</th>
+                                <th style="text-align:right;">Azione</th>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            <?php else: ?>
-                <p>Nessun backup disponibile.</p>
-            <?php endif; ?>
-            
-            <script>
-            jQuery(document).ready(function($) {
-                $('.marrison-restore-btn').on('click', function(e) {
-                    e.preventDefault();
-                    
-                    if (!confirm('Sei sicuro di voler ripristinare questo backup? La versione corrente verr\u00E0 sovrascritta.')) {
-                        return;
-                    }
-                    
-                    var btn = $(this);
-                    var filename = btn.data('filename');
-                    var nonce = btn.data('nonce');
-                    
-                    // Disabilita tutti i bottoni
-                    $('.marrison-restore-btn').prop('disabled', true);
-                    
-                    // Mostra progress bar
-                    $('#marrison-restore-progress').slideDown();
-                    
-                    // Animazione fake della barra
-                    var percent = 0;
-                    var interval = setInterval(function() {
-                        percent += 5;
-                        if (percent > 90) percent = 90; // Ferma al 90% finchÃ© non risponde
-                        $('#marrison-restore-bar').css('width', percent + '%');
-                    }, 500);
-                    
-                    // Determina il tipo in base al nome del file o aggiungi attributo data-type
-                    var type = 'plugin';
-                    if (filename.indexOf('theme-') === 0) {
-                        type = 'theme';
-                    } else if (filename.indexOf('plugin-') === 0) {
-                        type = 'plugin';
-                    } else {
-                        // Fallback: prova a indovinare o default a plugin
-                        type = 'plugin';
-                    }
+                        </thead>
+                        <tbody>
+                            <?php foreach ($backups as $info): 
+                                 $plugin_name = $info['slug'];
+                                 $current_version = 'Non installato';
+                                 $version_class = '';
+                                 
+                                 if (isset($info['type_label']) && $info['type_label'] === 'Tema') {
+                                     $theme = wp_get_theme($info['slug']);
+                                     if ($theme->exists()) {
+                                         $plugin_name = $theme->get('Name');
+                                         $current_version = $theme->get('Version');
+                                     }
+                                 } else {
+                                     $found_file = $this->find_plugin_file($info['slug']);
+                                     if ($found_file && isset($plugins[$found_file])) {
+                                         $plugin_name = $plugins[$found_file]['Name'];
+                                         $current_version = $plugins[$found_file]['Version'];
+                                     }
+                                 }
 
-                    $.ajax({
-                        url: ajaxurl,
-                        type: 'POST',
-                        data: {
-                            action: 'marrison_restore_plugin_ajax',
-                            file: filename,
-                            nonce: nonce,
-                            type: type
-                        },
-                        success: function(response) {
-                            clearInterval(interval);
-                            $('#marrison-restore-bar').css('width', '100%');
-                            
-                            if (response.success) {
-                                $('#marrison-restore-status').text('Ripristino completato!');
-                                $('#marrison-restore-info').text('Ricaricamento pagina...');
-                                setTimeout(function() {
-                                    window.location.href = 'admin.php?page=marrison-updater-backups&restored=' + response.data.slug;
-                                }, 1000);
-                            } else {
-                                alert('Errore: ' + (response.data || 'Errore sconosciuto'));
-                                $('#marrison-restore-progress').hide();
-                                $('.marrison-restore-btn').prop('disabled', false);
-                            }
-                        },
-                        error: function(xhr, status, error) {
-                            clearInterval(interval);
-                            alert('Errore di connessione: ' + error);
-                            $('#marrison-restore-progress').hide();
-                            $('.marrison-restore-btn').prop('disabled', false);
-                        }
-                    });
-                });
-            });
-            </script>
+                                 if ($info['backup_version'] !== 'N/A' && $info['backup_version'] !== $current_version) {
+                                     $version_class = 'color: var(--mcu-danger); font-weight: bold;';
+                                 }
+                            ?>
+                                <tr>
+                                    <td>
+                                        <strong><?php echo esc_html($plugin_name); ?></strong>
+                                        <span class="mcu-badge" style="background:#e0e0e0; margin-left:5px;"><?php echo esc_html($info['type_label'] ?? 'Plugin'); ?></span>
+                                        <div style="font-size:11px; color:#888;"><?php echo esc_html($info['slug']); ?></div>
+                                    </td>
+                                    <td>
+                                        <span class="mcu-badge mcu-badge-primary">
+                                            <?php echo esc_html($info['backup_version']); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span style="<?php echo $version_class; ?>">
+                                            <?php echo esc_html($current_version); ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo esc_html($info['date']); ?></td>
+                                    <td><?php echo esc_html($info['size']); ?></td>
+                                    <td style="text-align:right;">
+                                        <?php 
+                                        $restore_nonce = wp_create_nonce('marrison_restore_' . $info['filename']); 
+                                        ?>
+                                        <button type="button" 
+                                                class="mcu-button mcu-button-secondary mcu-button-sm mcu-action-restore" 
+                                                data-filename="<?php echo esc_attr($info['filename']); ?>"
+                                                data-nonce="<?php echo esc_attr($restore_nonce); ?>">
+                                            <span class="dashicons dashicons-undo"></span> Ripristina
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <div class="mcu-empty-state">
+                        <span class="dashicons dashicons-backup"></span>
+                        <p>Nessun backup disponibile.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
         </div>
         <?php
     }
+
 
     public function admin_page() {
 
@@ -2246,279 +2374,451 @@ class Marrison_Custom_Updater {
         if (!is_array($bulkUpdated)) $bulkUpdated = [$bulkUpdated];
         $settingsUpdated = $_GET['settings-updated'] ?? '';
 
-        ?>
-        <div class="wrap">
-            <h1>Marrison Updater</h1>
+        // Calcola conteggi per la dashboard
+        $repo_updates_count = 0;
+        foreach($updates as $u) {
+            $file = $this->find_plugin_file($u['slug']);
+            if ($file && isset($plugins[$file]) && version_compare(trim($plugins[$file]['Version']), trim($u['version']), '<')) {
+                $repo_updates_count++;
+            }
+        }
+        
+        $theme_updates_count = 0;
+        $installed_themes = wp_get_themes();
+        foreach($theme_updates as $u) {
+            $slug = $u['slug'];
+            $theme = wp_get_theme($slug);
+             if (!$theme->exists()) {
+                foreach ($installed_themes as $t_slug => $t_obj) {
+                    if (strcasecmp($t_obj->get('Name'), $u['name']) === 0 || $t_obj->get('TextDomain') === $slug) {
+                        $theme = $t_obj;
+                        break;
+                    }
+                }
+            }
+            if ($theme->exists() && version_compare($theme->get('Version'), $u['version'], '<')) {
+                $theme_updates_count++;
+            }
+        }
+        
+        $total_updates = $repo_updates_count + $theme_updates_count;
 
-            <!-- Barra di caricamento -->
-            <div id="marrison-update-progress" class="notice notice-info" style="display:none; padding: 15px; margin: 20px 0;">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div class="spinner is-active" style="float:none; width:20px; height:20px; margin:0;"></div>
-                    <div style="flex: 1;">
-                        <div id="marrison-update-status" style="font-weight: 600; margin-bottom: 8px;">Aggiornamento in corso...</div>
-                        <div style="background: #f0f0f1; border-radius: 4px; height: 8px; overflow: hidden;">
-                            <div id="marrison-update-bar" style="background: #2271b1; height: 100%; width: 0%; transition: width 0.3s ease;"></div>
-                        </div>
-                        <div id="marrison-update-info" style="font-size: 12px; color: #646970; margin-top: 4px;"></div>
-                    </div>
+        // Check if repo URL is configured
+        $repo_url_config = get_option('marrison_repo_url');
+        if (empty($repo_url_config)) {
+             echo '<div class="mcu-notice mcu-notice-error"><span class="dashicons dashicons-warning"></span> Repository URL non configurato. <a href="'.admin_url('admin.php?page=marrison-updater-settings').'">Vai alle impostazioni</a></div>';
+        }
+
+        // Calcola aggiornamenti pubblici Plugin
+        $transient_plugins = get_site_transient('update_plugins');
+        $public_plugin_updates_count = 0;
+        
+        // Logica per escludere i privati (copiata da sotto per avere il conteggio in alto)
+        $private_updates_check = $this->get_available_updates();
+        $private_slugs_check = [];
+        $private_files_check = [];
+        foreach ($private_updates_check as $u) {
+            $private_slugs_check[] = $u['slug'];
+            $found_file = $this->find_plugin_file($u['slug']);
+            if ($found_file) $private_files_check[] = $found_file;
+        }
+        $known_slugs_check = get_option('marrison_known_private_slugs', []);
+        if (is_array($known_slugs_check)) {
+            $private_slugs_check = array_unique(array_merge($private_slugs_check, $known_slugs_check));
+        }
+
+        if (!empty($transient_plugins->response)) {
+            foreach ($transient_plugins->response as $file => $data) {
+                // ESCLUDI i plugin del repository privato
+                if (in_array($file, $private_files_check)) continue;
+                
+                $check_slugs = [dirname($file), basename($file, '.php')];
+                if (isset($data->slug)) $check_slugs[] = $data->slug;
+                
+                $found_private = false;
+                foreach ($check_slugs as $s) {
+                    if ($s !== '.' && $s !== '' && in_array($s, $private_slugs_check)) {
+                        $found_private = true;
+                        break;
+                    }
+                }
+                if ($found_private) continue;
+                
+                $public_plugin_updates_count++;
+            }
+        }
+
+        // Calcola aggiornamenti pubblici Temi
+        $transient_themes = get_site_transient('update_themes');
+        $public_theme_updates_count = 0;
+        
+        // Raccogli slug temi privati
+        $private_theme_slugs = [];
+        foreach ($theme_updates as $u) {
+            $private_theme_slugs[] = $u['slug'];
+        }
+
+        if (!empty($transient_themes->response)) {
+             foreach ($transient_themes->response as $slug => $data) {
+                 // Escludi se Ã¨ nel repo privato
+                 if (in_array($slug, $private_theme_slugs)) continue;
+                 $public_theme_updates_count++;
+             }
+        }
+
+        // Calcola aggiornamenti traduzioni
+        include_once ABSPATH . 'wp-admin/includes/translation-install.php';
+        $translation_updates = wp_get_translation_updates();
+        $translation_updates_count = count($translation_updates);
+
+        ?>
+        <div class="mcu-wrap">
+            <div class="mcu-header">
+                <h1><span class="dashicons dashicons-cloud-upload"></span> Marrison Updater</h1>
+                <div class="mcu-header-actions">
+                    <button type="button" class="mcu-button mcu-button-primary mcu-action-update-all" style="margin-right: 10px;" 
+                            data-nonce-auto="<?php echo wp_create_nonce('marrison_auto_update'); ?>"
+                            data-nonce-bulk="<?php echo wp_create_nonce('marrison_bulk_update'); ?>"
+                            data-nonce-all="<?php echo wp_create_nonce('marrison_update_all'); ?>">
+                        <span class="dashicons dashicons-update-alt"></span> Aggiorna tutto
+                    </button>
+                    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="display:inline;">
+                        <?php wp_nonce_field('marrison_clear_cache'); ?>
+                        <input type="hidden" name="action" value="marrison_clear_cache">
+                        <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater&cache_cleared=1')); ?>">
+                        <button class="mcu-button mcu-button-secondary mcu-action-clear-cache">
+                            <span class="dashicons dashicons-update"></span> Pulisci Cache
+                        </button>
+                    </form>
                 </div>
             </div>
 
+            <!-- Notifications -->
             <?php if ($settingsUpdated === 'saved'): ?>
-                <div class="notice notice-success is-dismissible"><p>Impostazioni salvate correttamente.</p></div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Impostazioni salvate correttamente.</div>
             <?php elseif ($settingsUpdated === 'removed'): ?>
-                <div class="notice notice-success is-dismissible"><p>URL del repository ripristinato ai valori predefiniti.</p></div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> URL del repository ripristinato ai valori predefiniti.</div>
             <?php endif; ?>
 
             <?php if ($bulkUpdated): ?>
-                <div class="notice notice-success"><p>Bulk update completato &#10003;</p></div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Bulk update completato.</div>
             <?php endif; ?>
-
-            <?php if ($restored): ?>
-                <div class="notice notice-success is-dismissible"><p>Plugin <?php echo esc_html($restored); ?> ripristinato con successo.</p></div>
-            <?php endif; ?>
-
+            
             <?php if (isset($_GET['cache_cleared'])): ?>
-                <div class="notice notice-info"><p>Cache pulita &#10003;</p></div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Cache pulita con successo.</div>
             <?php endif; ?>
+
+            <!-- Progress Bar -->
+            <div class="mcu-progress-container">
+                <div class="mcu-progress-header">
+                    <span id="mcu-progress-title">Aggiornamento in corso...</span>
+                    <span id="mcu-progress-percentage"></span>
+                </div>
+                <div class="mcu-progress-track">
+                    <div class="mcu-progress-bar"></div>
+                </div>
+                <div class="mcu-progress-status" id="mcu-progress-status-text">Inizializzazione...</div>
+            </div>
+
+            <!-- Dashboard Stats -->
+            <!-- Dashboard Stats -->
+            <div class="mcu-dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+                <div class="mcu-card mcu-stat-card">
+                    <div class="mcu-stat-number" style="color: <?php echo $repo_updates_count > 0 ? 'var(--mcu-danger)' : 'var(--mcu-success)'; ?>;">
+                        <?php echo $repo_updates_count > 0 ? $repo_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
+                    </div>
+                    <div class="mcu-stat-label">Plugin Privati</div>
+                </div>
+                <div class="mcu-card mcu-stat-card">
+                    <div class="mcu-stat-number" style="color: <?php echo $public_plugin_updates_count > 0 ? 'var(--mcu-danger)' : 'var(--mcu-success)'; ?>;">
+                        <?php echo $public_plugin_updates_count > 0 ? $public_plugin_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
+                    </div>
+                    <div class="mcu-stat-label">Plugin Pubblici</div>
+                </div>
+                <div class="mcu-card mcu-stat-card">
+                    <div class="mcu-stat-number" style="color: <?php echo $theme_updates_count > 0 ? 'var(--mcu-danger)' : 'var(--mcu-success)'; ?>;">
+                        <?php echo $theme_updates_count > 0 ? $theme_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
+                    </div>
+                    <div class="mcu-stat-label">Temi Privati</div>
+                </div>
+                 <div class="mcu-card mcu-stat-card">
+                    <div class="mcu-stat-number" style="color: <?php echo $public_theme_updates_count > 0 ? 'var(--mcu-danger)' : 'var(--mcu-success)'; ?>;">
+                        <?php echo $public_theme_updates_count > 0 ? $public_theme_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
+                    </div>
+                    <div class="mcu-stat-label">Temi Pubblici</div>
+                </div>
+                <div class="mcu-card mcu-stat-card">
+                    <div class="mcu-stat-number" style="color: <?php echo $translation_updates_count > 0 ? 'var(--mcu-danger)' : 'var(--mcu-success)'; ?>;">
+                        <?php echo $translation_updates_count > 0 ? $translation_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
+                    </div>
+                    <div class="mcu-stat-label">Traduzioni</div>
+                </div>
+            </div>
 
             <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
                 <?php wp_nonce_field('marrison_bulk_update'); ?>
                 <input type="hidden" name="action" value="marrison_bulk_update">
 
-                <h2 style="margin-top: 30px;">Plugin Repository Privato</h2>
-                <table class="wp-list-table widefat striped">
-                    <thead>
-                        <tr>
-                            <td id="cb" class="manage-column column-cb check-column"><label class="screen-reader-text" for="cb-select-all-1">Seleziona tutto</label><input id="cb-select-all-1" type="checkbox"></td>
-                            <th>Plugin</th>
-                            <th>Versione</th>
-                            <th>Azione</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-
-                    <?php 
-                    $has_repo_updates = false;
-                    foreach ($updates as $u):
-                        // Usa la funzione centralizzata per trovare il plugin installato
-                        $file = $this->find_plugin_file($u['slug']);
-                        
-                        if ($file && isset($plugins[$file])) {
-                            $data = $plugins[$file];
-                            // Usa lo slug del repo, non quello calcolato dalla cartella che potrebbe essere diverso
-                            $slug = $u['slug']; 
-
-                            if (version_compare(trim($data['Version']), trim($u['version']), '<')):
-                                $has_repo_updates = true;
-                    ?>
-                        <tr>
-                            <td><input type="checkbox" name="plugins[]" value="<?php echo esc_attr($slug); ?>"></td>
-                            <td><?php echo esc_html($u['name']); ?></td>
-                            <td><?php echo esc_html($data['Version']) . ' &rarr; ' . esc_html($u['version']); ?></td>
-                            <td>
-                                <?php if ($updated === $slug || in_array($slug, $bulkUpdated, true)): ?>
-                                    <strong style="color:green;">&#10003; Aggiornato</strong> (v<?php echo esc_html($u['version']); ?>)
-                                <?php else: ?>
-                                    <?php 
-                                    $is_self_update = ($slug === 'marrison-custom-updater');
-                                    $nonce = $is_self_update ? wp_create_nonce('marrison_update_marrison-custom-updater') : wp_create_nonce('marrison_update_' . $slug);
-                                    ?>
-                                    <button class="button button-primary marrison-update-btn" 
-                                            data-slug="<?php echo esc_attr($slug); ?>"
-                                            data-version="<?php echo esc_attr($u['version']); ?>"
-                                            data-nonce="<?php echo esc_attr($nonce); ?>">
-                                        Aggiorna
-                                    </button>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php
-                            endif;
-                        }
-                    endforeach; 
+                <!-- Private Plugins -->
+                <div class="mcu-card" style="margin-bottom: 30px;">
+                    <div class="mcu-card-header">
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-admin-plugins"></span> Plugin Repository Privato</h2>
+                        <?php if ($repo_updates_count > 0): ?>
+                            <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-bulk-update-private" data-type="plugin">Aggiorna Selezionati</button>
+                        <?php endif; ?>
+                    </div>
                     
-                    if (!$has_repo_updates): ?>
-                        <tr><td colspan="4">Nessun aggiornamento disponibile dal repository privato.</td></tr>
+                    <?php if (empty($updates)): ?>
+                         <div class="mcu-empty-state">
+                            <?php if (empty($repo_url_config)): ?>
+                                <span class="dashicons dashicons-warning" style="color: var(--mcu-warning);"></span>
+                                <p>Repository non configurato.</p>
+                                <a href="<?php echo admin_url('admin.php?page=marrison-updater-settings'); ?>" class="mcu-button mcu-button-secondary">Configura ora</a>
+                            <?php else: ?>
+                                <span class="dashicons dashicons-saved"></span>
+                                <p>Tutti i plugin privati sono aggiornati.</p>
+                            <?php endif; ?>
+                        </div>
+                    <?php else: ?>
+                        <table class="mcu-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30px;"><input type="checkbox" id="cb-select-all-1"></th>
+                                    <th>Plugin</th>
+                                    <th>Versione</th>
+                                    <th style="text-align:right;">Azione</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php 
+                            $has_repo_updates = false;
+                            foreach ($updates as $u):
+                                $file = $this->find_plugin_file($u['slug']);
+                                if ($file && isset($plugins[$file])) {
+                                    $data = $plugins[$file];
+                                    $slug = $u['slug']; 
+                                    $has_update = version_compare(trim($data['Version']), trim($u['version']), '<');
+                                    if ($has_update) $has_repo_updates = true;
+                                    
+                                    $row_style = $has_update ? '' : 'opacity: 0.6; background: #f9f9f9;';
+                            ?>
+                                <tr style="<?php echo $row_style; ?>">
+                                    <td>
+                                        <?php if($has_update): ?>
+                                            <?php 
+                                            $nonce = ($slug === 'marrison-custom-updater') ? wp_create_nonce('marrison_update_marrison-custom-updater') : wp_create_nonce('marrison_update_' . $slug);
+                                            ?>
+                                            <input type="checkbox" name="plugins[]" value="<?php echo esc_attr($slug); ?>" data-nonce="<?php echo esc_attr($nonce); ?>">
+                                        <?php else: ?>
+                                            <span class="dashicons dashicons-yes" style="color:var(--mcu-success);"></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <strong><?php echo esc_html($u['name']); ?></strong>
+                                        <div style="font-size:11px; color:#888;"><?php echo esc_html($slug); ?></div>
+                                    </td>
+                                    <td>
+                                        <span class="mcu-badge mcu-badge-<?php echo $has_update ? 'warning' : 'success'; ?>">
+                                            <?php echo esc_html($data['Version']); ?>
+                                        </span>
+                                        <?php if($has_update): ?>
+                                            <span class="dashicons dashicons-arrow-right-alt2" style="font-size:12px;vertical-align:middle;margin:0 5px;"></span>
+                                            <span class="mcu-badge mcu-badge-success"><?php echo esc_html($u['version']); ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td style="text-align:right;">
+                                        <?php if ($has_update): ?>
+                                            <?php 
+                                            $is_self_update = ($slug === 'marrison-custom-updater');
+                                            $nonce = $is_self_update ? wp_create_nonce('marrison_update_marrison-custom-updater') : wp_create_nonce('marrison_update_' . $slug);
+                                            ?>
+                                            <button class="mcu-button mcu-button-primary mcu-button-sm mcu-action-update" 
+                                                    data-slug="<?php echo esc_attr($slug); ?>"
+                                                    data-version="<?php echo esc_attr($u['version']); ?>"
+                                                    data-nonce="<?php echo esc_attr($nonce); ?>">
+                                                Aggiorna
+                                            </button>
+                                        <?php else: ?>
+                                            <span style="color:var(--mcu-success); font-size:12px; font-weight:500;">Aggiornato</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php
+                                }
+                            endforeach; 
+                            ?>
+                            <?php if (!$has_repo_updates && !empty($updates)): ?>
+                                <tr><td colspan="4" style="text-align:center; padding: 20px;">Tutti i plugin monitorati sono aggiornati.</td></tr>
+                            <?php endif; ?>
+                            </tbody>
+                        </table>
                     <?php endif; ?>
-
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <td class="manage-column column-cb check-column"><label class="screen-reader-text" for="cb-select-all-2">Seleziona tutto</label><input id="cb-select-all-2" type="checkbox"></td>
-                            <th>Plugin</th>
-                            <th>Versione</th>
-                            <th>Azione</th>
-                        </tr>
-                    </tfoot>
-                </table>
-
-                <!-- Lista plugin monitorati ma aggiornati (per conferma visiva) -->
-                <div style="margin-top: 10px;">
-                    <p><strong>Plugin monitorati aggiornati:</strong></p>
-                    <ul style="list-style: disc; padding-left: 20px; color: #646970;">
-                        <?php 
-                        $monitorati_count = 0;
-                        foreach ($updates as $u):
-                            $file = $this->find_plugin_file($u['slug']);
-                            if ($file && isset($plugins[$file])):
-                                $data = $plugins[$file];
-                                if (!version_compare(trim($data['Version']), trim($u['version']), '<')):
-                                    $monitorati_count++;
-                                    $is_active = is_plugin_active($file);
-                                    $status_text = $is_active ? '<span style="color:green;">&#10003; Aggiornato</span>' : '<span style="color:orange;">&#10003; Aggiornato (Inattivo)</span>';
-                        ?>
-                                <li><?php echo esc_html($u['name']); ?> (v<?php echo esc_html($data['Version']); ?>) - <?php echo $status_text; ?></li>
-                        <?php 
-                                endif;
-                            endif;
-                        endforeach; 
-                        
-                        if ($monitorati_count === 0) echo '<li>Nessun altro plugin monitorato.</li>';
-                        ?>
-                    </ul>
                 </div>
 
-                <!-- SECTION THEMES -->
-                <h2 style="margin-top: 30px;">Temi Repository Privato</h2>
-                <table class="wp-list-table widefat striped">
-                    <thead>
-                        <tr>
-                            <td id="cb-themes" class="manage-column column-cb check-column"><label class="screen-reader-text" for="cb-select-all-themes">Seleziona tutto</label><input id="cb-select-all-themes" type="checkbox"></td>
-                            <th>Tema</th>
-                            <th>Versione</th>
-                            <th>Azione</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    <?php 
-                    $has_theme_updates = false;
-                    $installed_themes = wp_get_themes(); // Cache per ricerca
+                <!-- Private Themes -->
+                <div class="mcu-card" style="margin-bottom: 30px;">
+                    <div class="mcu-card-header">
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-art"></span> Temi Repository Privato</h2>
+                        <?php if ($theme_updates_count > 0): ?>
+                            <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-bulk-update-private" data-type="theme">Aggiorna Selezionati</button>
+                        <?php endif; ?>
+                    </div>
 
-                    foreach ($theme_updates as $u):
-                        $slug = $u['slug'];
-                        $theme = wp_get_theme($slug);
-                        
-                        // Fallback se slug non corrisponde
-                        if (!$theme->exists()) {
-                            foreach ($installed_themes as $t_slug => $t_obj) {
-                                if (strcasecmp($t_obj->get('Name'), $u['name']) === 0 || $t_obj->get('TextDomain') === $slug) {
-                                    $theme = $t_obj;
-                                    $slug = $t_slug; // Importante: usa lo slug installato reale
-                                    break;
+                    <?php if (empty($theme_updates) && empty($repo_url_config)): ?>
+                         <div class="mcu-empty-state">
+                            <span class="dashicons dashicons-warning" style="color: var(--mcu-warning);"></span>
+                            <p>Repository Temi non configurato.</p>
+                            <a href="<?php echo admin_url('admin.php?page=marrison-updater-settings'); ?>" class="mcu-button mcu-button-secondary">Configura ora</a>
+                        </div>
+                    <?php else: ?>
+                    
+                    <table class="mcu-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 30px;"><input type="checkbox" id="cb-select-all-themes"></th>
+                                <th>Tema</th>
+                                <th>Versione</th>
+                                <th style="text-align:right;">Azione</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php 
+                        $has_theme_updates = false;
+                        foreach ($theme_updates as $u):
+                            $slug = $u['slug'];
+                            $theme = wp_get_theme($slug);
+                            if (!$theme->exists()) {
+                                foreach ($installed_themes as $t_slug => $t_obj) {
+                                    if (strcasecmp($t_obj->get('Name'), $u['name']) === 0 || $t_obj->get('TextDomain') === $slug) {
+                                        $theme = $t_obj;
+                                        $slug = $t_slug;
+                                        break;
+                                    }
                                 }
                             }
-                        }
+                            
+                            if ($theme->exists()) {
+                                $has_update = version_compare($theme->get('Version'), $u['version'], '<');
+                                if ($has_update) $has_theme_updates = true;
+                                $row_style = $has_update ? '' : 'opacity: 0.6; background: #f9f9f9;';
+                        ?>
+                            <tr style="<?php echo $row_style; ?>">
+                                <td>
+                                    <?php if($has_update): ?>
+                                        <?php $nonce = wp_create_nonce('marrison_update_theme_' . $slug); ?>
+                                        <input type="checkbox" name="themes[]" value="<?php echo esc_attr($slug); ?>" data-nonce="<?php echo esc_attr($nonce); ?>">
+                                    <?php else: ?>
+                                        <span class="dashicons dashicons-yes" style="color:var(--mcu-success);"></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo esc_html($u['name']); ?></td>
+                                <td>
+                                    <span class="mcu-badge mcu-badge-<?php echo $has_update ? 'warning' : 'success'; ?>">
+                                        <?php echo esc_html($theme->get('Version')); ?>
+                                    </span>
+                                    <?php if($has_update): ?>
+                                        <span class="dashicons dashicons-arrow-right-alt2" style="font-size:12px;vertical-align:middle;margin:0 5px;"></span>
+                                        <span class="mcu-badge mcu-badge-success"><?php echo esc_html($u['version']); ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="text-align:right;">
+                                    <?php if ($has_update): ?>
+                                        <?php $nonce = wp_create_nonce('marrison_update_theme_' . $slug); ?>
+                                        <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-update" 
+                                                data-slug="<?php echo esc_attr($slug); ?>"
+                                                data-version="<?php echo esc_attr($u['version']); ?>"
+                                                data-nonce="<?php echo esc_attr($nonce); ?>"
+                                                data-type="theme">
+                                            Aggiorna
+                                        </button>
+                                    <?php else: ?>
+                                        <span style="color:var(--mcu-success); font-size:12px; font-weight:500;">Aggiornato</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php
+                            }
+                        endforeach; 
                         
-                        if ($theme->exists()) {
-                            if (version_compare($theme->get('Version'), $u['version'], '<')):
-                                $has_theme_updates = true;
-                    ?>
-                        <tr>
-                            <td><input type="checkbox" name="themes[]" value="<?php echo esc_attr($slug); ?>"></td>
-                            <td><?php echo esc_html($u['name']); ?></td>
-                            <td><?php echo esc_html($theme->get('Version')) . ' &rarr; ' . esc_html($u['version']); ?></td>
-                            <td>
-                                <?php 
-                                $nonce = wp_create_nonce('marrison_update_theme_' . $slug);
-                                ?>
-                                <button class="button button-primary marrison-update-btn" 
-                                        data-slug="<?php echo esc_attr($slug); ?>"
-                                        data-version="<?php echo esc_attr($u['version']); ?>"
-                                        data-nonce="<?php echo esc_attr($nonce); ?>"
-                                        data-type="theme">
-                                    Aggiorna
-                                </button>
-                            </td>
-                        </tr>
-                    <?php
-                            endif;
-                        }
-                    endforeach; 
-                    
-                    if (!$has_theme_updates): ?>
-                        <tr><td colspan="4">Nessun aggiornamento temi disponibile dal repository privato.</td></tr>
+                        if (!$has_theme_updates): ?>
+                            <tr><td colspan="4" style="text-align:center; padding: 20px;">Nessun aggiornamento temi disponibile.</td></tr>
+                        <?php endif; ?>
+                        </tbody>
+                    </table>
                     <?php endif; ?>
-                    </tbody>
-                </table>
+                </div>
 
-                <p>
-                    <button class="button button-secondary">Aggiorna selezionati (Repository Privato)</button>
-                </p>
+            </form>
 
-                <?php 
-                    // Controlla se ci sono plugin con auto-update attivati che hanno aggiornamenti (ESCLUSI QUELLI PRIVATI)
-                    $auto_update_plugins = (array) get_site_option('auto_update_plugins', []);
-                    
-                    // Ottieni aggiornamenti standard
-                    $transient = get_site_transient('update_plugins');
-                    
-                    // Ottieni aggiornamenti privati per esclusione
-                    $private_updates = $this->get_available_updates();
-                    $private_slugs = [];
-                    $private_files = []; // Lista di file path esatti dei plugin privati
-                    
-                    // Aggiungi slug dai risultati attuali
-                    foreach ($private_updates as $u) {
-                        $private_slugs[] = $u['slug'];
-                        $found_file = $this->find_plugin_file($u['slug']);
-                        if ($found_file) {
-                            $private_files[] = $found_file;
-                        }
-                    }
-
-                    // Aggiungi anche slug conosciuti dalla cache persistente (per robustezza)
-                    $known_slugs = get_option('marrison_known_private_slugs', []);
-                    if (is_array($known_slugs)) {
-                        $private_slugs = array_unique(array_merge($private_slugs, $known_slugs));
-                    }
-                    
-                    $plugins_with_auto_update = [];
-                    
-                    if (!empty($transient->response)) {
-                        foreach ($transient->response as $file => $data) {
-                            $slug = isset($data->slug) ? $data->slug : dirname($file);
-                            if ($slug === '.') $slug = basename($file, '.php');
-                            
-                            // ESCLUDI i plugin del repository privato (check prioritario su file path)
-                            if (in_array($file, $private_files)) {
-                                continue;
-                            }
-
-                            $check_slugs = [];
-                            $check_slugs[] = dirname($file);
-                            $check_slugs[] = basename($file, '.php');
-                            if (isset($data->slug)) $check_slugs[] = $data->slug;
-                            
-                            $found_private = false;
-                            foreach ($check_slugs as $s) {
-                                if ($s !== '.' && $s !== '' && in_array($s, $private_slugs)) {
-                                    $found_private = true;
-                                    break;
-                                }
-                            }
-                            
-                            if ($found_private) continue;
-                            
-                    // Se ha auto-update attivo (ORA: Includi tutti i plugin ufficiali)
-                            // if (in_array($file, $auto_update_plugins)) {
-                                $plugins_with_auto_update[$slug] = [
-                                    'file' => $file,
-                                    'new_version' => $data->new_version ?? '?',
-                                    'name' => isset($plugins[$file]['Name']) ? $plugins[$file]['Name'] : $slug,
-                                    'current_version' => isset($plugins[$file]['Version']) ? $plugins[$file]['Version'] : '?'
-                                ];
-                            // }
-                        }
-                    }
-                ?>
-
-                <hr style="margin-top: 30px;">
+            <!-- Official Plugins Section -->
+             <?php 
+                // Logic for official plugins
+                $auto_update_plugins = (array) get_site_option('auto_update_plugins', []);
+                $transient = get_site_transient('update_plugins');
+                $private_updates = $this->get_available_updates();
+                $private_slugs = [];
+                $private_files = [];
+                foreach ($private_updates as $u) {
+                    $private_slugs[] = $u['slug'];
+                    $found_file = $this->find_plugin_file($u['slug']);
+                    if ($found_file) $private_files[] = $found_file;
+                }
                 
-                <h2 style="margin-top: 30px;">Plugin Repository Ufficiale (WordPress)</h2>
-                
-                <?php if (!empty($plugins_with_auto_update)): ?>
-                    <table class="wp-list-table widefat striped">
+                $known_slugs = get_option('marrison_known_private_slugs', []);
+                if (is_array($known_slugs)) {
+                    $private_slugs = array_unique(array_merge($private_slugs, $known_slugs));
+                }
+
+                $plugins_with_auto_update = [];
+                if (!empty($transient->response)) {
+                    foreach ($transient->response as $file => $data) {
+                        $slug = isset($data->slug) ? $data->slug : dirname($file);
+                        if ($slug === '.') $slug = basename($file, '.php');
+                        
+                        // ESCLUDI i plugin del repository privato (check prioritario su file path)
+                        if (in_array($file, $private_files)) continue;
+
+                        $check_slugs = [];
+                        $check_slugs[] = dirname($file);
+                        $check_slugs[] = basename($file, '.php');
+                        if (isset($data->slug)) $check_slugs[] = $data->slug;
+                        
+                        $found_private = false;
+                        foreach ($check_slugs as $s) {
+                            if ($s !== '.' && $s !== '' && in_array($s, $private_slugs)) {
+                                $found_private = true;
+                                break;
+                            }
+                        }
+                        if ($found_private) continue;
+                        
+                        $plugins_with_auto_update[$slug] = [
+                            'name' => isset($plugins[$file]['Name']) ? $plugins[$file]['Name'] : $slug,
+                            'current_version' => isset($plugins[$file]['Version']) ? $plugins[$file]['Version'] : '?',
+                            'new_version' => $data->new_version ?? '?'
+                        ];
+                    }
+                }
+            ?>
+
+            <div class="mcu-card">
+                <div class="mcu-card-header">
+                    <h2 class="mcu-card-title"><span class="dashicons dashicons-wordpress"></span> Repository Ufficiale WordPress</h2>
+                    <?php if (!empty($plugins_with_auto_update)): ?>
+                         <?php $auto_update_nonce = wp_create_nonce('marrison_auto_update'); ?>
+                        <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-auto-update" data-nonce="<?php echo esc_attr($auto_update_nonce); ?>">
+                            Aggiorna Tutti
+                        </button>
+                    <?php endif; ?>
+                </div>
+
+                <?php if (empty($plugins_with_auto_update)): ?>
+                    <div class="mcu-empty-state">
+                        <span class="dashicons dashicons-yes-alt"></span>
+                        <p>Tutti i plugin ufficiali sono aggiornati.</p>
+                    </div>
+                <?php else: ?>
+                    <table class="mcu-table">
                         <thead>
                             <tr>
                                 <th>Plugin</th>
@@ -2532,485 +2832,36 @@ class Marrison_Custom_Updater {
                                 <tr>
                                     <td><?php echo esc_html($info['name']); ?></td>
                                     <td><?php echo esc_html($info['current_version']); ?></td>
-                                    <td><?php echo esc_html($info['new_version']); ?></td>
-                                    <td id="marrison-status-<?php echo esc_attr($slug); ?>"><span class="dashicons dashicons-clock" style="color: #dba617;"></span> In attesa</td>
+                                    <td><span class="mcu-badge mcu-badge-primary"><?php echo esc_html($info['new_version']); ?></span></td>
+                                    <td><span class="mcu-badge mcu-badge-warning">In attesa</span></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
-                    
-                    <p style="margin-top: 15px;">
-                        <?php $auto_update_nonce = wp_create_nonce('marrison_auto_update'); ?>
-                        <button type="button" class="button button-primary marrison-auto-update-btn" 
-                                data-nonce="<?php echo esc_attr($auto_update_nonce); ?>">
-                            <span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>
-                            Aggiorna tutti i plugin ufficiali
-                        </button>
-                    </p>
-                <?php else: ?>
-                    <p>Nessun plugin del repository ufficiale WordPress necessita di aggiornamento.</p>
                 <?php endif; ?>
+            </div>
 
-                <?php $auto_update_nonce = wp_create_nonce('marrison_auto_update'); ?>
-                <hr style="margin-top: 30px;">
-                <h2 style="margin-top: 30px;">Altri Aggiornamenti</h2>
-                <p>
-                    <button type="button" class="button button-secondary marrison-update-themes-btn" 
+            <!-- Other Updates Buttons -->
+            <div class="mcu-card" style="margin-top: 20px; padding: 15px;">
+                 <h3 style="margin: 0 0 15px 0;">Strumenti Aggiuntivi</h3>
+                 <div style="display:flex; gap: 10px;">
+                    <?php $auto_update_nonce = wp_create_nonce('marrison_auto_update'); ?>
+                    <button type="button" class="mcu-button mcu-button-secondary marrison-update-themes-btn" 
                             data-nonce="<?php echo esc_attr($auto_update_nonce); ?>">
-                        <span class="dashicons dashicons-art" style="vertical-align: middle; margin-right: 5px;"></span>
-                        Aggiorna tutti i temi
+                        <span class="dashicons dashicons-art"></span> Aggiorna tutti i temi
                     </button>
                     
-                    <button type="button" class="button button-secondary marrison-update-translations-btn" 
+                    <button type="button" class="mcu-button mcu-button-secondary marrison-update-translations-btn" 
                             data-nonce="<?php echo esc_attr($auto_update_nonce); ?>" style="margin-left: 10px;">
-                        <span class="dashicons dashicons-translation" style="vertical-align: middle; margin-right: 5px;"></span>
-                        Aggiorna tutte le traduzioni
+                        <span class="dashicons dashicons-translation"></span> Aggiorna tutte le traduzioni
                     </button>
-                </p>
-
-            </form>
-
-            <hr style="margin-top: 30px;">
-            
-            <h2 style="margin-top: 30px;">Strumenti</h2>
-            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
-                <?php wp_nonce_field('marrison_clear_cache'); ?>
-                <input type="hidden" name="action" value="marrison_clear_cache">
-                <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater&cache_cleared=1')); ?>">
-                <button class="button">Pulisci cache</button>
-            </form>
+                 </div>
+            </div>
 
         </div>
-        <script>
-            jQuery(document).ready(function($) {
-                
-                function updateProgressBar(percent, status, info) {
-                    $('#marrison-update-bar').css('width', percent + '%');
-                    $('#marrison-update-status').text(status);
-                    if (info) {
-                        $('#marrison-update-info').text(info);
-                    }
-                }
-
-                function showProgressBar() {
-                    $('#marrison-update-progress').show();
-                    updateProgressBar(0, 'Preparazione aggiornamento...', '');
-                }
-
-                function hideProgressBar() {
-                    setTimeout(function() {
-                        $('#marrison-update-progress').fadeOut();
-                    }, 2000);
-                }
-
-                // Gestione click sui pulsanti di aggiornamento singoli
-                $('.marrison-update-btn').on('click', function(e) {
-                    e.preventDefault();
-                    
-                    var $btn = $(this);
-                    var slug = $btn.data('slug');
-                    var nonce = $btn.data('nonce');
-                    var type = $btn.data('type') || 'plugin';
-                    
-                    var action = (type === 'theme') ? 'marrison_update_private_theme_ajax' : 'marrison_update_plugin_ajax';
-                    var itemTypeLabel = (type === 'theme') ? 'del tema' : 'del plugin';
-                    var successLabel = (type === 'theme') ? 'Tema aggiornato con successo' : 'Plugin aggiornato con successo';
-                    
-                    // Disabilita il pulsante
-                    $btn.prop('disabled', true).text('Aggiornamento...');
-                    
-                    // Mostra la barra di caricamento
-                    showProgressBar();
-                    
-                    // Simula progresso
-                    var progress = 0;
-                    var progressInterval = setInterval(function() {
-                        progress += Math.random() * 15;
-                        if (progress > 90) progress = 90;
-                        
-                        if (progress < 30) {
-                            updateProgressBar(progress, 'Download ' + itemTypeLabel + '...', 'Scaricamento in corso');
-                        } else if (progress < 60) {
-                            updateProgressBar(progress, 'Estrazione file...', 'Decompressione archivio');
-                        } else if (progress < 90) {
-                            updateProgressBar(progress, 'Installazione aggiornamento...', 'Copia file');
-                        }
-                    }, 300);
-                    
-                    // Esegui l'aggiornamento via AJAX
-                    $.ajax({
-                        url: marrisonUpdater.ajaxurl,
-                        type: 'POST',
-                        data: {
-                            action: action,
-                            slug: slug,
-                            nonce: nonce
-                        },
-                        success: function(response) {
-                                clearInterval(progressInterval);
-                                
-                                if (response.success) {
-                                    updateProgressBar(100, 'Aggiornamento completato!', successLabel);
-                                    var newVer = $btn.data('version');
-                                    var verText = newVer ? ' (v' + newVer + ')' : '';
-                                    $btn.replaceWith('<strong style="color:green;">&#10003; Aggiornato</strong>' + verText);
-                                    
-                                    // Ricarica la pagina dopo 2 secondi per mostrare lo stato aggiornato
-                                    setTimeout(function() {
-                                        location.reload();
-                                    }, 2000);
-                                } else {
-                                updateProgressBar(0, 'Errore durante l\'aggiornamento', response.data || 'Si \u00E8 verificato un errore');
-                                $btn.prop('disabled', false).text('Aggiorna');
-                            }
-                            
-                            hideProgressBar();
-                        },
-                        error: function() {
-                            clearInterval(progressInterval);
-                            updateProgressBar(0, 'Errore di connessione', 'Impossibile contattare il server');
-                            $btn.prop('disabled', false).text('Aggiorna');
-                            hideProgressBar();
-                        }
-                    });
-                });
-                
-                // Gestione aggiornamento multiplo via AJAX - AGGIORNA UNO PER UNO
-                $('form input[name="action"][value="marrison_bulk_update"]').closest('form').on('submit', function(e) {
-                    e.preventDefault();
-                    console.log('Form submit intercettato');
-                    
-                    var $checkedPlugins = $('input[name="plugins[]"]:checked');
-                    var $checkedThemes = $('input[name="themes[]"]:checked');
-                    
-                    if ($checkedPlugins.length === 0 && $checkedThemes.length === 0) {
-                        alert('Seleziona almeno un elemento da aggiornare');
-                        return;
-                    }
-                    
-                    var items = [];
-                    $checkedPlugins.each(function() {
-                        items.push({type: 'plugin', slug: $(this).val()});
-                    });
-                    $checkedThemes.each(function() {
-                        items.push({type: 'theme', slug: $(this).val()});
-                    });
-                    
-                    console.log('Elementi da aggiornare:', items);
-                    
-                    // Mostra la barra di caricamento
-                    showProgressBar();
-                    updateProgressBar(0, 'Preparazione aggiornamento...', 'Elementi selezionati: ' + items.length);
-                    
-                    var bulkNonce = '<?php echo wp_create_nonce("marrison_bulk_update"); ?>';
-                    
-                    // Aggiorna gli elementi uno per uno
-                    var currentIndex = 0;
-                    var successCount = 0;
-                    var failedItems = [];
-                    
-                    function updateNextItem() {
-                        if (currentIndex >= items.length) {
-                            // Tutti gli aggiornamenti completati
-                            console.log('Aggiornamenti completati. Successi: ' + successCount);
-                            
-                            if (successCount > 0) {
-                                updateProgressBar(100, 'Aggiornamento completato!', 'Aggiornati ' + successCount + ' di ' + items.length + ' elementi');
-                                
-                                // Aggiorna lo stato dei pulsanti
-                                items.forEach(function(item) {
-                                    $('button[data-slug="' + item.slug + '"]').replaceWith('<strong style="color:green;">&#10003; Aggiornato</strong>');
-                                });
-                                
-                                // Ricarica dopo 2 secondi
-                                setTimeout(function() {
-                                    location.reload();
-                                }, 2000);
-                            } else {
-                                updateProgressBar(0, 'Errore durante l\'aggiornamento', 'Nessun elemento \u00E8 stato aggiornato');
-                                hideProgressBar();
-                            }
-                            return;
-                        }
-                        
-                        var item = items[currentIndex];
-                        var slug = item.slug;
-                        var type = item.type;
-                        var action = (type === 'theme') ? 'marrison_update_private_theme_ajax' : 'marrison_update_plugin_ajax';
-                        
-                        var progressPercent = Math.round((currentIndex / items.length) * 100);
-                        
-                        // Aggiorna lo stato della barra
-                        updateProgressBar(progressPercent, 'Aggiornamento in corso...', 'Aggiornamento ' + (currentIndex + 1) + ' di ' + items.length + ': ' + slug);
-                        
-                        console.log('Aggiornamento ' + type + ': ' + slug);
-                        
-                        // Esegui l'aggiornamento via AJAX
-                        $.ajax({
-                            url: marrisonUpdater.ajaxurl,
-                            type: 'POST',
-                            data: {
-                                action: action,
-                                slug: slug,
-                                nonce: bulkNonce
-                            },
-                            success: function(response) {
-                                console.log('Risposta AJAX per ' + slug + ':', response);
-                                if (response.success) {
-                                    successCount++;
-                                } else {
-                                    console.log('Errore per ' + slug + ':', response.data);
-                                    failedItems.push(slug);
-                                }
-                                currentIndex++;
-                                updateNextItem();
-                            },
-                            error: function(error) {
-                                console.log('Errore AJAX per ' + slug + ':', error);
-                                failedItems.push(slug);
-                                currentIndex++;
-                                updateNextItem();
-                            }
-                        });
-                    }
-                    
-                    // Avvia l'aggiornamento
-                    updateNextItem();
-                });
-                
-                // Gestione checkbox "Seleziona tutto" (Plugins)
-                const selectAll1 = document.getElementById('cb-select-all-1');
-                const selectAll2 = document.getElementById('cb-select-all-2');
-                const checkboxes = document.querySelectorAll('input[name="plugins[]"]');
-
-                function toggleCheckboxes(source, targetName) {
-                    const targets = document.querySelectorAll('input[name="' + targetName + '"]');
-                    targets.forEach(function(checkbox) {
-                        checkbox.checked = source.checked;
-                    });
-                }
-
-                if (selectAll1) {
-                    selectAll1.addEventListener('change', function() {
-                        toggleCheckboxes(this, 'plugins[]');
-                        if(selectAll2) selectAll2.checked = this.checked;
-                    });
-                }
-                if (selectAll2) {
-                    selectAll2.addEventListener('change', function() {
-                        toggleCheckboxes(this, 'plugins[]');
-                        if(selectAll1) selectAll1.checked = this.checked;
-                    });
-                }
-
-                // Gestione checkbox "Seleziona tutto" (Themes)
-                const selectAllThemes = document.getElementById('cb-select-all-themes');
-                if (selectAllThemes) {
-                    selectAllThemes.addEventListener('change', function() {
-                        toggleCheckboxes(this, 'themes[]');
-                    });
-                }
-                
-                // Gestione aggiornamento automatico plugin
-                $('.marrison-auto-update-btn').on('click', function(e) {
-                    e.preventDefault();
-                    
-                    var $btn = $(this);
-                    var nonce = $btn.data('nonce');
-                    
-                    // Conferma prima di procedere
-                    if (!confirm('Sei sicuro di voler aggiornare tutti i plugin ufficiali disponibili?')) {
-                        return;
-                    }
-                    
-                    // Disabilita il pulsante
-                    $btn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>Aggiornamento in corso...');
-                    
-                    // Mostra la barra di caricamento
-                    showProgressBar();
-                    
-                    // Simula progresso durante la preparazione
-                    var progress = 0;
-                    var progressInterval = setInterval(function() {
-                        progress += Math.random() * 8;
-                        if (progress > 85) progress = 85;
-                        updateProgressBar(progress, 'Ricerca aggiornamenti plugin ufficiali...', 'Analizzando i plugin');
-                    }, 300);
-                    
-                    // Esegui l'aggiornamento via AJAX
-                    $.ajax({
-                        url: marrisonUpdater.ajaxurl,
-                        type: 'POST',
-                        data: {
-                            action: 'marrison_auto_update_ajax',
-                            nonce: nonce
-                        },
-                        success: function(response) {
-                            clearInterval(progressInterval);
-                            
-                            if (response.success) {
-                                updateProgressBar(100, 'Aggiornamento completato!', response.data.message);
-                                
-                                // Aggiorna i pulsanti per i plugin aggiornati
-                                var updatedSlugs = response.data.results || {};
-                                Object.keys(updatedSlugs).forEach(function(slug) {
-                                    if (updatedSlugs[slug]) {
-                                        // Aggiorna stato nella tabella plugin ufficiali
-                                        $('#marrison-status-' + slug).html('<span class="dashicons dashicons-yes" style="color: green;"></span> <strong style="color:green;">Aggiornato</strong>');
-                                        
-                                        // Fallback per pulsanti se presenti
-                                        $('button[data-slug="' + slug + '"]').replaceWith('<strong style="color:green;">&#10003; Aggiornato</strong>');
-                                    }
-                                });
-                                
-                                // Nascondi il pulsante auto-update se non ci sono piÃ¹ plugin con auto-update disponibili
-                                if (response.data.success_count > 0) {
-                                    $btn.fadeOut();
-                                    updateProgressBar(100, 'Aggiornamento completato!', 'Ricaricamento pagina in corso...');
-                                }
-                                
-                                // Ricarica la pagina dopo 2 secondi per mostrare lo stato aggiornato
-                                setTimeout(function() {
-                                    location.reload();
-                                }, 1500);
-                            } else {
-                                updateProgressBar(0, 'Errore durante l\'aggiornamento', response.data || 'Si \u00E8 verificato un errore');
-                                $btn.prop('disabled', false).html('<span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>Aggiorna tutti i plugin ufficiali');
-                            }
-                            
-                            hideProgressBar();
-                        },
-                        error: function() {
-                            clearInterval(progressInterval);
-                            updateProgressBar(0, 'Errore di connessione', 'Impossibile contattare il server');
-                            $btn.prop('disabled', false).html('<span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>Aggiorna tutti i plugin ufficiali');
-                            hideProgressBar();
-                        }
-                    });
-                });
-
-                // Gestione rollback/restore
-                $('.marrison-restore-btn').on('click', function(e) {
-                    e.preventDefault();
-                    if (!confirm('Sei sicuro di voler ripristinare questo backup? Le modifiche recenti andranno perse.')) {
-                        return;
-                    }
-
-                    var $btn = $(this);
-                    var backup = $btn.data('backup');
-                    var nonce = $btn.data('nonce');
-                    var type = $btn.data('type') || 'plugin'; // Default a plugin
-
-                    $btn.prop('disabled', true).text('Ripristino...');
-
-                    $.ajax({
-                        url: marrisonUpdater.ajaxurl,
-                        type: 'POST',
-                        data: {
-                            action: 'marrison_restore_backup',
-                            backup: backup,
-                            nonce: nonce,
-                            type: type
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                alert(response.data);
-                                location.reload();
-                            } else {
-                                alert('Errore: ' + response.data);
-                                $btn.prop('disabled', false).text('Ripristina');
-                            }
-                        },
-                        error: function() {
-                            alert('Errore di connessione');
-                            $btn.prop('disabled', false).text('Ripristina');
-                        }
-                    });
-                });
-
-                // Gestione aggiornamento temi
-                $('.marrison-update-themes-btn').on('click', function(e) {
-                    e.preventDefault();
-                    
-                    var $btn = $(this);
-                    var nonce = $btn.data('nonce');
-                    
-                    if (!confirm('Sei sicuro di voler aggiornare tutti i temi?')) {
-                        return;
-                    }
-                    
-                    $btn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>Aggiornamento temi...');
-                    showProgressBar();
-                    updateProgressBar(10, 'Preparazione aggiornamento temi...', 'Analisi temi installati');
-                    
-                    $.ajax({
-                        url: marrisonUpdater.ajaxurl,
-                        type: 'POST',
-                        data: {
-                            action: 'marrison_update_all_themes_ajax',
-                            nonce: nonce
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                updateProgressBar(100, 'Aggiornamento completato!', response.data);
-                                setTimeout(function() { location.reload(); }, 1500);
-                            } else {
-                                updateProgressBar(0, 'Errore', response.data || 'Errore durante l\'aggiornamento temi');
-                                $btn.prop('disabled', false).html('<span class="dashicons dashicons-art" style="vertical-align: middle; margin-right: 5px;"></span>Aggiorna tutti i temi');
-                            }
-                            hideProgressBar();
-                        },
-                        error: function() {
-                            updateProgressBar(0, 'Errore di connessione', 'Impossibile contattare il server');
-                            $btn.prop('disabled', false).html('<span class="dashicons dashicons-art" style="vertical-align: middle; margin-right: 5px;"></span>Aggiorna tutti i temi');
-                            hideProgressBar();
-                        }
-                    });
-                });
-
-                // Gestione aggiornamento traduzioni
-                $('.marrison-update-translations-btn').on('click', function(e) {
-                    e.preventDefault();
-                    
-                    var $btn = $(this);
-                    var nonce = $btn.data('nonce');
-                    
-                    if (!confirm('Sei sicuro di voler aggiornare tutte le traduzioni?')) {
-                        return;
-                    }
-                    
-                    $btn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="vertical-align: middle; margin-right: 5px;"></span>Aggiornamento traduzioni...');
-                    showProgressBar();
-                    updateProgressBar(10, 'Preparazione aggiornamento traduzioni...', 'Analisi traduzioni');
-                    
-                    $.ajax({
-                        url: marrisonUpdater.ajaxurl,
-                        type: 'POST',
-                        data: {
-                            action: 'marrison_update_translations_ajax',
-                            nonce: nonce
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                updateProgressBar(100, 'Aggiornamento completato!', response.data);
-                                setTimeout(function() { location.reload(); }, 1500);
-                            } else {
-                                updateProgressBar(0, 'Errore', response.data || 'Errore durante l\'aggiornamento traduzioni');
-                                $btn.prop('disabled', false).html('<span class="dashicons dashicons-translation" style="vertical-align: middle; margin-right: 5px;"></span>Aggiorna tutte le traduzioni');
-                            }
-                            hideProgressBar();
-                        },
-                        error: function() {
-                            updateProgressBar(0, 'Errore di connessione', 'Impossibile contattare il server');
-                            $btn.prop('disabled', false).html('<span class="dashicons dashicons-translation" style="vertical-align: middle; margin-right: 5px;"></span>Aggiorna tutte le traduzioni');
-                            hideProgressBar();
-                        }
-                    });
-                });
-            });
-        </script>
         <?php
     }
+
 
     public function update_all_themes_ajax() {
         check_ajax_referer('marrison_auto_update', 'nonce');
@@ -3061,17 +2912,18 @@ class Marrison_Custom_Updater {
         include_once ABSPATH . 'wp-admin/includes/file.php';
         include_once ABSPATH . 'wp-admin/includes/misc.php';
         include_once ABSPATH . 'wp-admin/includes/template.php';
+        include_once ABSPATH . 'wp-admin/includes/translation-install.php';
         
         wp_version_check();
-        $current = get_site_transient('update_core');
+        $translations = wp_get_translation_updates();
         
-        if (empty($current->translations)) {
+        if (empty($translations)) {
              wp_send_json_error('Nessun aggiornamento traduzioni disponibile');
         }
         
         $skin = new Automatic_Upgrader_Skin();
         $upgrader = new Language_Pack_Upgrader($skin);
-        $result = $upgrader->bulk_upgrade($current->translations);
+        $result = $upgrader->bulk_upgrade($translations);
         
         $success_count = 0;
         if (is_array($result)) {
@@ -3087,6 +2939,75 @@ class Marrison_Custom_Updater {
         } else {
              wp_send_json_error('Nessuna traduzione aggiornata');
         }
+    }
+
+    public function get_all_updates_ajax() {
+        check_ajax_referer('marrison_update_all', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+
+        // 1. Private Plugins
+        $private_updates = $this->get_available_updates();
+        $plugins = get_plugins();
+        $private_to_update = [];
+        
+        foreach ($private_updates as $u) {
+            $file = $this->find_plugin_file($u['slug']);
+            if ($file && isset($plugins[$file]) && version_compare($plugins[$file]['Version'], $u['version'], '<')) {
+                $private_to_update[] = [
+                    'slug' => $u['slug'],
+                    'name' => $u['name'],
+                    'version' => $u['version']
+                ];
+            }
+        }
+
+        // 2. Official Plugins
+        // Force check
+        wp_update_plugins();
+        $transient = get_site_transient('update_plugins');
+        $official_to_update = [];
+        
+        $private_slugs = array_map(function($u) { return $u['slug']; }, $private_updates);
+
+        if (!empty($transient->response)) {
+            foreach ($transient->response as $file => $data) {
+                $slug = dirname($file);
+                if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
+
+                if (in_array($slug, $private_slugs)) continue;
+
+                $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $file);
+                $official_to_update[] = [
+                    'file' => $file,
+                    'slug' => $slug,
+                    'name' => $plugin_data['Name'] ?? $slug,
+                    'version' => $data->new_version,
+                    'package' => $data->package ?? '',
+                    'url' => $data->url ?? ''
+                ];
+            }
+        }
+
+        // 3. Themes
+        wp_update_themes();
+        $theme_updates = get_site_transient('update_themes');
+        $themes_count = !empty($theme_updates->response) ? count($theme_updates->response) : 0;
+
+        // 4. Translations
+        wp_version_check();
+        include_once ABSPATH . 'wp-admin/includes/translation-install.php';
+        $translation_updates = wp_get_translation_updates();
+        $translations_count = count($translation_updates);
+
+        wp_send_json_success([
+            'plugins_private' => $private_to_update,
+            'plugins_official' => $official_to_update,
+            'themes_count' => $themes_count,
+            'translations_count' => $translations_count
+        ]);
     }
 }
 
