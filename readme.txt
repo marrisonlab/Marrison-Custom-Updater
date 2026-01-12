@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 7.9.8
+Stable tag: 8.0.0
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -28,6 +28,13 @@ Upload the plugin to WordPress and activate it.
 
 
 == Changelog ==
+
+= 8.0.0 =
+* Aggiunto supporto completo per Repository Privato Temi: ora è possibile aggiornare temi privati con la stessa logica dei plugin.
+* Nuova sezione "Temi Repository Privato" nella dashboard aggiornamenti con funzionalità di aggiornamento singolo e bulk.
+* Aggiunto campo URL Repository Temi nelle impostazioni.
+* Unificata la gestione della cache per plugin e temi.
+* Aggiornamenti minori all'interfaccia e alle notifiche.
 
 = 7.9.9 =
 * Fix: Risolto conflitto cache chiavi con Marrison Custom Installer.
