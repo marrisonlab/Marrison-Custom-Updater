@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.0.5
+ * Version: 8.0.6
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -35,6 +35,11 @@ class Marrison_Custom_Updater {
         add_action('admin_post_marrison_save_repo_url', [$this, 'save_repo_url']);
         add_action('admin_post_marrison_force_check_mcu', [$this, 'force_check_mcu']);
         add_action('admin_post_marrison_download_repo_file', [$this, 'download_repo_file']);
+        add_action('admin_post_marrison_save_scheduling', [$this, 'save_scheduling_settings']);
+        
+        // Cron
+        add_filter('cron_schedules', [$this, 'add_custom_cron_intervals']);
+        add_action('marrison_scheduled_update_event', [$this, 'run_scheduled_updates']);
         
         // Hook per AJAX
         add_action('wp_ajax_marrison_update_plugin_ajax', [$this, 'update_plugin_ajax']);
@@ -66,6 +71,211 @@ class Marrison_Custom_Updater {
         
         // Hook per pulire la cache GitHub quando si forza il controllo aggiornamenti WP
         add_action('delete_site_transient_update_plugins', [$this, 'force_clear_github_cache']);
+    }
+
+    /* ===================== SCHEDULING & CRON ===================== */
+
+    public function add_custom_cron_intervals($schedules) {
+        $schedules['monthly'] = [
+            'interval' => 2592000, // 30 days
+            'display'  => 'Una volta al mese'
+        ];
+        $schedules['biannual'] = [
+            'interval' => 15552000, // 180 days (6 months)
+            'display'  => 'Ogni 6 mesi'
+        ];
+        return $schedules;
+    }
+
+    public function save_scheduling_settings() {
+        check_admin_referer('marrison_save_scheduling');
+
+        $enabled = isset($_POST['marrison_auto_update_enabled']) ? 'yes' : 'no';
+        $frequency = sanitize_text_field($_POST['marrison_auto_update_frequency']);
+        $time = sanitize_text_field($_POST['marrison_auto_update_time']);
+        $email = sanitize_email($_POST['marrison_auto_update_email']);
+
+        update_option('marrison_auto_update_enabled', $enabled);
+        update_option('marrison_auto_update_frequency', $frequency);
+        update_option('marrison_auto_update_time', $time);
+        update_option('marrison_auto_update_email', $email);
+
+        // Clear existing schedule
+        wp_clear_scheduled_hook('marrison_scheduled_update_event');
+
+        if ($enabled === 'yes') {
+            // Calculate next run time
+            $tz = new DateTimeZone('Europe/Rome');
+            $now = new DateTime('now', $tz);
+            $target_time = DateTime::createFromFormat('H:i', $time, $tz);
+            
+            if (!$target_time) {
+                $target_time = clone $now;
+            } else {
+                $target_time->setDate($now->format('Y'), $now->format('m'), $now->format('d'));
+                if ($target_time <= $now) {
+                    $target_time->modify('+1 day');
+                }
+            }
+
+            wp_schedule_event($target_time->getTimestamp(), $frequency, 'marrison_scheduled_update_event');
+        }
+
+        wp_redirect(admin_url('admin.php?page=marrison-updater-settings&tab=scheduling&settings-updated=saved'));
+        exit;
+    }
+
+    public function run_scheduled_updates() {
+        // Prevent timeout
+        @ignore_user_abort(true);
+        @set_time_limit(0);
+
+        // Fetch all update data using the shared logic
+        $data = $this->get_all_updates_data();
+
+        include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+        include_once ABSPATH . 'wp-admin/includes/plugin.php';
+        include_once ABSPATH . 'wp-admin/includes/theme.php';
+        include_once ABSPATH . 'wp-admin/includes/file.php';
+        
+        // Initialize Filesystem
+        global $wp_filesystem;
+        if (empty($wp_filesystem)) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+        }
+        
+        $skin = new Automatic_Upgrader_Skin();
+        $updated_plugins = [];
+        $updated_themes = [];
+        $updated_translations = 0;
+
+        // 1. Private Plugins
+        if (!empty($data['plugins_private'])) {
+            foreach ($data['plugins_private'] as $u) {
+                if ($this->perform_update($u['slug'])) {
+                    $updated_plugins[] = $u['name'] . ' (Privato)';
+                }
+            }
+        }
+        
+        // 2. Official Plugins
+        wp_update_plugins();
+        $transient_plugins = get_site_transient('update_plugins');
+        if (!empty($transient_plugins->response)) {
+            $private_updates = $this->get_available_updates();
+            $private_slugs = array_map(function($u) { return $u['slug']; }, $private_updates);
+            $known_slugs = get_option('marrison_known_private_slugs', []);
+            if (is_array($known_slugs)) {
+                $private_slugs = array_unique(array_merge($private_slugs, $known_slugs));
+            }
+            $private_files = [];
+            foreach ($private_updates as $u) {
+                $found_file = $this->find_plugin_file($u['slug']);
+                if ($found_file) $private_files[] = $found_file;
+            }
+            
+            $plugin_files = [];
+            $plugin_names = [];
+            foreach ($transient_plugins->response as $file => $data) {
+                if (in_array($file, $private_files)) continue;
+                
+                $slug = isset($data->slug) ? $data->slug : dirname($file);
+                if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
+                if (in_array($slug, $private_slugs)) continue;
+                
+                $plugin_files[] = $file;
+                $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $file);
+                $plugin_names[$file] = $plugin_data['Name'] ?? $slug;
+            }
+            
+            if (!empty($plugin_files)) {
+                $upgrader = new Plugin_Upgrader($skin);
+                $results = $upgrader->bulk_upgrade($plugin_files);
+                if (is_array($results)) {
+                    foreach ($plugin_files as $file) {
+                        $res = isset($results[$file]) ? $results[$file] : false;
+                        if ($res && !is_wp_error($res)) {
+                            $updated_plugins[] = ($plugin_names[$file] ?? $file) . ' (Ufficiale)';
+                        }
+                    }
+                }
+                wp_clean_plugins_cache(true);
+                delete_site_transient('update_plugins');
+            }
+        }
+
+        // 3. Themes
+        if ($data['themes_count'] > 0) {
+            // Re-fetch transient to be sure
+            $current = get_site_transient('update_themes');
+            if (!empty($current->response)) {
+                $themes = array_keys($current->response);
+                $theme_upgrader = new Theme_Upgrader($skin);
+                $result = $theme_upgrader->bulk_upgrade($themes);
+                
+                if (is_array($result)) {
+                    foreach ($result as $slug => $res) {
+                        if ($res && !is_wp_error($res)) {
+                            $theme = wp_get_theme($slug);
+                            $updated_themes[] = $theme->get('Name');
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 4. Translations
+        if ($data['translations_count'] > 0) {
+            include_once ABSPATH . 'wp-admin/includes/translation-install.php';
+            $translations = wp_get_translation_updates();
+            if (!empty($translations)) {
+                $lang_upgrader = new Language_Pack_Upgrader($skin);
+                $result = $lang_upgrader->bulk_upgrade($translations);
+                if ($result && !is_wp_error($result)) {
+                    // Estimate count from result array
+                    $count = 0;
+                    foreach ($result as $r) {
+                        if ($r && !is_wp_error($r)) $count++;
+                    }
+                    $updated_translations = $count;
+                }
+            }
+        }
+        
+        // 5. Send Email Report
+        $email = get_option('marrison_auto_update_email');
+        if ($email && (!empty($updated_plugins) || !empty($updated_themes) || $updated_translations > 0)) {
+            $subject = '[' . get_bloginfo('name') . '] Report Aggiornamento Automatico';
+            $message = "Ciao,\n\nEcco il report degli aggiornamenti automatici eseguiti da Marrison Custom Updater:\n\n";
+            
+            if (!empty($updated_plugins)) {
+                $message .= "PLUGIN AGGIORNATI:\n";
+                foreach ($updated_plugins as $p) {
+                    $message .= "- $p\n";
+                }
+                $message .= "\n";
+            }
+            
+            if (!empty($updated_themes)) {
+                $message .= "TEMI AGGIORNATI:\n";
+                foreach ($updated_themes as $t) {
+                    $message .= "- $t\n";
+                }
+                $message .= "\n";
+            }
+            
+            if ($updated_translations > 0) {
+                $message .= "TRADUZIONI AGGIORNATE: $updated_translations pacchetti.\n\n";
+            }
+            
+            $message .= "Saluti,\n" . get_bloginfo('name');
+            
+            // Set content type to text/plain explicitly
+            $headers = array('Content-Type: text/plain; charset=UTF-8');
+            
+            wp_mail($email, $subject, $message, $headers);
+        }
     }
 
     public function load_textdomain() {
@@ -1756,6 +1966,7 @@ class Marrison_Custom_Updater {
             
             <h2 class="nav-tab-wrapper" style="margin-bottom: 20px;">
                 <a href="?page=marrison-updater-settings&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">Generale</a>
+                <a href="?page=marrison-updater-settings&tab=scheduling" class="nav-tab <?php echo $active_tab == 'scheduling' ? 'nav-tab-active' : ''; ?>">Programmazione</a>
                 <a href="?page=marrison-updater-settings&tab=howto" class="nav-tab <?php echo $active_tab == 'howto' ? 'nav-tab-active' : ''; ?>">Guida & Download</a>
             </h2>
 
@@ -1974,6 +2185,67 @@ class Marrison_Custom_Updater {
                         </table>
                     </div>
                 <?php endif; ?>
+
+            <?php elseif ($active_tab == 'scheduling'): ?>
+                <div class="mcu-card">
+                    <div class="mcu-card-header">
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-calendar-alt"></span> Programmazione Aggiornamenti</h2>
+                    </div>
+                    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                        <?php wp_nonce_field('marrison_save_scheduling'); ?>
+                        <input type="hidden" name="action" value="marrison_save_scheduling">
+                        
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row"><label for="marrison_auto_update_enabled">Abilita Aggiornamenti Automatici</label></th>
+                                <td>
+                                    <input type="checkbox" id="marrison_auto_update_enabled" name="marrison_auto_update_enabled" value="yes" <?php checked('yes', get_option('marrison_auto_update_enabled')); ?>>
+                                    <label for="marrison_auto_update_enabled">Attiva aggiornamento automatico periodico</label>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="marrison_auto_update_frequency">Frequenza</label></th>
+                                <td>
+                                    <select id="marrison_auto_update_frequency" name="marrison_auto_update_frequency">
+                                        <option value="daily" <?php selected('daily', get_option('marrison_auto_update_frequency')); ?>>Ogni giorno</option>
+                                        <option value="monthly" <?php selected('monthly', get_option('marrison_auto_update_frequency')); ?>>Una volta al mese</option>
+                                        <option value="biannual" <?php selected('biannual', get_option('marrison_auto_update_frequency')); ?>>Una volta ogni 6 mesi</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="marrison_auto_update_time">Orario (Fuso Orario Italiano)</label></th>
+                                <td>
+                                    <input type="time" id="marrison_auto_update_time" name="marrison_auto_update_time" value="<?php echo esc_attr(get_option('marrison_auto_update_time', '00:00')); ?>">
+                                    <p class="description">Seleziona l'orario di esecuzione (Europe/Rome).</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="marrison_auto_update_email">Email per Report</label></th>
+                                <td>
+                                    <input type="email" id="marrison_auto_update_email" name="marrison_auto_update_email" value="<?php echo esc_attr(get_option('marrison_auto_update_email', get_option('admin_email'))); ?>" class="regular-text">
+                                    <p class="description">Inserisci l'indirizzo email dove inviare il report degli aggiornamenti (opzionale).</p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <?php 
+                        $next_run = wp_next_scheduled('marrison_scheduled_update_event');
+                        if ($next_run): 
+                            $tz = new DateTimeZone('Europe/Rome');
+                            $date = new DateTime('@' . $next_run);
+                            $date->setTimezone($tz);
+                        ?>
+                            <div class="mcu-notice mcu-notice-info" style="margin-top: 20px;">
+                                <span class="dashicons dashicons-clock"></span> Prossima esecuzione programmata: <strong><?php echo $date->format('d/m/Y H:i'); ?></strong>
+                            </div>
+                        <?php endif; ?>
+
+                        <div style="margin-top: 20px;">
+                            <button class="mcu-button mcu-button-primary" type="submit">Salva Programmazione</button>
+                        </div>
+                    </form>
+                </div>
 
             <?php else: ?>
                 <!-- HOW TO TAB -->
@@ -3003,13 +3275,7 @@ class Marrison_Custom_Updater {
         }
     }
 
-    public function get_all_updates_ajax() {
-        check_ajax_referer('marrison_update_all', 'nonce');
-
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('Insufficient permissions');
-        }
-
+    public function get_all_updates_data() {
         // 1. Private Plugins
         $private_updates = $this->get_available_updates();
         $plugins = get_plugins();
@@ -3033,13 +3299,40 @@ class Marrison_Custom_Updater {
         $official_to_update = [];
         
         $private_slugs = array_map(function($u) { return $u['slug']; }, $private_updates);
+        
+        // Add known private slugs from option
+        $known_slugs = get_option('marrison_known_private_slugs', []);
+        if (is_array($known_slugs)) {
+            $private_slugs = array_unique(array_merge($private_slugs, $known_slugs));
+        }
+        
+        // Add found private files to exclusion list
+        $private_files = [];
+        foreach ($private_updates as $u) {
+             $found_file = $this->find_plugin_file($u['slug']);
+             if ($found_file) $private_files[] = $found_file;
+        }
 
         if (!empty($transient->response)) {
             foreach ($transient->response as $file => $data) {
-                $slug = dirname($file);
-                if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
+                // EXCLUDE private repo plugins (priority check on file path)
+                if (in_array($file, $private_files)) continue;
 
-                if (in_array($slug, $private_slugs)) continue;
+                $slug = isset($data->slug) ? $data->slug : dirname($file);
+                if ($slug === '.') $slug = basename($file, '.php');
+                
+                // Secondary check on slugs
+                $check_slugs = [dirname($file), basename($file, '.php')];
+                if (isset($data->slug)) $check_slugs[] = $data->slug;
+                
+                $is_private = false;
+                foreach ($check_slugs as $s) {
+                    if ($s !== '.' && $s !== '' && in_array($s, $private_slugs)) {
+                        $is_private = true;
+                        break;
+                    }
+                }
+                if ($is_private) continue;
 
                 $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $file);
                 $official_to_update[] = [
@@ -3064,12 +3357,24 @@ class Marrison_Custom_Updater {
         $translation_updates = wp_get_translation_updates();
         $translations_count = count($translation_updates);
 
-        wp_send_json_success([
+        return [
             'plugins_private' => $private_to_update,
             'plugins_official' => $official_to_update,
             'themes_count' => $themes_count,
             'translations_count' => $translations_count
-        ]);
+        ];
+    }
+
+    public function get_all_updates_ajax() {
+        check_ajax_referer('marrison_update_all', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+
+        $data = $this->get_all_updates_data();
+
+        wp_send_json_success($data);
     }
 }
 
