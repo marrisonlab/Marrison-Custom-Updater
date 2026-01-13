@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.0.4
+ * Version: 8.0.5
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -1397,14 +1397,22 @@ class Marrison_Custom_Updater {
         } else {
             // Salvataggio Plugin Repo
             if (isset($_POST['marrison_repo_url'])) {
-                $url = sanitize_url($_POST['marrison_repo_url']);
-                update_option('marrison_repo_url', $url);
+                $url_input = $_POST['marrison_repo_url'];
+                // Aggiorna solo se l'input non è oscurato (preserviamo l'esistente se l'utente non lo modifica)
+                if ($url_input !== '********************') {
+                    $url = sanitize_url($url_input);
+                    update_option('marrison_repo_url', $url);
+                }
             }
 
             // Salvataggio Themes Repo
             if (isset($_POST['marrison_themes_repo_url'])) {
-                $theme_url = sanitize_url($_POST['marrison_themes_repo_url']);
-                update_option('marrison_themes_repo_url', $theme_url);
+                $theme_url_input = $_POST['marrison_themes_repo_url'];
+                // Aggiorna solo se l'input non è oscurato
+                if ($theme_url_input !== '********************') {
+                    $theme_url = sanitize_url($theme_url_input);
+                    update_option('marrison_themes_repo_url', $theme_url);
+                }
             }
 
             $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=saved');
@@ -1778,14 +1786,14 @@ class Marrison_Custom_Updater {
                             <tr>
                                 <th scope="row"><label for="marrison_repo_url">Indirizzo Repository Plugin</label></th>
                                 <td>
-                                    <input type="url" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo esc_attr(get_option('marrison_repo_url', '')); ?>" class="regular-text" style="width: 100%; max-width: 500px;">
+                                    <input type="password" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo get_option('marrison_repo_url') ? '********************' : ''; ?>" class="regular-text" style="width: 100%; max-width: 500px;">
                                     <p class="description">Inserisci l'URL del repository personalizzato per i PLUGIN.</p>
                                 </td>
                             </tr>
                             <tr>
                                 <th scope="row"><label for="marrison_themes_repo_url">Indirizzo Repository Temi</label></th>
                                 <td>
-                                    <input type="url" id="marrison_themes_repo_url" name="marrison_themes_repo_url" value="<?php echo esc_attr(get_option('marrison_themes_repo_url', '')); ?>" class="regular-text" style="width: 100%; max-width: 500px;">
+                                    <input type="password" id="marrison_themes_repo_url" name="marrison_themes_repo_url" value="<?php echo get_option('marrison_themes_repo_url') ? '********************' : ''; ?>" class="regular-text" style="width: 100%; max-width: 500px;">
                                     <p class="description">Inserisci l'URL del repository personalizzato per i TEMI.</p>
                                 </td>
                             </tr>

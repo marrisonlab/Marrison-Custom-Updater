@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.0.3
+Stable tag: 8.0.5
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -36,6 +36,9 @@ Questo plugin è essenziale per agenzie, sviluppatori freelance e organizzazioni
 
 
 == Changelog ==
+
+= 8.0.5 =
+* Security: Oscuramento degli indirizzi dei repository (plugin e temi) nel pannello di amministrazione e nel codice sorgente HTML.
 
 = 8.0.4 =
 
