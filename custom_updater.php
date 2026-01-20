@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.0.6
+ * Version: 8.0.7
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -171,7 +171,7 @@ class Marrison_Custom_Updater {
             }
             $private_files = [];
             foreach ($private_updates as $u) {
-                $found_file = $this->find_plugin_file($u['slug']);
+                $found_file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
                 if ($found_file) $private_files[] = $found_file;
             }
             
@@ -531,7 +531,7 @@ class Marrison_Custom_Updater {
         $update_count = 0;
         
         foreach ($updates as $u) {
-            $file = $this->find_plugin_file($u['slug']);
+            $file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
             if ($file && isset($plugins[$file]) && version_compare($plugins[$file]['Version'], $u['version'], '<')) {
                 $update_count++;
             }
@@ -715,6 +715,20 @@ class Marrison_Custom_Updater {
         // 1. Usa la lista persistente di slug privati per BLOCCARE gli aggiornamenti pubblici
         // Questo protegge anche nel caso in cui get_available_updates() fallisca (es. server down)
         $known_slugs = get_option('marrison_known_private_slugs', []);
+
+        // Espandi known_slugs identificando i plugin installati anche tramite Nome
+        // Questo è fondamentale se la cartella installata ha un nome diverso dallo slug del repo privato
+        $private_updates_list = $this->get_available_updates();
+        if (!empty($private_updates_list)) {
+            foreach ($private_updates_list as $u) {
+                $f = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
+                if ($f) {
+                    $known_slugs[] = dirname($f);
+                    $known_slugs[] = basename($f, '.php');
+                }
+            }
+            $known_slugs = array_unique($known_slugs);
+        }
         
         if (is_array($known_slugs) && !empty($known_slugs)) {
             // Pulizia aggressiva basata sullo SLUG, non solo sul file path
@@ -766,7 +780,7 @@ class Marrison_Custom_Updater {
 
         // 2. Inietta i NUOVI aggiornamenti dal repository privato (se disponibili)
         foreach ($this->get_available_updates() as $update) {
-            $file = $this->find_plugin_file($update['slug']);
+            $file = $this->find_plugin_file($update['slug'], $update['name'] ?? '');
             if (!$file || !isset($plugins[$file])) continue;
 
             // Rimuovi di nuovo per sicurezza (ridondante ma sicuro)
@@ -969,8 +983,11 @@ class Marrison_Custom_Updater {
         return $version;
     }
 
-    private function find_plugin_file($slug) {
+    private function find_plugin_file($slug, $name = '') {
         $slug = trim($slug);
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
         $plugins = get_plugins();
         
         // 1. Cerca corrispondenza esatta della cartella (o nome file per plugin singoli)
@@ -984,6 +1001,15 @@ class Marrison_Custom_Updater {
         // Utile se la cartella ha un nome diverso ma il file del plugin corrisponde allo slug
         foreach ($plugins as $file => $data) {
              if (basename($file, '.php') === $slug) return $file;
+        }
+
+        // 3. Tentativo terziario: Cerca per Nome Plugin
+        if (!empty($name)) {
+            foreach ($plugins as $file => $data) {
+                // Confronto case-insensitive del nome
+                $plugin_name = html_entity_decode($data['Name']);
+                if (strcasecmp($plugin_name, $name) === 0) return $file;
+            }
         }
 
         return null;
@@ -1143,7 +1169,7 @@ class Marrison_Custom_Updater {
 
             // Trova versione corrente per il backup
             $current_version = '';
-            $plugin_file = $this->find_plugin_file($slug);
+            $plugin_file = $this->find_plugin_file($slug, $update['name'] ?? '');
             if ($plugin_file) {
                 if (!function_exists('get_plugins')) {
                     require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -1155,7 +1181,7 @@ class Marrison_Custom_Updater {
             }
 
             // Crea backup prima di procedere
-            $this->create_backup($slug, $current_version, 'plugin');
+            $this->create_backup($slug, $current_version, 'plugin', $plugin_file);
 
             $upgrade_dir = WP_CONTENT_DIR . '/upgrade/marrison-' . $slug;
             wp_mkdir_p($upgrade_dir);
@@ -1243,10 +1269,10 @@ class Marrison_Custom_Updater {
         return $dir;
     }
 
-    private function create_backup($slug, $version = '', $type = 'plugin') {
+    private function create_backup($slug, $version = '', $type = 'plugin', $known_file = '') {
         $source = '';
         if ($type === 'plugin') {
-            $plugin_file = $this->find_plugin_file($slug);
+            $plugin_file = $known_file ? $known_file : $this->find_plugin_file($slug);
             if (!$plugin_file) return false;
             
             // Per i plugin, cerchiamo di capire se è una cartella o un file singolo
@@ -2042,7 +2068,7 @@ class Marrison_Custom_Updater {
 
                 if (!empty($updates)) {
                     foreach ($updates as $u) {
-                        $file = $this->find_plugin_file($u['slug']);
+                        $file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
                         if ($file && isset($plugins[$file])) {
                             $installed_count++;
                             $installed_list[] = [
@@ -2398,7 +2424,7 @@ class Marrison_Custom_Updater {
                             if (!isset($u['slug'])) continue;
                             
                             $slug = $u['slug'];
-                            $plugin_file = $this->find_plugin_file($slug);
+                            $plugin_file = $this->find_plugin_file($slug, $u['name'] ?? '');
                             $is_installed = !empty($plugin_file);
                             $is_active = $is_installed && is_plugin_active($plugin_file);
                             
@@ -2701,7 +2727,7 @@ class Marrison_Custom_Updater {
         // Calcola conteggi per la dashboard
         $repo_updates_count = 0;
         foreach($updates as $u) {
-            $file = $this->find_plugin_file($u['slug']);
+            $file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
             if ($file && isset($plugins[$file]) && version_compare(trim($plugins[$file]['Version']), trim($u['version']), '<')) {
                 $repo_updates_count++;
             }
@@ -2741,7 +2767,7 @@ class Marrison_Custom_Updater {
         $private_files_check = [];
         foreach ($private_updates_check as $u) {
             $private_slugs_check[] = $u['slug'];
-            $found_file = $this->find_plugin_file($u['slug']);
+            $found_file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
             if ($found_file) $private_files_check[] = $found_file;
         }
         $known_slugs_check = get_option('marrison_known_private_slugs', []);
@@ -2927,7 +2953,7 @@ class Marrison_Custom_Updater {
                             <?php 
                             $has_repo_updates = false;
                             foreach ($updates as $u):
-                                $file = $this->find_plugin_file($u['slug']);
+                                $file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
                                 if ($file && isset($plugins[$file])) {
                                     $data = $plugins[$file];
                                     $slug = $u['slug']; 
@@ -3094,7 +3120,7 @@ class Marrison_Custom_Updater {
                 $private_files = [];
                 foreach ($private_updates as $u) {
                     $private_slugs[] = $u['slug'];
-                    $found_file = $this->find_plugin_file($u['slug']);
+                    $found_file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
                     if ($found_file) $private_files[] = $found_file;
                 }
                 
@@ -3282,7 +3308,7 @@ class Marrison_Custom_Updater {
         $private_to_update = [];
         
         foreach ($private_updates as $u) {
-            $file = $this->find_plugin_file($u['slug']);
+            $file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
             if ($file && isset($plugins[$file]) && version_compare($plugins[$file]['Version'], $u['version'], '<')) {
                 $private_to_update[] = [
                     'slug' => $u['slug'],
@@ -3309,7 +3335,7 @@ class Marrison_Custom_Updater {
         // Add found private files to exclusion list
         $private_files = [];
         foreach ($private_updates as $u) {
-             $found_file = $this->find_plugin_file($u['slug']);
+             $found_file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
              if ($found_file) $private_files[] = $found_file;
         }
 
