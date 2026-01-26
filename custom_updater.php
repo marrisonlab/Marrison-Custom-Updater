@@ -2382,12 +2382,13 @@ class Marrison_Custom_Updater {
         }
 
         $type = $_POST['file_type'] ?? 'plugin';
-        $source_dir = plugin_dir_path(__FILE__) . 'add_this_file_to_your_repo_folder/';
         
         if ($type === 'theme') {
-            $file = $source_dir . 'index-themes.php';
+            $source_dir = plugin_dir_path(__FILE__) . 'add_this_file_for_themes_repo/';
+            $file = $source_dir . 'index.php';
             $filename = 'index-themes.php';
         } else {
+            $source_dir = plugin_dir_path(__FILE__) . 'add_this_file_for_plugin_repo/';
             $file = $source_dir . 'index.php';
             $filename = 'index.php';
         }
