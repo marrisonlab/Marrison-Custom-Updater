@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.0.8
+Stable tag: 8.0.9
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -36,6 +36,10 @@ Questo plugin è essenziale per agenzie, sviluppatori freelance e organizzazioni
 
 
 == Changelog ==
+
+= 8.0.9 =
+* Fix: Risolto problema di disattivazione plugin (es. Elementor) dopo aggiornamento singolo da repository pubblica.
+* Fix: Migliorata gestione riattivazione plugin per "Aggiorna tutto" e aggiornamenti privati.
 
 = 8.0.8 =
 * Fix: Ripristinata automaticamente l’attivazione dei plugin privati dopo aggiornamento singolo e \"Aggiorna tutto\".

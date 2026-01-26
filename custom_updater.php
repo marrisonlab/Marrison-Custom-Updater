@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.0.8
+ * Version: 8.0.9
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -463,6 +463,8 @@ class Marrison_Custom_Updater {
 
         include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
         include_once ABSPATH . 'wp-admin/includes/plugin.php';
+        
+        $was_active = is_plugin_active($file);
         
         // Ensure update info is present in transient
         $transient = get_site_transient('update_plugins');
@@ -1695,7 +1697,16 @@ class Marrison_Custom_Updater {
         if ($slug === 'marrison-custom-updater') {
             $plugin_file_before = plugin_basename(__FILE__);
         } else {
-            $plugin_file_before = $this->find_plugin_file($slug);
+            // Trova il nome per migliorare la ricerca file
+            $updates = $this->get_available_updates();
+            $name = '';
+            foreach($updates as $u) {
+                if ($u['slug'] === $slug) {
+                    $name = $u['name'] ?? '';
+                    break;
+                }
+            }
+            $plugin_file_before = $this->find_plugin_file($slug, $name);
         }
         $was_active = $plugin_file_before && is_plugin_active($plugin_file_before);
 
@@ -1714,7 +1725,7 @@ class Marrison_Custom_Updater {
         if ($result) {
             $plugin_file_after = $plugin_file_before;
             if (!$plugin_file_after || !file_exists(WP_PLUGIN_DIR . '/' . $plugin_file_after)) {
-                $plugin_file_after = $this->find_plugin_file($slug);
+                $plugin_file_after = $this->find_plugin_file($slug, $name);
             }
 
             if ($was_active && $plugin_file_after) {
@@ -1906,10 +1917,24 @@ class Marrison_Custom_Updater {
         $results = [];
         $success_count = 0;
         
+        $available_updates = $this->get_available_updates();
+
         foreach ($plugins as $slug) {
             $result = false;
             
-            // Controlla se Ã¨ il plugin stesso (Marrison Custom Updater)
+            // Trova il nome per la ricerca file e stato attivazione
+            $name = '';
+            foreach ($available_updates as $u) {
+                if ($u['slug'] === $slug) {
+                    $name = $u['name'] ?? '';
+                    break;
+                }
+            }
+
+            $plugin_file_before = $this->find_plugin_file($slug, $name);
+            $was_active = $plugin_file_before && is_plugin_active($plugin_file_before);
+            
+            // Controlla se è il plugin stesso (Marrison Custom Updater)
             if ($slug === 'marrison-custom-updater') {
                 $transient = get_site_transient('update_plugins');
                 if (isset($transient->response[plugin_basename(__FILE__)])) {
@@ -1923,6 +1948,13 @@ class Marrison_Custom_Updater {
             $results[$slug] = $result;
             if ($result) {
                 $success_count++;
+                
+                if ($was_active) {
+                    $plugin_file_after = $this->find_plugin_file($slug, $name);
+                    if ($plugin_file_after && !is_plugin_active($plugin_file_after)) {
+                        activate_plugin($plugin_file_after, '', false, false);
+                    }
+                }
             }
         }
 
