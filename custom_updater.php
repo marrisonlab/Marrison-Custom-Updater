@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.0.7
+ * Version: 8.0.8
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -135,6 +135,8 @@ class Marrison_Custom_Updater {
 
         include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
         include_once ABSPATH . 'wp-admin/includes/plugin.php';
+
+        $was_active = is_plugin_active($file);
         include_once ABSPATH . 'wp-admin/includes/theme.php';
         include_once ABSPATH . 'wp-admin/includes/file.php';
         
@@ -498,7 +500,11 @@ class Marrison_Custom_Updater {
         } elseif (!$result) {
             wp_send_json_error(__('Update failed', 'marrison-custom-updater'));
         } else {
-             wp_send_json_success(__('Plugin updated', 'marrison-custom-updater'));
+            if ($was_active && !is_plugin_active($file)) {
+                activate_plugin($file, '', false, false);
+            }
+
+            wp_send_json_success(__('Plugin updated', 'marrison-custom-updater'));
         }
     }
 
@@ -1667,11 +1673,9 @@ class Marrison_Custom_Updater {
     /* ===================== AJAX HANDLER ===================== */
 
     public function update_plugin_ajax() {
-        // Verifica il nonce - accetta sia nonce specifico che generico
         $slug = sanitize_text_field($_POST['slug'] ?? '');
         $nonce = sanitize_text_field($_POST['nonce'] ?? '');
         
-        // Controlla nonce specifico per il plugin o nonce bulk generico
         $nonce_valid = wp_verify_nonce($nonce, 'marrison_update_' . $slug) || 
                        wp_verify_nonce($nonce, 'marrison_bulk_update') ||
                        wp_verify_nonce($nonce, 'marrison_update_marrison-custom-updater');
@@ -1685,10 +1689,18 @@ class Marrison_Custom_Updater {
             wp_send_json_error('Insufficient permissions');
         }
 
-        // Esegui l'aggiornamento
+        include_once ABSPATH . 'wp-admin/includes/plugin.php';
+
+        $plugin_file_before = '';
+        if ($slug === 'marrison-custom-updater') {
+            $plugin_file_before = plugin_basename(__FILE__);
+        } else {
+            $plugin_file_before = $this->find_plugin_file($slug);
+        }
+        $was_active = $plugin_file_before && is_plugin_active($plugin_file_before);
+
         $result = false;
         
-        // Controlla se Ã¨ il plugin stesso (Marrison Custom Updater)
         if ($slug === 'marrison-custom-updater') {
             $transient = get_site_transient('update_plugins');
             if (isset($transient->response[plugin_basename(__FILE__)])) {
@@ -1700,10 +1712,19 @@ class Marrison_Custom_Updater {
         }
 
         if ($result) {
-            wp_send_json_success('Plugin aggiornato con successo');
-            
-            // Aggiorna il conteggio delle notifiche
+            $plugin_file_after = $plugin_file_before;
+            if (!$plugin_file_after || !file_exists(WP_PLUGIN_DIR . '/' . $plugin_file_after)) {
+                $plugin_file_after = $this->find_plugin_file($slug);
+            }
+
+            if ($was_active && $plugin_file_after) {
+                if (!is_plugin_active($plugin_file_after)) {
+                    activate_plugin($plugin_file_after, '', false, false);
+                }
+            }
+
             $this->check_for_available_updates();
+            wp_send_json_success('Plugin aggiornato con successo');
         } else {
             wp_send_json_error('Errore durante l\'aggiornamento del plugin');
         }
