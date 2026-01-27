@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.0.9
+Stable tag: 8.1.0
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -36,6 +36,13 @@ Questo plugin è essenziale per agenzie, sviluppatori freelance e organizzazioni
 
 
 == Changelog ==
+
+= 8.1.0 =
+* Feature: Aggiunto pulsante per inviare mail di test direttamente dalle impostazioni di programmazione.
+* Improvement: Migliorato il feedback visivo durante l'invio della mail di test (spinner e messaggi di stato).
+* Improvement: Uniformato l'invio delle email (report e test) in formato HTML con header corretti (Reply-To e From pulito).
+* Improvement: Modificata logica report automatico: invia notifica anche quando non ci sono aggiornamenti ("Sistema aggiornato").
+* Fix: Risolto problema di invio email che finivano in spam (impostazione corretta mittente no-reply e dominio).
 
 = 8.0.9 =
 * Fix: Risolto problema di disattivazione plugin (es. Elementor) dopo aggiornamento singolo da repository pubblica.

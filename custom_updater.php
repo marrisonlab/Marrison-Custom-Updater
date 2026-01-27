@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.0.9
+ * Version: 8.1.0
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -53,6 +53,7 @@ class Marrison_Custom_Updater {
         add_action('wp_ajax_marrison_update_all_themes_ajax', [$this, 'update_all_themes_ajax']);
         add_action('wp_ajax_marrison_update_translations_ajax', [$this, 'update_translations_ajax']);
         add_action('wp_ajax_marrison_get_all_updates_ajax', [$this, 'get_all_updates_ajax']);
+        add_action('wp_ajax_marrison_test_email', [$this, 'send_test_email_ajax']);
         
         // Aggiungi script e stili per la pagina admin
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
@@ -123,6 +124,47 @@ class Marrison_Custom_Updater {
 
         wp_redirect(admin_url('admin.php?page=marrison-updater-settings&tab=scheduling&settings-updated=saved'));
         exit;
+    }
+
+    public function send_test_email_ajax() {
+        check_ajax_referer('marrison_test_email', 'nonce');
+        
+        $email = sanitize_email($_POST['email']);
+        if (!is_email($email)) {
+            wp_send_json_error('Indirizzo email non valido.');
+        }
+        
+        // Construct From header
+        $domain = parse_url(get_site_url(), PHP_URL_HOST);
+        if (strpos($domain, 'www.') === 0) {
+            $domain = substr($domain, 4);
+        }
+        $from_email = 'no-reply@' . $domain;
+        $from_name = get_bloginfo('name');
+        
+        $subject = '[' . get_bloginfo('name') . '] Test Invio Email - Marrison Custom Updater';
+        
+        $message_html = '<html><body>';
+        $message_html .= '<h2>Test Configurazione Email</h2>';
+        $message_html .= '<p>Ciao,</p>';
+        $message_html .= '<p>Questa è una mail di test inviata da <strong>Marrison Custom Updater</strong> per verificare la configurazione dell\'invio email.</p>';
+        $message_html .= '<p style="color: green; font-weight: bold;">Se leggi questo messaggio, l\'invio funziona correttamente.</p>';
+        $message_html .= '<p><small>Inviato dal sito: ' . esc_url(get_site_url()) . '</small></p>';
+        $message_html .= '</body></html>';
+        
+        $headers = array(
+            'Content-Type: text/html; charset=UTF-8',
+            'From: ' . $from_name . ' <' . $from_email . '>',
+            'Reply-To: ' . get_option('admin_email')
+        );
+        
+        $sent = wp_mail($email, $subject, $message_html, $headers);
+        
+        if ($sent) {
+            wp_send_json_success('Mail inviata correttamente!');
+        } else {
+            wp_send_json_error('Invio fallito. Verifica i log del server o la configurazione SMTP.');
+        }
     }
 
     public function run_scheduled_updates() {
@@ -247,36 +289,59 @@ class Marrison_Custom_Updater {
         
         // 5. Send Email Report
         $email = get_option('marrison_auto_update_email');
-        if ($email && (!empty($updated_plugins) || !empty($updated_themes) || $updated_translations > 0)) {
+        if ($email) {
+            $has_updates = (!empty($updated_plugins) || !empty($updated_themes) || $updated_translations > 0);
+            
             $subject = '[' . get_bloginfo('name') . '] Report Aggiornamento Automatico';
-            $message = "Ciao,\n\nEcco il report degli aggiornamenti automatici eseguiti da Marrison Custom Updater:\n\n";
             
-            if (!empty($updated_plugins)) {
-                $message .= "PLUGIN AGGIORNATI:\n";
-                foreach ($updated_plugins as $p) {
-                    $message .= "- $p\n";
+            $message_html = '<html><body>';
+            $message_html .= '<h2>Report Aggiornamenti Marrison Custom Updater</h2>';
+            
+            if ($has_updates) {
+                $message_html .= '<p>Sono stati eseguiti i seguenti aggiornamenti:</p>';
+                
+                if (!empty($updated_plugins)) {
+                    $message_html .= '<h3>Plugin Aggiornati:</h3><ul>';
+                    foreach ($updated_plugins as $p) {
+                        $message_html .= '<li>' . esc_html($p) . '</li>';
+                    }
+                    $message_html .= '</ul>';
                 }
-                $message .= "\n";
-            }
-            
-            if (!empty($updated_themes)) {
-                $message .= "TEMI AGGIORNATI:\n";
-                foreach ($updated_themes as $t) {
-                    $message .= "- $t\n";
+                
+                if (!empty($updated_themes)) {
+                    $message_html .= '<h3>Temi Aggiornati:</h3><ul>';
+                    foreach ($updated_themes as $t) {
+                        $message_html .= '<li>' . esc_html($t) . '</li>';
+                    }
+                    $message_html .= '</ul>';
                 }
-                $message .= "\n";
+                
+                if ($updated_translations > 0) {
+                    $message_html .= '<h3>Traduzioni:</h3><p>Aggiornati ' . intval($updated_translations) . ' pacchetti di traduzione.</p>';
+                }
+            } else {
+                $message_html .= '<p style="color: green;"><strong>Nessun aggiornamento necessario. Il sistema è aggiornato.</strong></p>';
             }
             
-            if ($updated_translations > 0) {
-                $message .= "TRADUZIONI AGGIORNATE: $updated_translations pacchetti.\n\n";
+            $message_html .= '<hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">';
+            $message_html .= '<p><small>Inviato automaticamente da <strong>' . get_bloginfo('name') . '</strong></small></p>';
+            $message_html .= '</body></html>';
+            
+            $domain = parse_url(get_site_url(), PHP_URL_HOST);
+            if (strpos($domain, 'www.') === 0) {
+                $domain = substr($domain, 4);
             }
+            $from_email = 'no-reply@' . $domain;
+            $from_name = get_bloginfo('name');
             
-            $message .= "Saluti,\n" . get_bloginfo('name');
+            // Headers for report
+            $headers = array(
+                'Content-Type: text/html; charset=UTF-8',
+                'From: ' . $from_name . ' <' . $from_email . '>',
+                'Reply-To: ' . get_option('admin_email')
+            );
             
-            // Set content type to text/plain explicitly
-            $headers = array('Content-Type: text/plain; charset=UTF-8');
-            
-            wp_mail($email, $subject, $message, $headers);
+            wp_mail($email, $subject, $message_html, $headers);
         }
     }
 
@@ -1982,8 +2047,8 @@ class Marrison_Custom_Updater {
         }
         
         // Load Custom Styles and Scripts
-        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], '1.0.2');
-        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . 'assets/js/admin-script.js', ['jquery'], '1.0.2', true);
+        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], '1.0.3');
+        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . 'assets/js/admin-script.js', ['jquery'], time(), true);
         
         wp_localize_script('mcu-admin-script', 'marrisonUpdater', [
             'ajaxurl' => admin_url('admin-ajax.php'),
@@ -2302,7 +2367,11 @@ class Marrison_Custom_Updater {
                             <tr>
                                 <th scope="row"><label for="marrison_auto_update_email">Email per Report</label></th>
                                 <td>
-                                    <input type="email" id="marrison_auto_update_email" name="marrison_auto_update_email" value="<?php echo esc_attr(get_option('marrison_auto_update_email', get_option('admin_email'))); ?>" class="regular-text">
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <input type="email" id="marrison_auto_update_email" name="marrison_auto_update_email" value="<?php echo esc_attr(get_option('marrison_auto_update_email', get_option('admin_email'))); ?>" class="regular-text">
+                                        <button type="button" id="marrison_test_email_btn" class="button button-secondary" data-nonce="<?php echo wp_create_nonce('marrison_test_email'); ?>">Invia mail di test</button>
+                                        <span id="marrison_test_email_result" style="font-weight: 600;"></span>
+                                    </div>
                                     <p class="description">Inserisci l'indirizzo email dove inviare il report degli aggiornamenti (opzionale).</p>
                                 </td>
                             </tr>

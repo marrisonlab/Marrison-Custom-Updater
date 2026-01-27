@@ -1,4 +1,5 @@
 jQuery(document).ready(function($) {
+    console.log('Marrison Custom Updater JS Loaded');
     
     // UI Helpers
     const MCU = {
@@ -641,6 +642,52 @@ jQuery(document).ready(function($) {
                 MCU.toast('Errore di connessione', 'error');
                 $btn.prop('disabled', false);
                 setTimeout(MCU.hideProgress, 2000);
+            }
+        });
+    });
+
+    // --- Test Email Handler ---
+    $(document).on('click', '#marrison_test_email_btn', function(e) {
+        e.preventDefault();
+        console.log('Test Email Button Clicked');
+        
+        var $btn = $(this);
+        var email = $('#marrison_auto_update_email').val();
+        var nonce = $btn.data('nonce');
+        var $result = $('#marrison_test_email_result');
+
+        if (!email) {
+            alert('Inserisci un indirizzo email.');
+            return;
+        }
+
+        $btn.prop('disabled', true).html('<span class="spinner is-active" style="float:none; margin:0 5px 0 0;"></span> Invio in corso...');
+        $result.text('').css('color', '');
+
+        $.ajax({
+            url: marrisonUpdater.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'marrison_test_email',
+                email: email,
+                nonce: nonce
+            },
+            success: function(response) {
+                console.log('Email Test Response:', response);
+                if (response.success) {
+                    $result.text(response.data).css('color', 'green');
+                } else {
+                    $result.text(response.data).css('color', 'red');
+                    alert('Errore: ' + response.data);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Email Test Error:', error);
+                $result.text('Errore di connessione: ' + error).css('color', 'red');
+                alert('Errore di connessione AJAX: ' + error);
+            },
+            complete: function() {
+                $btn.prop('disabled', false).text('Invia mail di test');
             }
         });
     });
