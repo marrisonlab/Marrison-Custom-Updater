@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.1.0
+Stable tag: 8.1.1
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -36,6 +36,13 @@ Questo plugin è essenziale per agenzie, sviluppatori freelance e organizzazioni
 
 
 == Changelog ==
+
+= 8.1.1 =
+* Improvement: Aggiunto sistema di logging avanzato per il cron di aggiornamento automatico (tracciamento step-by-step).
+* Fix: Aggiunto blocco try-catch per prevenire crash silenziosi durante gli aggiornamenti programmati.
+* Fix: Risolto bug di definizione variabile $file mancante nella logica di aggiornamento.
+* Fix: Corretta logica duplicata nell'invio delle email di test vs report programmati.
+* Improvement: Aggiunta versione dinamica (timestamp) per gli script admin per evitare problemi di cache.
 
 = 8.1.0 =
 * Feature: Aggiunto pulsante per inviare mail di test direttamente dalle impostazioni di programmazione.

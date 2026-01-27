@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.1.0
+ * Version: 8.1.1
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -168,180 +168,236 @@ class Marrison_Custom_Updater {
     }
 
     public function run_scheduled_updates() {
-        // Prevent timeout
-        @ignore_user_abort(true);
-        @set_time_limit(0);
+        // Log start execution
+        $log_entry = [
+            'time' => current_time('mysql'),
+            'status' => 'started',
+            'message' => 'Cron job started.'
+        ];
+        update_option('marrison_last_cron_log', $log_entry);
 
-        // Fetch all update data using the shared logic
-        $data = $this->get_all_updates_data();
+        try {
+            // Prevent timeout
+            @ignore_user_abort(true);
+            @set_time_limit(0);
 
-        include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
-        include_once ABSPATH . 'wp-admin/includes/plugin.php';
+            // Fetch all update data using the shared logic
+            $data = $this->get_all_updates_data();
+            
+            // Log update check result
+            $log_entry['message'] = 'Updates check completed.';
+            update_option('marrison_last_cron_log', $log_entry);
 
-        $was_active = is_plugin_active($file);
-        include_once ABSPATH . 'wp-admin/includes/theme.php';
-        include_once ABSPATH . 'wp-admin/includes/file.php';
-        
-        // Initialize Filesystem
-        global $wp_filesystem;
-        if (empty($wp_filesystem)) {
-            require_once ABSPATH . 'wp-admin/includes/file.php';
-            WP_Filesystem();
-        }
-        
-        $skin = new Automatic_Upgrader_Skin();
-        $updated_plugins = [];
-        $updated_themes = [];
-        $updated_translations = 0;
+            include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+            include_once ABSPATH . 'wp-admin/includes/plugin.php';
 
-        // 1. Private Plugins
-        if (!empty($data['plugins_private'])) {
-            foreach ($data['plugins_private'] as $u) {
-                if ($this->perform_update($u['slug'])) {
-                    $updated_plugins[] = $u['name'] . ' (Privato)';
+            // Check if get_all_updates_data defined $file, otherwise initialize it
+            // It seems $file is undefined here in original code, likely copy-paste error or missing context.
+            // Removing line 189: $was_active = is_plugin_active($file); as $file is undefined.
+            
+            include_once ABSPATH . 'wp-admin/includes/theme.php';
+            include_once ABSPATH . 'wp-admin/includes/file.php';
+            
+            // Initialize Filesystem
+            global $wp_filesystem;
+            if (empty($wp_filesystem)) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+                WP_Filesystem();
+            }
+            
+            $skin = new Automatic_Upgrader_Skin();
+            $updated_plugins = [];
+            $updated_themes = [];
+            $updated_translations = 0;
+
+            // 1. Private Plugins
+            if (!empty($data['plugins_private'])) {
+                foreach ($data['plugins_private'] as $u) {
+                    if ($this->perform_update($u['slug'])) {
+                        $updated_plugins[] = $u['name'] . ' (Privato)';
+                    }
                 }
             }
-        }
-        
-        // 2. Official Plugins
-        wp_update_plugins();
-        $transient_plugins = get_site_transient('update_plugins');
-        if (!empty($transient_plugins->response)) {
-            $private_updates = $this->get_available_updates();
-            $private_slugs = array_map(function($u) { return $u['slug']; }, $private_updates);
-            $known_slugs = get_option('marrison_known_private_slugs', []);
-            if (is_array($known_slugs)) {
-                $private_slugs = array_unique(array_merge($private_slugs, $known_slugs));
-            }
-            $private_files = [];
-            foreach ($private_updates as $u) {
-                $found_file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
-                if ($found_file) $private_files[] = $found_file;
+            
+            // Log private updates done
+            $log_entry['message'] = 'Private plugins processed.';
+            update_option('marrison_last_cron_log', $log_entry);
+
+            // 2. Official Plugins
+            wp_update_plugins();
+            $transient_plugins = get_site_transient('update_plugins');
+            if (!empty($transient_plugins->response)) {
+                $private_updates = $this->get_available_updates();
+                $private_slugs = array_map(function($u) { return $u['slug']; }, $private_updates);
+                $known_slugs = get_option('marrison_known_private_slugs', []);
+                if (is_array($known_slugs)) {
+                    $private_slugs = array_unique(array_merge($private_slugs, $known_slugs));
+                }
+                $private_files = [];
+                foreach ($private_updates as $u) {
+                    $found_file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
+                    if ($found_file) $private_files[] = $found_file;
+                }
+                
+                $plugin_files = [];
+                $plugin_names = [];
+                foreach ($transient_plugins->response as $file => $data_plugin) { // Renamed $data to $data_plugin to avoid conflict
+                    if (in_array($file, $private_files)) continue;
+                    
+                    $slug = isset($data_plugin->slug) ? $data_plugin->slug : dirname($file);
+                    if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
+                    if (in_array($slug, $private_slugs)) continue;
+                    
+                    $plugin_files[] = $file;
+                    $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $file);
+                    $plugin_names[$file] = $plugin_data['Name'] ?? $slug;
+                }
+                
+                if (!empty($plugin_files)) {
+                    $upgrader = new Plugin_Upgrader($skin);
+                    $results = $upgrader->bulk_upgrade($plugin_files);
+                    if (is_array($results)) {
+                        foreach ($plugin_files as $file) {
+                            $res = isset($results[$file]) ? $results[$file] : false;
+                            if ($res && !is_wp_error($res)) {
+                                $updated_plugins[] = ($plugin_names[$file] ?? $file) . ' (Ufficiale)';
+                            }
+                        }
+                    }
+                    wp_clean_plugins_cache(true);
+                    delete_site_transient('update_plugins');
+                }
             }
             
-            $plugin_files = [];
-            $plugin_names = [];
-            foreach ($transient_plugins->response as $file => $data) {
-                if (in_array($file, $private_files)) continue;
-                
-                $slug = isset($data->slug) ? $data->slug : dirname($file);
-                if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
-                if (in_array($slug, $private_slugs)) continue;
-                
-                $plugin_files[] = $file;
-                $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $file);
-                $plugin_names[$file] = $plugin_data['Name'] ?? $slug;
-            }
-            
-            if (!empty($plugin_files)) {
-                $upgrader = new Plugin_Upgrader($skin);
-                $results = $upgrader->bulk_upgrade($plugin_files);
-                if (is_array($results)) {
-                    foreach ($plugin_files as $file) {
-                        $res = isset($results[$file]) ? $results[$file] : false;
-                        if ($res && !is_wp_error($res)) {
-                            $updated_plugins[] = ($plugin_names[$file] ?? $file) . ' (Ufficiale)';
+            // Log official updates done
+            $log_entry['message'] = 'Official plugins processed.';
+            update_option('marrison_last_cron_log', $log_entry);
+
+            // 3. Themes
+            if ($data['themes_count'] > 0) {
+                // Re-fetch transient to be sure
+                $current = get_site_transient('update_themes');
+                if (!empty($current->response)) {
+                    $themes = array_keys($current->response);
+                    $theme_upgrader = new Theme_Upgrader($skin);
+                    $result = $theme_upgrader->bulk_upgrade($themes);
+                    
+                    if (is_array($result)) {
+                        foreach ($result as $slug => $res) {
+                            if ($res && !is_wp_error($res)) {
+                                $theme = wp_get_theme($slug);
+                                $updated_themes[] = $theme->get('Name');
+                            }
                         }
                     }
                 }
-                wp_clean_plugins_cache(true);
-                delete_site_transient('update_plugins');
             }
-        }
-
-        // 3. Themes
-        if ($data['themes_count'] > 0) {
-            // Re-fetch transient to be sure
-            $current = get_site_transient('update_themes');
-            if (!empty($current->response)) {
-                $themes = array_keys($current->response);
-                $theme_upgrader = new Theme_Upgrader($skin);
-                $result = $theme_upgrader->bulk_upgrade($themes);
-                
-                if (is_array($result)) {
-                    foreach ($result as $slug => $res) {
-                        if ($res && !is_wp_error($res)) {
-                            $theme = wp_get_theme($slug);
-                            $updated_themes[] = $theme->get('Name');
+            
+            // Log themes done
+            $log_entry['message'] = 'Themes processed.';
+            update_option('marrison_last_cron_log', $log_entry);
+            
+            // 4. Translations
+            if ($data['translations_count'] > 0) {
+                include_once ABSPATH . 'wp-admin/includes/translation-install.php';
+                $translations = wp_get_translation_updates();
+                if (!empty($translations)) {
+                    $lang_upgrader = new Language_Pack_Upgrader($skin);
+                    $result = $lang_upgrader->bulk_upgrade($translations);
+                    if ($result && !is_wp_error($result)) {
+                        // Estimate count from result array
+                        $count = 0;
+                        foreach ($result as $r) {
+                            if ($r && !is_wp_error($r)) $count++;
                         }
+                        $updated_translations = $count;
                     }
                 }
             }
-        }
-        
-        // 4. Translations
-        if ($data['translations_count'] > 0) {
-            include_once ABSPATH . 'wp-admin/includes/translation-install.php';
-            $translations = wp_get_translation_updates();
-            if (!empty($translations)) {
-                $lang_upgrader = new Language_Pack_Upgrader($skin);
-                $result = $lang_upgrader->bulk_upgrade($translations);
-                if ($result && !is_wp_error($result)) {
-                    // Estimate count from result array
-                    $count = 0;
-                    foreach ($result as $r) {
-                        if ($r && !is_wp_error($r)) $count++;
-                    }
-                    $updated_translations = $count;
-                }
-            }
-        }
-        
-        // 5. Send Email Report
-        $email = get_option('marrison_auto_update_email');
-        if ($email) {
-            $has_updates = (!empty($updated_plugins) || !empty($updated_themes) || $updated_translations > 0);
             
-            $subject = '[' . get_bloginfo('name') . '] Report Aggiornamento Automatico';
+            // Log translations done
+            $log_entry['message'] = 'Translations processed. Preparing email...';
+            update_option('marrison_last_cron_log', $log_entry);
             
-            $message_html = '<html><body>';
-            $message_html .= '<h2>Report Aggiornamenti Marrison Custom Updater</h2>';
-            
-            if ($has_updates) {
-                $message_html .= '<p>Sono stati eseguiti i seguenti aggiornamenti:</p>';
+            // 5. Send Email Report
+            $email = get_option('marrison_auto_update_email');
+            if ($email) {
+                $has_updates = (!empty($updated_plugins) || !empty($updated_themes) || $updated_translations > 0);
                 
-                if (!empty($updated_plugins)) {
-                    $message_html .= '<h3>Plugin Aggiornati:</h3><ul>';
-                    foreach ($updated_plugins as $p) {
-                        $message_html .= '<li>' . esc_html($p) . '</li>';
-                    }
-                    $message_html .= '</ul>';
-                }
+                $subject = '[' . get_bloginfo('name') . '] Report Aggiornamento Automatico';
                 
-                if (!empty($updated_themes)) {
-                    $message_html .= '<h3>Temi Aggiornati:</h3><ul>';
-                    foreach ($updated_themes as $t) {
-                        $message_html .= '<li>' . esc_html($t) . '</li>';
+                $message_html = '<html><body>';
+                $message_html .= '<h2>Report Aggiornamenti Marrison Custom Updater</h2>';
+                
+                if ($has_updates) {
+                    $message_html .= '<p>Sono stati eseguiti i seguenti aggiornamenti:</p>';
+                    
+                    if (!empty($updated_plugins)) {
+                        $message_html .= '<h3>Plugin Aggiornati:</h3><ul>';
+                        foreach ($updated_plugins as $p) {
+                            $message_html .= '<li>' . esc_html($p) . '</li>';
+                        }
+                        $message_html .= '</ul>';
                     }
-                    $message_html .= '</ul>';
+                    
+                    if (!empty($updated_themes)) {
+                        $message_html .= '<h3>Temi Aggiornati:</h3><ul>';
+                        foreach ($updated_themes as $t) {
+                            $message_html .= '<li>' . esc_html($t) . '</li>';
+                        }
+                        $message_html .= '</ul>';
+                    }
+                    
+                    if ($updated_translations > 0) {
+                        $message_html .= '<h3>Traduzioni:</h3><p>Aggiornati ' . intval($updated_translations) . ' pacchetti di traduzione.</p>';
+                    }
+                } else {
+                    $message_html .= '<p style="color: green;"><strong>Nessun aggiornamento necessario. Il sistema è aggiornato.</strong></p>';
                 }
                 
-                if ($updated_translations > 0) {
-                    $message_html .= '<h3>Traduzioni:</h3><p>Aggiornati ' . intval($updated_translations) . ' pacchetti di traduzione.</p>';
+                $message_html .= '<hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">';
+                $message_html .= '<p><small>Inviato automaticamente da <strong>' . get_bloginfo('name') . '</strong></small></p>';
+                $message_html .= '</body></html>';
+                
+                $domain = parse_url(get_site_url(), PHP_URL_HOST);
+                if (strpos($domain, 'www.') === 0) {
+                    $domain = substr($domain, 4);
                 }
+                $from_email = 'no-reply@' . $domain;
+                $from_name = get_bloginfo('name');
+                
+                // Headers for report
+                $headers = array(
+                    'Content-Type: text/html; charset=UTF-8',
+                    'From: ' . $from_name . ' <' . $from_email . '>',
+                    'Reply-To: ' . get_option('admin_email')
+                );
+                
+                $sent = wp_mail($email, $subject, $message_html, $headers);
+                
+                // Update log with success/failure
+                $log_entry['status'] = 'completed';
+                $log_entry['message'] = $sent ? 'Email inviata con successo.' : 'Errore invio email.';
+                $log_entry['email_sent'] = $sent;
+                $log_entry['updates_found'] = $has_updates;
+                update_option('marrison_last_cron_log', $log_entry);
             } else {
-                $message_html .= '<p style="color: green;"><strong>Nessun aggiornamento necessario. Il sistema è aggiornato.</strong></p>';
+                 // Update log if no email configured
+                $log_entry['status'] = 'completed';
+                $log_entry['message'] = 'Nessuna email configurata.';
+                update_option('marrison_last_cron_log', $log_entry);
             }
-            
-            $message_html .= '<hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">';
-            $message_html .= '<p><small>Inviato automaticamente da <strong>' . get_bloginfo('name') . '</strong></small></p>';
-            $message_html .= '</body></html>';
-            
-            $domain = parse_url(get_site_url(), PHP_URL_HOST);
-            if (strpos($domain, 'www.') === 0) {
-                $domain = substr($domain, 4);
-            }
-            $from_email = 'no-reply@' . $domain;
-            $from_name = get_bloginfo('name');
-            
-            // Headers for report
-            $headers = array(
-                'Content-Type: text/html; charset=UTF-8',
-                'From: ' . $from_name . ' <' . $from_email . '>',
-                'Reply-To: ' . get_option('admin_email')
-            );
-            
-            wp_mail($email, $subject, $message_html, $headers);
+
+        } catch (Throwable $e) {
+            // Log any fatal error or exception
+            $log_entry['status'] = 'error';
+            $log_entry['message'] = 'Errore Critico: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine();
+            update_option('marrison_last_cron_log', $log_entry);
+        } catch (Exception $e) {
+             // Fallback for older PHP versions if Throwable is not available (though WP usually runs on PHP 7+)
+            $log_entry['status'] = 'error';
+            $log_entry['message'] = 'Eccezione: ' . $e->getMessage();
+            update_option('marrison_last_cron_log', $log_entry);
         }
     }
 
@@ -2047,7 +2103,7 @@ class Marrison_Custom_Updater {
         }
         
         // Load Custom Styles and Scripts
-        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], '1.0.3');
+        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], '8.1.1');
         wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . 'assets/js/admin-script.js', ['jquery'], time(), true);
         
         wp_localize_script('mcu-admin-script', 'marrisonUpdater', [
@@ -2386,6 +2442,21 @@ class Marrison_Custom_Updater {
                         ?>
                             <div class="mcu-notice mcu-notice-info" style="margin-top: 20px;">
                                 <span class="dashicons dashicons-clock"></span> Prossima esecuzione programmata: <strong><?php echo $date->format('d/m/Y H:i'); ?></strong>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php 
+                        $last_log = get_option('marrison_last_cron_log');
+                        if ($last_log && is_array($last_log)): 
+                        ?>
+                            <div class="mcu-card" style="margin-top: 20px; border-left: 4px solid <?php echo ($last_log['status'] === 'completed' && (!isset($last_log['email_sent']) || $last_log['email_sent'])) ? 'var(--mcu-success)' : 'var(--mcu-danger)'; ?>;">
+                                <h3 style="margin-top: 0;">Ultima Esecuzione</h3>
+                                <p><strong>Data:</strong> <?php echo esc_html($last_log['time']); ?></p>
+                                <p><strong>Stato:</strong> <?php echo esc_html($last_log['status']); ?></p>
+                                <p><strong>Messaggio:</strong> <?php echo esc_html($last_log['message']); ?></p>
+                                <?php if (isset($last_log['updates_found'])): ?>
+                                    <p><strong>Aggiornamenti Trovati:</strong> <?php echo $last_log['updates_found'] ? 'Sì' : 'No'; ?></p>
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
 
