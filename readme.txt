@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.1.5
+Stable tag: 8.2.0
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -30,6 +30,12 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 8.2.0 =
+*   Refactoring: Ristrutturazione completa del codice utilizzando Traits per migliorare modularità e stabilità.
+*   Email: Grafica delle email di notifica rinnovata con design moderno e responsive.
+*   Email: Aggiunto dettaglio versioni (Precedente -> Nuova) nel report degli aggiornamenti.
+*   Fix: Risolti conflitti di ridefinizione funzioni con il core di WordPress.
 
 = 8.1.5 =
 *   Migliorata l'internazionalizzazione: rese traducibili le stringhe delle opzioni di pianificazione (Settimanale, Mensile, ecc.) e dei messaggi di test email.
