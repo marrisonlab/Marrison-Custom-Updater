@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.1.4
+ * Version: 8.1.5
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -79,15 +79,15 @@ class Marrison_Custom_Updater {
     public function add_custom_cron_intervals($schedules) {
         $schedules['weekly'] = [
             'interval' => 604800, // 7 days
-            'display'  => 'Settimanale'
+            'display'  => __('Settimanale', 'marrison-custom-updater')
         ];
         $schedules['monthly'] = [
             'interval' => 2592000, // 30 days
-            'display'  => 'Una volta al mese'
+            'display'  => __('Una volta al mese', 'marrison-custom-updater')
         ];
         $schedules['biannual'] = [
             'interval' => 15552000, // 180 days (6 months)
-            'display'  => 'Ogni 6 mesi'
+            'display'  => __('Ogni 6 mesi', 'marrison-custom-updater')
         ];
         return $schedules;
     }
@@ -135,7 +135,7 @@ class Marrison_Custom_Updater {
         
         $email = sanitize_email($_POST['email']);
         if (!is_email($email)) {
-            wp_send_json_error('Indirizzo email non valido.');
+            wp_send_json_error(__('Indirizzo email non valido.', 'marrison-custom-updater'));
         }
         
         // Construct From header
@@ -146,14 +146,14 @@ class Marrison_Custom_Updater {
         $from_email = 'no-reply@' . $domain;
         $from_name = get_bloginfo('name');
         
-        $subject = '[' . get_bloginfo('name') . '] Test Invio Email - Marrison Custom Updater';
+        $subject = '[' . get_bloginfo('name') . '] ' . __('Test Invio Email - Marrison Custom Updater', 'marrison-custom-updater');
         
         $message_html = '<html><body>';
-        $message_html .= '<h2>Test Configurazione Email</h2>';
-        $message_html .= '<p>Ciao,</p>';
-        $message_html .= '<p>Questa è una mail di test inviata da <strong>Marrison Custom Updater</strong> per verificare la configurazione dell\'invio email.</p>';
-        $message_html .= '<p style="color: green; font-weight: bold;">Se leggi questo messaggio, l\'invio funziona correttamente.</p>';
-        $message_html .= '<p><small>Inviato dal sito: ' . esc_url(get_site_url()) . '</small></p>';
+        $message_html .= '<h2>' . __('Test Configurazione Email', 'marrison-custom-updater') . '</h2>';
+        $message_html .= '<p>' . __('Ciao,', 'marrison-custom-updater') . '</p>';
+        $message_html .= '<p>' . __('Questa è una mail di test inviata da <strong>Marrison Custom Updater</strong> per verificare la configurazione dell\'invio email.', 'marrison-custom-updater') . '</p>';
+        $message_html .= '<p style="color: green; font-weight: bold;">' . __('Se leggi questo messaggio, l\'invio funziona correttamente.', 'marrison-custom-updater') . '</p>';
+        $message_html .= '<p><small>' . sprintf(__('Inviato dal sito: %s', 'marrison-custom-updater'), esc_url(get_site_url())) . '</small></p>';
         $message_html .= '</body></html>';
         
         $headers = array(
@@ -165,9 +165,9 @@ class Marrison_Custom_Updater {
         $sent = wp_mail($email, $subject, $message_html, $headers);
         
         if ($sent) {
-            wp_send_json_success('Mail inviata correttamente!');
+            wp_send_json_success(__('Mail inviata correttamente!', 'marrison-custom-updater'));
         } else {
-            wp_send_json_error('Invio fallito. Verifica i log del server o la configurazione SMTP.');
+            wp_send_json_error(__('Invio fallito. Verifica i log del server o la configurazione SMTP.', 'marrison-custom-updater'));
         }
     }
 

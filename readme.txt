@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.1.4
+Stable tag: 8.1.5
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -18,200 +18,47 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 *   **Repository Privato:** Collega il tuo sito a una fonte esterna per ricevere aggiornamenti per plugin e temi non presenti nella directory ufficiale.
 *   **Gestione Aggiornamenti Unificata:** Visualizza e installa aggiornamenti per plugin e temi privati direttamente dalla dashboard.
 *   **Sistema di Backup Integrato:** Esegue automaticamente backup dei plugin prima dell'aggiornamento, permettendo il ripristino rapido (rollback) in caso di problemi.
-*   **Supporto Temi e Plugin:** Gestisce sia estensioni (plugin) che temi grafici.
-*   **Aggiornamenti Massivi:** Funzionalità "Aggiorna Tutto" per plugin, temi e traduzioni.
-*   **Protezione dai Conflitti:** Sistema intelligente per evitare conflitti di versione con plugin ufficiali aventi lo stesso slug.
-*   **Cache Ottimizzata:** Sistema di caching per ridurre le richieste al server remoto e migliorare le prestazioni della dashboard.
-*   **Interfaccia Intuitiva:** Pannello di controllo chiaro con indicatori di stato, log delle versioni e gestione delle impostazioni.
-
-Questo plugin è essenziale per agenzie, sviluppatori freelance e organizzazioni che mantengono un ecosistema di plugin personalizzati su molteplici installazioni WordPress.
-
+*   **Aggiornamenti Automatici:** Configura aggiornamenti automatici programmati (giornalieri o settimanali) con notifiche email dettagliate.
+*   **Gestione Traduzioni:** Strumento dedicato per aggiornare le traduzioni dei plugin.
+*   **Log e Debug:** Sistema di logging integrato per monitorare le operazioni di aggiornamento e cron job.
+*   **Esclusione Plugin:** Possibilità di escludere specifici plugin dagli aggiornamenti automatici.
 
 == Installation ==
 
-1. Scarica il file zip del plugin.
-2. Carica il plugin nella tua installazione WordPress tramite la dashboard (Plugin > Aggiungi nuovo > Carica plugin) o via FTP nella cartella `/wp-content/plugins/`.
-3. Attiva il plugin tramite il menu 'Plugin' di WordPress.
-4. Vai alla pagina 'Impostazioni' del plugin per configurare l'URL del tuo repository privato.
-
+1.  Carica la cartella `marrison-custom-updater` nella directory `/wp-content/plugins/` del tuo sito.
+2.  Attiva il plugin dal menu 'Plugin' di WordPress.
+3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
 
+= 8.1.5 =
+*   Migliorata l'internazionalizzazione: rese traducibili le stringhe delle opzioni di pianificazione (Settimanale, Mensile, ecc.) e dei messaggi di test email.
+*   Aggiornato il file .pot con le ultime stringhe.
+
 = 8.1.4 =
-* Feature: Aggiunta opzione "Settimanale" alla programmazione degli aggiornamenti automatici.
+*   Aggiunta opzione di pianificazione settimanale per gli aggiornamenti automatici.
 
 = 8.1.3 =
-* Fix: Risolto un falso positivo specifico per il plugin "WPCode Lite" (ihaf.php) che veniva erroneamente identificato come plugin privato a causa di similarità nel nome, impedendo la visualizzazione degli aggiornamenti ufficiali.
+*   FIX: Risolto problema di rilevamento aggiornamenti per WPCode Lite (insert-headers-and-footers) quando il plugin Marrison Custom Updater è attivo.
+*   Migliorata la logica di esclusione dei plugin privati per evitare falsi positivi.
 
 = 8.1.2 =
-* Fix: La rilevazione degli aggiornamenti ufficiali non nasconde più plugin pubblici non correlati (es. WPCode Lite).
-* Improvement: L’esclusione ora si basa solo su plugin privati installati (file/slug reali), evitando falsi positivi.
-* Improvement: La pulizia cache ora resetta anche gli slug privati salvati per prevenire dati obsoleti.
-* Maintenance: Allineati i controlli tra UI e handler AJAX per gli aggiornamenti ufficiali.
+*   Migliorata la logica di rilevamento degli aggiornamenti per i plugin privati.
+*   Aggiunta la possibilità di escludere i plugin privati installati dai controlli standard di WordPress per evitare conflitti.
 
 = 8.1.1 =
-* Improvement: Aggiunto sistema di logging avanzato per il cron di aggiornamento automatico (tracciamento step-by-step).
-* Fix: Aggiunto blocco try-catch per prevenire crash silenziosi durante gli aggiornamenti programmati.
-* Fix: Risolto bug di definizione variabile $file mancante nella logica di aggiornamento.
-* Fix: Corretta logica duplicata nell'invio delle email di test vs report programmati.
-* Improvement: Aggiunta versione dinamica (timestamp) per gli script admin per evitare problemi di cache.
+*   Migliorata la gestione del cron job: aggiunti log dettagliati e gestione errori (try-catch) per evitare blocchi.
+*   Corretto bug che impediva l'invio del report email se non c'erano aggiornamenti (ora invia sempre se programmato).
+*   Risolto avviso PHP "Undefined variable" nel cron job.
 
 = 8.1.0 =
-* Feature: Aggiunto pulsante per inviare mail di test direttamente dalle impostazioni di programmazione.
-* Improvement: Migliorato il feedback visivo durante l'invio della mail di test (spinner e messaggi di stato).
-* Improvement: Uniformato l'invio delle email (report e test) in formato HTML con header corretti (Reply-To e From pulito).
-* Improvement: Modificata logica report automatico: invia notifica anche quando non ci sono aggiornamenti ("Sistema aggiornato").
-* Fix: Risolto problema di invio email che finivano in spam (impostazione corretta mittente no-reply e dominio).
-
-= 8.0.9 =
-* Fix: Risolto problema di disattivazione plugin (es. Elementor) dopo aggiornamento singolo da repository pubblica.
-* Fix: Migliorata gestione riattivazione plugin per "Aggiorna tutto" e aggiornamenti privati.
-
-= 8.0.8 =
-* Fix: Ripristinata automaticamente l’attivazione dei plugin privati dopo aggiornamento singolo e \"Aggiorna tutto\".
-* Fix: Allineata la riattivazione anche per i plugin ufficiali aggiornati tramite coda completa.
-
-= 8.0.7 =
-* Fix: Risolto problema di rilevamento plugin privati installati con nome cartella diverso dallo slug (aggiunta ricerca per Nome Plugin).
-* Fix: Migliorata logica di esclusione aggiornamenti pubblici per plugin privati identificati tramite nome.
-
-= 8.0.6 =
-* Security: Oscuramento degli indirizzi dei repository (plugin e temi) nel pannello di amministrazione e nel codice sorgente HTML.
-
-= 8.0.4 =
-
-* Fix: Risolto problema di visualizzazione del changelog nella finestra dei dettagli (ora supporta HTML).
-* Fix: Risolto problema di rilevamento versione e compatibilità (lettura metadati da file locale).
-* Fix: Migliorata logica avvisi configurazione repository temi e plugin nella dashboard.
-* Fix: Rimossi avvisi ridondanti.
-
-= 8.0.2 =
-
-* Riorganizzato il menu di amministrazione: ordine Aggiornamenti, Backup, Impostazioni.
-* Aggiunta tab "Guida & Download" nella pagina Impostazioni.
-* Abilitato il download dei file index.php per la configurazione dei repository plugin e temi.
-
-= 8.0.1 =
-
-* Aggiunti pulsanti per aggiornamento massivo di tutti i temi e tutte le traduzioni.
-* Migliorata visualizzazione contatori: ora mostrano una spunta verde quando tutto è aggiornato.
-* Risolto problema rilevamento traduzioni.
-* Aggiunto scroll automatico alla barra di avanzamento durante gli aggiornamenti.
+*   Aggiunto pulsante per inviare email di test nelle impostazioni di pianificazione.
+*   Migliorata l'interfaccia utente con feedback visivo (spinner, messaggi di successo/errore) per l'invio email.
+*   Impostato header "From" corretto (no-reply@dominio) per le email inviate.
+*   Ottimizzato il caricamento degli script JS nell'admin.
 
 = 8.0.0 =
-
-* Aggiunto supporto completo per Repository Privato Temi: ora è possibile aggiornare temi privati con la stessa logica dei plugin.
-* Nuova sezione "Temi Repository Privato" nella dashboard aggiornamenti con funzionalità di aggiornamento singolo e bulk.
-* Aggiunto campo URL Repository Temi nelle impostazioni.
-* Unificata la gestione della cache per plugin e temi.
-* Aggiornamenti minori all'interfaccia e alle notifiche.
-
-= 7.9.9 =
-* Fix: Risolto conflitto cache chiavi con Marrison Custom Installer.
-
-= 7.9.8 =
-* Verificato che l'indirizzo del repository privato non abbia valori di default.
-* Correzioni minori.
-
-= 7.9.7 =
-* Aggiornato nome menu plugin in "AM Updater".
-* Aggiunta icona personalizzata (SVG) al menu di amministrazione, integrata con lo stile nativo di WordPress.
-* Spostata icona nella cartella `assets/`.
-
-= 7.9.6 =
-* Aggiunto supporto multilingua (i18n).
-* Create cartelle e file per le traduzioni (.pot, .po).
-* Aggiornate le stringhe del codice per essere traducibili.
-
-= 7.9.5 =
-* Risolto problema di visualizzazione del numero di versione nel messaggio di conferma dopo l'aggiornamento di un singolo plugin.
-* Corretto errore di codifica caratteri nel popup di conferma ripristino backup.
-* Risolto warning "Undefined variable $slug" nella generazione della lista plugin.
-* Ripristinato il funzionamento AJAX "one-click" per il pulsante "Aggiorna tutti i plugin ufficiali".
-* Disabilitato il filtro che forzava l'aggiornamento automatico, permettendo ora la gestione standard tramite interfaccia WordPress.
-
-= 7.9.4 =
-* Aggiornata la diagnostica per la privacy: ora mostra solo un sommario e i dettagli dei plugin effettivamente installati, nascondendo la lista completa del repository remoto.
-
-= 7.9.3 =
-* Implementata esclusione "tripla" dei plugin privati dalla lista ufficiale (check su dirname, filename e slug interno) per risolvere definitivamente i conflitti.
-* Aggiunta indicazione "Inattivo" nella lista dei plugin monitorati per identificare meglio versioni duplicate o non utilizzate.
-
-= 7.9.2 =
-* Risolto problema discrepanza versioni tra lista ufficiale e privata: ora i plugin privati sono esclusi aggressivamente dagli aggiornamenti ufficiali basandosi sullo slug, risolvendo conflitti con installazioni duplicate o rinominate.
-* Aggiunta lista visiva dei plugin monitorati ma già aggiornati nel pannello privato.
-
-= 7.9.1 =
-* Risolto problema di visualizzazione aggiornamenti per plugin installati in sottocartelle non standard (confronto versioni ora supporta spazi vuoti e percorsi complessi).
-* Migliorata l'esclusione dei plugin privati dalla lista del repository ufficiale, utilizzando il controllo diretto sul file path.
-
-= 7.9 =
-* Migliorata la pulizia dei dati dal repository per evitare problemi di confronto versioni (trimming spazi).
-* Forzato aggiornamento cache plugin (v2) per applicare le correzioni immediatamente.
-* Migliorato rilevamento plugin installati in cartelle con nomi non standard.
-
-= 7.8 =
-* Implementato sistema di persistenza degli slug conosciuti: i plugin privati vengono ora nascosti dagli aggiornamenti pubblici anche se il server del repository è momentaneamente irraggiungibile.
-
-= 7.7 =
-* Corretto bug nell'installazione degli aggiornamenti: ora viene rispettata la cartella di installazione originale anche se diversa dallo slug del repository.
-
-= 7.6 =
-* Standardizzata logica di rilevamento plugin in tutta l'interfaccia.
-* Risolto problema di visualizzazione aggiornamenti per plugin con nome cartella diverso dallo slug.
-
-= 7.5 =
-* Migliorato algoritmo di rilevamento plugin: ora cerca anche per nome file se la cartella non corrisponde.
-* Pulizia automatica degli slug dal repository remoto.
-
-= 7.4 =
-* Aggiunta sezione di diagnostica nelle impostazioni.
-* Migliorata logica di sovrascrittura degli aggiornamenti ufficiali.
-
-= 7.3 =
-* Risolto problema di sincronizzazione cache tra WP e repository privato.
-* Aumentata priorità del filtro aggiornamenti per garantire la precedenza del repository privato.
-
-= 7.2 =
-* Priorità assoluta al repository privato: se un plugin è presente nel repository privato, gli aggiornamenti dal repository ufficiale vengono ignorati.
-
-= 7.1 =
-* Rimossa URL di default della repository.
-* Correzioni e miglioramenti minori.
-
-= 7.0 =
-* Rimossa autorizzazione tramite JSON.
-* Rimossa pagina Installer.
-* Aggiunti pulsanti per aggiornamento massivo di temi e traduzioni.
-* Aggiornamento core plugin.
-
-= 6.0 =
-* Introdotto supporto per aggiornamento traduzioni.
-* Miglioramenti alle performance del checker.
-
-= 5.0 =
-* Aggiunta pagina Installer per installazione rapida plugin raccomandati.
-* Integrazione con sistema di autorizzazione JSON remoto.
-
-= 4.5 =
-* Risolti problemi di compatibilità con versioni recenti di WordPress.
-* Aggiunto supporto per aggiornamento temi da repository privato.
-
-= 4.0 =
-* Rifacimento interfaccia utente pannello opzioni.
-* Aggiunto controllo integrità pacchetti ZIP.
-
-= 3.0 =
-* Implementato sistema di caching per ridurre chiamate API al repository.
-* Ottimizzazione gestione transienti.
-
-= 2.1 =
-* Bugfix: correzione errore su server con configurazioni PHP restrittive.
-
-= 2.0 =
-* Aggiunta pagina di configurazione URL repository personalizzato.
-* Migliorata gestione errori download.
-
-= 1.0 =
-* Rilascio iniziale.
-* Funzionalità base di aggiornamento plugin da repository privato.
+*   Rifattorizzazione completa del codice.
+*   Nuova interfaccia utente a tab.
+*   Migliorato il sistema di backup e rollback.
+*   Supporto per aggiornamenti temi.
