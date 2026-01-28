@@ -61,6 +61,140 @@ trait Marrison_Update_Operations_Trait {
         return $updates;
     }
 
+    public function check_for_updates($transient) {
+        if (empty($transient->checked)) {
+            return $transient;
+        }
+
+        $updates = $this->get_available_updates();
+
+        foreach ($updates as $update) {
+            $slug = $update['slug'];
+            $plugin_file = $this->find_plugin_file($slug, $update['name'] ?? '');
+
+            if ($plugin_file && isset($transient->checked[$plugin_file])) {
+                $current_version = $transient->checked[$plugin_file];
+                
+                if (version_compare($current_version, $update['version'], '<')) {
+                    $plugin_data = new stdClass();
+                    $plugin_data->slug = $slug;
+                    $plugin_data->plugin = $plugin_file;
+                    $plugin_data->new_version = $update['version'];
+                    $plugin_data->url = $update['info_url'] ?? '';
+                    $plugin_data->package = $update['download_url'];
+                    $plugin_data->icons = isset($update['icons']) ? (array)$update['icons'] : [];
+                    $plugin_data->banners = isset($update['banners']) ? (array)$update['banners'] : [];
+                    $plugin_data->banners_rtl = isset($update['banners_rtl']) ? (array)$update['banners_rtl'] : [];
+                    
+                    $transient->response[$plugin_file] = $plugin_data;
+                }
+            }
+        }
+        return $transient;
+    }
+
+    public function check_for_theme_updates($transient) {
+        if (empty($transient->checked)) {
+            return $transient;
+        }
+
+        $updates = $this->get_available_theme_updates();
+
+        foreach ($updates as $update) {
+            $slug = $update['slug'];
+            $theme = wp_get_theme($slug);
+
+            if ($theme->exists()) {
+                $current_version = $theme->get('Version');
+                if (version_compare($current_version, $update['version'], '<')) {
+                    $theme_data = [];
+                    $theme_data['theme'] = $slug;
+                    $theme_data['new_version'] = $update['version'];
+                    $theme_data['url'] = $update['info_url'] ?? '';
+                    $theme_data['package'] = $update['download_url'];
+                    
+                    $transient->response[$slug] = $theme_data;
+                }
+            }
+        }
+        return $transient;
+    }
+
+    public function plugin_info($res, $action, $args) {
+        if ($action !== 'plugin_information') {
+            return $res;
+        }
+
+        if (empty($args->slug)) {
+            return $res;
+        }
+
+        $updates = $this->get_available_updates();
+        foreach ($updates as $update) {
+            if ($update['slug'] === $args->slug) {
+                $res = new stdClass();
+                $res->name = $update['name'];
+                $res->slug = $update['slug'];
+                $res->version = $update['version'];
+                $res->tested = $update['tested'] ?? '';
+                $res->requires = $update['requires'] ?? '';
+                $res->author = $update['author'] ?? '';
+                $res->author_profile = $update['author_profile'] ?? '';
+                $res->download_link = $update['download_url'];
+                $res->trunk = $update['download_url'];
+                $res->requires_php = $update['requires_php'] ?? '';
+                $res->last_updated = $update['last_updated'] ?? '';
+                $res->sections = [
+                    'description' => $update['description'] ?? 'No description provided.',
+                    'installation' => $update['installation'] ?? 'No installation instructions provided.',
+                    'changelog' => $update['changelog'] ?? 'No changelog provided.'
+                ];
+                $res->banners = isset($update['banners']) ? (array)$update['banners'] : [];
+                return $res;
+            }
+        }
+
+        return $res;
+    }
+
+    private function find_plugin_file($slug, $name = '') {
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        $all_plugins = get_plugins();
+        
+        // 1. Cerca per dirname (cartella dello slug)
+        foreach ($all_plugins as $file => $data) {
+            if (dirname($file) === $slug) {
+                return $file;
+            }
+        }
+        
+        // 2. Cerca per nome esatto (se fornito)
+        if (!empty($name)) {
+            foreach ($all_plugins as $file => $data) {
+                if ($data['Name'] === $name) {
+                    return $file;
+                }
+            }
+        }
+
+        // 3. Fallback: cerca se il file inizia con lo slug
+        foreach ($all_plugins as $file => $data) {
+            if (strpos($file, $slug . '/') === 0 || $file === $slug . '.php') {
+                return $file;
+            }
+        }
+
+        return false;
+    }
+    
+    public function delete_internal_cache() {
+        delete_transient('marrison_available_updates_v2');
+        delete_transient('marrison_available_theme_updates');
+    }
+
+
     private function perform_update($slug) {
         global $wp_filesystem;
         require_once ABSPATH . 'wp-admin/includes/file.php';
