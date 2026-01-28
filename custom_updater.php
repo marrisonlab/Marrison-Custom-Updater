@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.1.3
+ * Version: 8.1.4
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -77,6 +77,10 @@ class Marrison_Custom_Updater {
     /* ===================== SCHEDULING & CRON ===================== */
 
     public function add_custom_cron_intervals($schedules) {
+        $schedules['weekly'] = [
+            'interval' => 604800, // 7 days
+            'display'  => 'Settimanale'
+        ];
         $schedules['monthly'] = [
             'interval' => 2592000, // 30 days
             'display'  => 'Una volta al mese'
@@ -2464,6 +2468,7 @@ class Marrison_Custom_Updater {
                                 <td>
                                     <select id="marrison_auto_update_frequency" name="marrison_auto_update_frequency">
                                         <option value="daily" <?php selected('daily', get_option('marrison_auto_update_frequency')); ?>>Ogni giorno</option>
+                                        <option value="weekly" <?php selected('weekly', get_option('marrison_auto_update_frequency')); ?>>Settimanale</option>
                                         <option value="monthly" <?php selected('monthly', get_option('marrison_auto_update_frequency')); ?>>Una volta al mese</option>
                                         <option value="biannual" <?php selected('biannual', get_option('marrison_auto_update_frequency')); ?>>Una volta ogni 6 mesi</option>
                                     </select>
