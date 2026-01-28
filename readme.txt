@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.1.2
+Stable tag: 8.1.3
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -36,6 +36,9 @@ Questo plugin è essenziale per agenzie, sviluppatori freelance e organizzazioni
 
 
 == Changelog ==
+
+= 8.1.3 =
+* Fix: Risolto un falso positivo specifico per il plugin "WPCode Lite" (ihaf.php) che veniva erroneamente identificato come plugin privato a causa di similarità nel nome, impedendo la visualizzazione degli aggiornamenti ufficiali.
 
 = 8.1.2 =
 * Fix: La rilevazione degli aggiornamenti ufficiali non nasconde più plugin pubblici non correlati (es. WPCode Lite).

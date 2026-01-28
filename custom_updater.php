@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.1.2
+ * Version: 8.1.3
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -1183,7 +1183,16 @@ class Marrison_Custom_Updater {
             foreach ($plugins as $file => $data) {
                 // Confronto case-insensitive del nome
                 $plugin_name = html_entity_decode($data['Name']);
-                if (strcasecmp($plugin_name, $name) === 0) return $file;
+                if (strcasecmp($plugin_name, $name) === 0) {
+                    // FIX SPECIFICO: WPCode Lite (insert-headers-and-footers)
+                    // Evita che venga rilevato erroneamente se si cerca un altro plugin privato con nome simile
+                    if (strpos($file, 'insert-headers-and-footers/ihaf.php') !== false) {
+                        if ($slug !== 'insert-headers-and-footers' && $slug !== 'ihaf') {
+                            continue;
+                        }
+                    }
+                    return $file;
+                }
             }
         }
 
