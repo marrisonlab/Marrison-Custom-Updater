@@ -4,7 +4,7 @@ Tags: updater, plugin-updates
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.1.1
+Stable tag: 8.1.2
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -36,6 +36,12 @@ Questo plugin è essenziale per agenzie, sviluppatori freelance e organizzazioni
 
 
 == Changelog ==
+
+= 8.1.2 =
+* Fix: La rilevazione degli aggiornamenti ufficiali non nasconde più plugin pubblici non correlati (es. WPCode Lite).
+* Improvement: L’esclusione ora si basa solo su plugin privati installati (file/slug reali), evitando falsi positivi.
+* Improvement: La pulizia cache ora resetta anche gli slug privati salvati per prevenire dati obsoleti.
+* Maintenance: Allineati i controlli tra UI e handler AJAX per gli aggiornamenti ufficiali.
 
 = 8.1.1 =
 * Improvement: Aggiunto sistema di logging avanzato per il cron di aggiornamento automatico (tracciamento step-by-step).

@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.1.1
+ * Version: 8.1.2
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -444,12 +444,21 @@ class Marrison_Custom_Updater {
             wp_send_json_error(__('Nessun aggiornamento disponibile', 'marrison-custom-updater'));
         }
 
-        // Identifica i plugin del repository privato per ESCLUDERLI
+        // Identifica i plugin privati INSTALLATI per ESCLUDERLI
         $private_updates = $this->get_available_updates();
-        $private_slugs = [];
+        $private_files = [];
         foreach ($private_updates as $u) {
-            $private_slugs[] = $u['slug'];
+            $f = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
+            if ($f) $private_files[] = $f;
         }
+        $installed_slugs = [];
+        foreach ($private_files as $pf) {
+            $installed_slugs[] = dirname($pf);
+            $installed_slugs[] = basename($pf, '.php');
+        }
+        $installed_slugs = array_values(array_filter(array_unique($installed_slugs), function($s){
+            return $s !== '.' && $s !== '';
+        }));
 
         $plugins_to_update = [];
         $slugs_map = []; // Mappa slug => file
@@ -458,10 +467,18 @@ class Marrison_Custom_Updater {
             $slug = dirname($file);
             if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
 
-            // ESCLUDI i plugin del repository privato
-            if (in_array($slug, $private_slugs)) {
-                continue;
+            // ESCLUDI i plugin privati installati (FILE) o con SLUG noto privato
+            if (in_array($file, $private_files)) continue;
+            $check_slugs = [$slug, basename($file, '.php')];
+            if (isset($data->slug)) $check_slugs[] = $data->slug;
+            $found_private = false;
+            foreach (array_unique($check_slugs) as $s) {
+                if ($s !== '.' && $s !== '' && in_array($s, $installed_slugs)) {
+                    $found_private = true;
+                    break;
+                }
             }
+            if ($found_private) continue;
 
             // Includi TUTTI i plugin standard che hanno un aggiornamento, non solo quelli con auto-update
             $plugins_to_update[] = $file;
@@ -538,8 +555,21 @@ class Marrison_Custom_Updater {
             wp_send_json_success([]);
         }
 
+        // Calcola plugin privati INSTALLATI per evitare falsi positivi
         $private_updates = $this->get_available_updates();
-        $private_slugs = array_map(function($u) { return $u['slug']; }, $private_updates);
+        $private_files = [];
+        foreach ($private_updates as $u) {
+            $f = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
+            if ($f) $private_files[] = $f;
+        }
+        $installed_slugs = [];
+        foreach ($private_files as $pf) {
+            $installed_slugs[] = dirname($pf);
+            $installed_slugs[] = basename($pf, '.php');
+        }
+        $installed_slugs = array_values(array_filter(array_unique($installed_slugs), function($s){
+            return $s !== '.' && $s !== '';
+        }));
 
         $plugins_to_update = [];
         
@@ -547,7 +577,20 @@ class Marrison_Custom_Updater {
             $slug = dirname($file);
             if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
 
-            if (in_array($slug, $private_slugs)) continue;
+            // Escludi se il FILE appartiene ad un plugin privato installato
+            if (in_array($file, $private_files)) continue;
+            
+            // Escludi se lo SLUG corrisponde ad un privato INSTALLATO (noti)
+            $check_slugs = [$slug, basename($file, '.php')];
+            if (isset($data->slug)) $check_slugs[] = $data->slug;
+            $found_private = false;
+            foreach (array_unique($check_slugs) as $s) {
+                if ($s !== '.' && $s !== '' && in_array($s, $installed_slugs)) {
+                    $found_private = true;
+                    break;
+                }
+            }
+            if ($found_private) continue;
 
             $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $file);
             
@@ -638,15 +681,19 @@ class Marrison_Custom_Updater {
         
         $slugs = [];
         foreach ($updates as $u) {
-            if (isset($u['slug'])) {
-                $slugs[] = $u['slug'];
+            $file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
+            if ($file) {
+                $slugs[] = dirname($file);
+                $slugs[] = basename($file, '.php');
+                if (isset($u['slug'])) $slugs[] = $u['slug'];
             }
         }
+        $slugs = array_values(array_filter(array_unique($slugs), function($s) {
+            return $s !== '.' && $s !== '';
+        }));
         
-        // Salva solo se abbiamo trovato slug, altrimenti mantieni i vecchi se il fetch fallisce
-        if (!empty($slugs)) {
-            update_option('marrison_known_private_slugs', $slugs, false); // autoload = false
-        }
+        // Salva solo se abbiamo rilevato plugin privati INSTALLATI
+        update_option('marrison_known_private_slugs', $slugs, false); // autoload = false
     }
 
     public function check_for_available_updates() {
@@ -841,29 +888,28 @@ class Marrison_Custom_Updater {
         }
         $plugins = get_plugins();
 
-        // 1. Usa la lista persistente di slug privati per BLOCCARE gli aggiornamenti pubblici
-        // Questo protegge anche nel caso in cui get_available_updates() fallisca (es. server down)
-        $known_slugs = get_option('marrison_known_private_slugs', []);
-
-        // Espandi known_slugs identificando i plugin installati anche tramite Nome
-        // Questo è fondamentale se la cartella installata ha un nome diverso dallo slug del repo privato
+        // 1. Calcola gli slug dei plugin PRIVATI INSTALLATI
+        $installed_private_slugs = [];
         $private_updates_list = $this->get_available_updates();
         if (!empty($private_updates_list)) {
             foreach ($private_updates_list as $u) {
                 $f = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
                 if ($f) {
-                    $known_slugs[] = dirname($f);
-                    $known_slugs[] = basename($f, '.php');
+                    $installed_private_slugs[] = dirname($f);
+                    $installed_private_slugs[] = basename($f, '.php');
+                    $installed_private_slugs[] = $u['slug'];
                 }
             }
-            $known_slugs = array_unique($known_slugs);
+            $installed_private_slugs = array_values(array_filter(array_unique($installed_private_slugs), function($s) {
+                return $s !== '.' && $s !== '';
+            }));
         }
         
-        if (is_array($known_slugs) && !empty($known_slugs)) {
+        if (!empty($installed_private_slugs)) {
             // Pulizia aggressiva basata sullo SLUG, non solo sul file path
             // Questo gestisce casi in cui WP rileva il plugin in un path diverso (es. cartella standard vs rinominata)
             
-            // Pulisci response
+            // Pulisci response SOLO per plugin che confliggono con privati INSTALLATI
             if (!empty($transient->response)) {
                 foreach ($transient->response as $file => $data) {
                     $check_slugs = [];
@@ -877,7 +923,7 @@ class Marrison_Custom_Updater {
                     });
 
                     foreach ($check_slugs as $s) {
-                        if (in_array($s, $known_slugs)) {
+                        if (in_array($s, $installed_private_slugs)) {
                             unset($transient->response[$file]);
                             break;
                         }
@@ -898,7 +944,7 @@ class Marrison_Custom_Updater {
                     });
 
                     foreach ($check_slugs as $s) {
-                        if (in_array($s, $known_slugs)) {
+                        if (in_array($s, $installed_private_slugs)) {
                             unset($transient->no_update[$file]);
                             break;
                         }
@@ -1714,6 +1760,7 @@ class Marrison_Custom_Updater {
         delete_site_transient('update_themes');
         wp_clean_plugins_cache(true);
         wp_clean_themes_cache(true);
+        delete_option('marrison_known_private_slugs');
 
         $redirect = !empty($_REQUEST['redirect_to']) ? $_REQUEST['redirect_to'] : admin_url('admin.php?page=marrison-updater-settings&cache_cleared=1');
         wp_redirect($redirect);
@@ -2103,7 +2150,7 @@ class Marrison_Custom_Updater {
         }
         
         // Load Custom Styles and Scripts
-        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], '8.1.1');
+        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], '8.1.2');
         wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . 'assets/js/admin-script.js', ['jquery'], time(), true);
         
         wp_localize_script('mcu-admin-script', 'marrisonUpdater', [
@@ -3310,18 +3357,19 @@ class Marrison_Custom_Updater {
                 $auto_update_plugins = (array) get_site_option('auto_update_plugins', []);
                 $transient = get_site_transient('update_plugins');
                 $private_updates = $this->get_available_updates();
-                $private_slugs = [];
                 $private_files = [];
                 foreach ($private_updates as $u) {
-                    $private_slugs[] = $u['slug'];
                     $found_file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
                     if ($found_file) $private_files[] = $found_file;
                 }
-                
-                $known_slugs = get_option('marrison_known_private_slugs', []);
-                if (is_array($known_slugs)) {
-                    $private_slugs = array_unique(array_merge($private_slugs, $known_slugs));
+                $private_slugs = [];
+                foreach ($private_files as $pf) {
+                    $private_slugs[] = dirname($pf);
+                    $private_slugs[] = basename($pf, '.php');
                 }
+                $private_slugs = array_values(array_filter(array_unique($private_slugs), function($s){
+                    return $s !== '.' && $s !== '';
+                }));
 
                 $plugins_with_auto_update = [];
                 if (!empty($transient->response)) {
