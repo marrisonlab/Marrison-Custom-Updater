@@ -266,6 +266,32 @@ trait Marrison_Scheduling_Trait {
                 }
             }
             
+            
+            // --- 4. Raccolta Info Stato Sito ---
+            global $wpdb;
+            $site_info = [
+                'wp_version'   => get_bloginfo('version'),
+                'php_version'  => phpversion(),
+                'server'       => isset($_SERVER['SERVER_SOFTWARE']) ? $_SERVER['SERVER_SOFTWARE'] : 'N/A',
+                'db_version'   => $wpdb->db_version(),
+                'memory_limit' => ini_get('memory_limit'),
+                'debug_mode'   => (defined('WP_DEBUG') && WP_DEBUG) ? 'Attivo' : 'Disattivo',
+                'site_url'     => get_site_url(),
+                'home_url'     => get_home_url()
+            ];
+
+            $all_plugins = get_plugins();
+            $active_plugins = [];
+            $inactive_plugins = [];
+
+            foreach ($all_plugins as $path => $plugin) {
+                if (is_plugin_active($path)) {
+                    $active_plugins[] = $plugin;
+                } else {
+                    $inactive_plugins[] = $plugin;
+                }
+            }
+
             $log_entry['message'] = 'Translations processed. Preparing email...';
             update_option('marrison_last_cron_log', $log_entry);
             
@@ -282,7 +308,7 @@ trait Marrison_Scheduling_Trait {
                 $style_body_wrapper = "background-color: {$bg_color}; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 40px 0; width: 100%;";
                 $style_container = "background-color: {$container_bg}; border-radius: 10px; max-width: 600px; margin: 0 auto; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);";
                 
-                $style_h2 = "color: #2c3338; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; margin-top: 0;";
+                $style_h2 = "color: #2c3338; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; margin-top: 30px;";
                 $style_table = "width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;";
                 $style_th = "background-color: #f8f9fa; border: 1px solid #ddd; padding: 10px; text-align: left; font-weight: bold; color: #555;";
                 $style_td = "border: 1px solid #ddd; padding: 10px;";
@@ -290,6 +316,12 @@ trait Marrison_Scheduling_Trait {
                 $style_badge_off = "background-color: #46b450; color: #fff; padding: 3px 6px; border-radius: 3px; font-size: 11px; font-weight: bold; display: inline-block;";
                 $style_badge_theme = "background-color: #e65100; color: #fff; padding: 3px 6px; border-radius: 3px; font-size: 11px; font-weight: bold; display: inline-block;";
                 $style_footer = "margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; font-size: 12px; color: #777; text-align: center;";
+                $style_section_title = "color: #444; margin-top: 20px; margin-bottom: 10px; font-size: 16px; border-left: 4px solid #0073aa; padding-left: 10px;";
+                $style_list_item = "padding: 5px 0; border-bottom: 1px solid #eee; font-size: 13px;";
+                $style_list_item_last = "padding: 5px 0; font-size: 13px;";
+                $style_info_row = "display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0;";
+                $style_info_label = "font-weight: bold; color: #555;";
+                $style_info_value = "color: #333;";
 
                 $message_html = '<!DOCTYPE html><html><body style="' . $style_body_wrapper . '">';
                 
@@ -307,7 +339,7 @@ trait Marrison_Scheduling_Trait {
                     $message_html .= '<p style="margin-bottom: 20px;">Le operazioni di aggiornamento automatico sono state completate con successo. Di seguito i dettagli:</p>';
                     
                     if (!empty($updated_plugins)) {
-                        $message_html .= '<h3 style="color: #444; margin-top: 20px;">🔌 Plugin Aggiornati</h3>';
+                        $message_html .= '<h3 style="' . $style_section_title . '">🔌 Plugin Aggiornati</h3>';
                         $message_html .= '<table style="' . $style_table . '">';
                         $message_html .= '<thead><tr>';
                         $message_html .= '<th style="' . $style_th . '">Plugin</th>';
@@ -327,7 +359,7 @@ trait Marrison_Scheduling_Trait {
                     }
                     
                     if (!empty($updated_themes)) {
-                        $message_html .= '<h3 style="color: #444; margin-top: 20px;">🎨 Temi Aggiornati</h3>';
+                        $message_html .= '<h3 style="' . $style_section_title . '">🎨 Temi Aggiornati</h3>';
                         $message_html .= '<table style="' . $style_table . '">';
                         $message_html .= '<thead><tr>';
                         $message_html .= '<th style="' . $style_th . '">Tema</th>';
@@ -352,6 +384,42 @@ trait Marrison_Scheduling_Trait {
                     $message_html .= '<div style="background-color: #e7f7ed; color: #106a33; padding: 15px; border-radius: 5px; text-align: center; font-weight: bold; border: 1px solid #c3e6cb;">';
                     $message_html .= '✅ Nessun aggiornamento necessario. Il sistema è già aggiornato.';
                     $message_html .= '</div>';
+                }
+
+                // --- SEZIONE STATO DEL SITO ---
+                $message_html .= '<h2 style="' . $style_h2 . '">Stato del Sito</h2>';
+                
+                // Info Sistema
+                $message_html .= '<table style="' . $style_table . ' width: 100%; border: none;"><tbody>';
+                $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>WordPress:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">v' . $site_info['wp_version'] . '</td></tr>';
+                $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>PHP:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">v' . $site_info['php_version'] . '</td></tr>';
+                $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Web Server:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' . esc_html($site_info['server']) . '</td></tr>';
+                $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Memory Limit:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' . esc_html($site_info['memory_limit']) . '</td></tr>';
+                $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Debug Mode:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' . esc_html($site_info['debug_mode']) . '</td></tr>';
+                $message_html .= '</tbody></table>';
+
+                // Plugin Attivi
+                $message_html .= '<h3 style="' . $style_section_title . '">✅ Plugin Attivi (' . count($active_plugins) . ')</h3>';
+                if (!empty($active_plugins)) {
+                    $message_html .= '<ul style="list-style-type: none; padding: 0; margin: 0;">';
+                    foreach ($active_plugins as $p) {
+                        $message_html .= '<li style="' . $style_list_item . '"><strong>' . esc_html($p['Name']) . '</strong> <span style="color: #777; font-size: 12px;">(v' . esc_html($p['Version']) . ')</span></li>';
+                    }
+                    $message_html .= '</ul>';
+                } else {
+                    $message_html .= '<p style="font-size: 13px; color: #777;">Nessun plugin attivo.</p>';
+                }
+
+                // Plugin Inattivi
+                $message_html .= '<h3 style="' . $style_section_title . '; border-left-color: #d63638;">🚫 Plugin Inattivi (' . count($inactive_plugins) . ')</h3>';
+                if (!empty($inactive_plugins)) {
+                    $message_html .= '<ul style="list-style-type: none; padding: 0; margin: 0;">';
+                    foreach ($inactive_plugins as $p) {
+                        $message_html .= '<li style="' . $style_list_item . '"><strong>' . esc_html($p['Name']) . '</strong> <span style="color: #777; font-size: 12px;">(v' . esc_html($p['Version']) . ')</span></li>';
+                    }
+                    $message_html .= '</ul>';
+                } else {
+                    $message_html .= '<p style="font-size: 13px; color: #777;">Nessun plugin inattivo.</p>';
                 }
                 
                 $message_html .= '<div style="' . $style_footer . '">';
