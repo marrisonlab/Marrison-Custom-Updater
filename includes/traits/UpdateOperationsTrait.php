@@ -199,11 +199,11 @@ trait Marrison_Update_Operations_Trait {
         global $wp_filesystem;
         require_once ABSPATH . 'wp-admin/includes/file.php';
         WP_Filesystem();
-        if (!$wp_filesystem) return false;
+        if (!$wp_filesystem) return new WP_Error('fs_init_failed', __('Impossibile inizializzare il filesystem.', 'marrison-custom-updater'));
         foreach ($this->get_available_updates() as $update) {
             if ($update['slug'] !== $slug) continue;
             $zip = download_url($update['download_url']);
-            if (is_wp_error($zip)) return false;
+            if (is_wp_error($zip)) return $zip;
             $current_version = '';
             $plugin_file = $this->find_plugin_file($slug, $update['name'] ?? '');
             if ($plugin_file) {
@@ -218,10 +218,17 @@ trait Marrison_Update_Operations_Trait {
             $this->create_backup($slug, $current_version, 'plugin', $plugin_file);
             $upgrade_dir = WP_CONTENT_DIR . '/upgrade/marrison-' . $slug;
             wp_mkdir_p($upgrade_dir);
-            unzip_file($zip, $upgrade_dir);
+            $unzip = unzip_file($zip, $upgrade_dir);
             unlink($zip);
+            
+            if (is_wp_error($unzip)) {
+                return $unzip;
+            }
+
             $dirs = glob($upgrade_dir . '/*', GLOB_ONLYDIR);
-            if (empty($dirs)) return false;
+            if (empty($dirs)) {
+                return new WP_Error('empty_archive', __('Archivio vuoto o non valido.', 'marrison-custom-updater'));
+            } 
             $source = trailingslashit($dirs[0]);
             $dest_folder = $slug;
             if ($plugin_file) {
@@ -234,13 +241,18 @@ trait Marrison_Update_Operations_Trait {
             if ($wp_filesystem->is_dir($dest)) {
                 $wp_filesystem->delete($dest, true);
             }
-            copy_dir($source, $dest);
+            $result = copy_dir($source, $dest);
             $wp_filesystem->delete($upgrade_dir, true);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
             delete_site_transient('update_plugins');
             wp_clean_plugins_cache(true);
             return true;
         }
-        return false;
+        return new WP_Error('update_not_found', __('Aggiornamento non trovato.', 'marrison-custom-updater'));
     }
 
     private function perform_self_update($download_url) {

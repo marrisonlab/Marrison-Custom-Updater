@@ -1,6 +1,7 @@
 === Marrison Custom Updater ===
-Contributors: Angelo Marra
-Tags: updater, plugin-updates
+Author: Angelo Marra
+Author URI:  https://marrisonlab.com
+Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4

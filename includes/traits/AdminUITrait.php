@@ -60,7 +60,6 @@ trait Marrison_Admin_UI_Trait {
                 <a href="?page=marrison-updater-settings&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">Generale</a>
                 <a href="?page=marrison-updater-settings&tab=scheduling" class="nav-tab <?php echo $active_tab == 'scheduling' ? 'nav-tab-active' : ''; ?>">Programmazione</a>
                 <a href="?page=marrison-updater-settings&tab=howto" class="nav-tab <?php echo $active_tab == 'howto' ? 'nav-tab-active' : ''; ?>">Guida & Download</a>
-                <a href="?page=marrison-updater-settings&tab=about" class="nav-tab <?php echo $active_tab == 'about' ? 'nav-tab-active' : ''; ?>">About</a>
             </h2>
             <?php if ($settingsUpdated === 'saved'): ?>
                 <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Impostazioni salvate correttamente.</div>
@@ -373,33 +372,6 @@ trait Marrison_Admin_UI_Trait {
                             <input type="hidden" name="file_type" value="theme">
                             <button type="submit" class="mcu-button mcu-button-primary"><span class="dashicons dashicons-download"></span> Scarica index.php per Temi</button>
                         </form>
-                    </div>
-                </div>
-            <?php elseif ($active_tab == 'about'): ?>
-                <div class="mcu-card">
-                    <div class="mcu-card-header">
-                        <h2 class="mcu-card-title"><span class="dashicons dashicons-info"></span> About</h2>
-                    </div>
-                    <div style="padding: 10px 0;">
-                        <p>Il plugin <strong>Marrison Custom Updater</strong> è stato realizzato per semplificare la gestione degli aggiornamenti di plugin e temi personalizzati tramite repository privati.</p>
-                        
-                        <h3 style="margin-top: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Credits</h3>
-                        <p>Sviluppato da <strong>Angelo Marra</strong></p>
-                        <p><em>WordPress Specialist & Web Service Manager</em></p>
-                        
-                        <div style="margin-top: 20px;">
-                            <a href="https://marrisonlab.com" target="_blank" class="mcu-button mcu-button-primary" style="text-decoration: none;">
-                                <span class="dashicons dashicons-admin-site-alt3" style="margin-top: 4px;"></span> Visita il mio sito
-                            </a>
-                        </div>
-
-                        <div style="margin-top: 30px; background-color: #f9f9f9; padding: 20px; border-radius: 5px; border-left: 4px solid #0073aa;">
-                            <h4 style="margin-top: 0;">Supporta il progetto</h4>
-                            <p>Se questo plugin ti è utile, considera di offrirmi un caffè!</p>
-                            <a href="https://paypal.me/AngeloMarra" target="_blank" class="mcu-button" style="background-color: #ffc439; color: #000; border-color: #ffc439; font-weight: bold; text-decoration: none;">
-                                <span class="dashicons dashicons-heart" style="margin-top: 4px; color: #d63638;"></span> Buy me a coffee
-                            </a>
-                        </div>
                     </div>
                 </div>
             <?php endif; ?>
