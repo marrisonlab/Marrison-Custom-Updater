@@ -329,8 +329,46 @@ trait Marrison_Scheduling_Trait {
                 $message_html .= '<div style="' . $style_container . '">';
                 
                 $message_html .= '<div style="text-align: center; margin-bottom: 20px;">';
-                // Opzionale: inserire logo se disponibile, altrimenti nome sito
-                $message_html .= '<h1 style="margin: 0; color: #444; font-size: 24px;">' . get_bloginfo('name') . '</h1>';
+                // Logo o Nome Sito
+                $custom_logo_id = get_theme_mod('custom_logo');
+                $logo_src = '';
+                $is_valid_image = false;
+
+                // 1. Prova Logo Principale
+                if ($custom_logo_id) {
+                    $logo_data = wp_get_attachment_image_src($custom_logo_id, 'full');
+                    if ($logo_data) {
+                        $src = $logo_data[0];
+                        // Check per SVG (spesso non supportati nei client mail)
+                        $path = parse_url($src, PHP_URL_PATH);
+                        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                        
+                        if ($ext !== 'svg') {
+                            $logo_src = $src;
+                            $is_valid_image = true;
+                        }
+                    }
+                }
+
+                // 2. Fallback su Site Icon (Favicon) se il logo manca o è SVG
+                if (!$is_valid_image && function_exists('get_site_icon_url')) {
+                    $icon_url = get_site_icon_url(512); // Richiedi alta risoluzione
+                    if ($icon_url) {
+                        $path = parse_url($icon_url, PHP_URL_PATH);
+                        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                        
+                        if ($ext !== 'svg') {
+                            $logo_src = $icon_url;
+                            $is_valid_image = true;
+                        }
+                    }
+                }
+
+                if ($is_valid_image && !empty($logo_src)) {
+                     $message_html .= '<img src="' . esc_url($logo_src) . '" alt="' . esc_attr(get_bloginfo('name')) . '" style="max-width: 200px; height: auto; display: inline-block; border: 0; outline: none; text-decoration: none;">';
+                } else {
+                    $message_html .= '<h1 style="margin: 0; color: #444; font-size: 24px;">' . get_bloginfo('name') . '</h1>';
+                }
                 $message_html .= '</div>';
                 
                 $message_html .= '<h2 style="' . $style_h2 . '">Report Aggiornamenti</h2>';
