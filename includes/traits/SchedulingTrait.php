@@ -462,7 +462,8 @@ trait Marrison_Scheduling_Trait {
                 
                 $message_html .= '<div style="' . $style_footer . '">';
                 $message_html .= 'Report generato automaticamente da <strong>Marrison Custom Updater</strong><br>';
-                $message_html .= '<a href="' . esc_url(admin_url()) . '" style="color: #0073aa; text-decoration: none;">Accedi al sito</a>';
+                $message_html .= '<a href="' . esc_url(admin_url()) . '" style="color: #0073aa; text-decoration: none;">Accedi al sito</a><br><br>';
+                $message_html .= '<span style="font-size: 11px; color: #999;">Powered By <a href="https://marrisonlab.com" target="_blank" style="color: #999; text-decoration: none;">Angelo Marra</a></span>';
                 $message_html .= '</div>';
                 
                 $message_html .= '</div>'; // Chiusura Container
