@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.2.0
+Stable tag: 8.2.1
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -31,6 +31,14 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 8.2.1 =
+*   Email: Aggiunti banner di stato visivi (Verde/Rosso) per una rapida identificazione dell'esito.
+*   Email: Migliorato il report con sezioni dettagliate per errori e aggiornamenti saltati.
+*   Email: Ottimizzazione grafica (logo, footer pulito).
+*   Core: Migliorata la gestione degli errori durante gli aggiornamenti (cattura codici errore WP_Error).
+*   Core: Aggiunto controllo requisiti PHP prima dell'aggiornamento.
+*   UI: Rimossa tab "About" dal pannello impostazioni.
 
 = 8.2.0 =
 *   Refactoring: Ristrutturazione completa del codice utilizzando Traits per migliorare modularità e stabilità.
