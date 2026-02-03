@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: AM Updater
+ * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.2.2
+ * Version: 8.2.1
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -83,9 +83,6 @@ class Marrison_Custom_Updater {
         
         // Hook per pulire la cache GitHub quando si forza il controllo aggiornamenti WP
         add_action('delete_site_transient_update_plugins', [$this, 'force_clear_github_cache']);
-
-        // Fix per rinominare la cartella durante l'aggiornamento da GitHub (evita disattivazione)
-        add_filter('upgrader_source_selection', [$this, 'fix_github_folder_name'], 10, 4);
     }
 
     public function load_textdomain() {
@@ -94,34 +91,6 @@ class Marrison_Custom_Updater {
 
     public function force_clear_github_cache() {
         delete_transient('marrison_updater_github_version');
-    }
-
-    public function fix_github_folder_name($source, $remote_source, $upgrader, $hook_extra = null) {
-        global $wp_filesystem;
-        
-        // Verifica se stiamo aggiornando questo plugin
-        // $hook_extra['plugin'] contiene il percorso relativo al plugin file (es. folder/file.php)
-        if (isset($hook_extra['plugin']) && $hook_extra['plugin'] === plugin_basename(__FILE__)) {
-             $correct_slug = dirname(plugin_basename(__FILE__));
-             
-             // Se dirname è vuoto o . (plugin in root), non fare nulla
-             if ($correct_slug === '.' || $correct_slug === '') {
-                 return $source;
-             }
-
-             $new_source = trailingslashit($remote_source) . $correct_slug . '/';
-             
-             // Se la cartella sorgente è diversa da quella target, rinomina
-             if (strcasecmp($source, $new_source) !== 0) {
-                 if ($wp_filesystem->move($source, $new_source)) {
-                     return $new_source;
-                 }
-                 // Se fallisce, ritorna errore
-                 return new WP_Error('rename_failed', __('Impossible to rename directory', 'marrison-custom-updater'));
-             }
-        }
-        
-        return $source;
     }
 
     public function auto_update_specific_plugins($update, $item) {
@@ -427,7 +396,7 @@ class Marrison_Custom_Updater {
                 $update_count++;
             }
         }
-        
+
         // Aggiungi conteggio temi
         $theme_updates = $this->get_available_theme_updates();
         $installed_themes = wp_get_themes(); // Cache temi installati
@@ -454,6 +423,10 @@ class Marrison_Custom_Updater {
         
         update_option('marrison_available_updates_count', $update_count);
     }
+
+    
+
+    
 
     /* ===================== UPDATE SOURCE ===================== */
 
@@ -824,23 +797,616 @@ class Marrison_Custom_Updater {
         $info->last_updated = current_time('mysql');
         $info->homepage = 'https://github.com/marrisonlab/marrison-custom-updater';
         $info->active_installs = 0;
-        
+        $info->rating = 100;
+        $info->ratings = array(5 => 100);
+        $info->num_ratings = 0;
+        $info->support_url = 'https://github.com/marrisonlab/marrison-custom-updater/issues';
+        $info->sections = array(
+            'description' => $info->description ? $info->description : 'Plugin per aggiornamenti personalizzati',
+            'changelog' => $info->changelog ? $info->changelog : 'Consultare il repository GitHub'
+        );
+
         return $info;
     }
-    
+
     private function markdown_to_html($text) {
-        $text = preg_replace('/= (.*?) =/', '<h4>$1</h4>', $text);
-        $text = preg_replace('/\*\* (.*?) \*\*/', '<strong>$1</strong>', $text);
-        $text = preg_replace('/\* (.*?)/', '<li>$1</li>', $text);
-        return nl2br($text);
+        // Converti header changelog (= 1.0.0 =)
+        $text = preg_replace('/^=\s*(.*?)\s*=\s*$/m', '<h4>$1</h4>', $text);
+        
+        // Converti grassetto (**text**)
+        $text = preg_replace('/\*\*(.*?)\*\*/s', '<strong>$1</strong>', $text);
+        
+        // Converti liste puntate (* item)
+        // Aggiungi newline prima delle liste per sicurezza
+        $text = preg_replace('/^\*\s+(.*?)$/m', '<li>$1</li>', $text);
+        
+        // Avvolgi liste (questo è un po\' grezzo ma funziona per readme standard)
+        // Cerchiamo gruppi di <li> e li avvolgiamo in <ul>
+        $text = preg_replace('/(<li>.*?<\/li>(\s*<li>.*?<\/li>)*)/s', '<ul>$1</ul>', $text);
+        
+        // Converti paragrafi (doppio newline)
+        $text = wpautop($text);
+        
+        return $text;
     }
 
-    public function add_admin_menu() {
-        // ... (existing code, keep as is if not changing)
-        // Since I'm using Write tool to overwrite the file, I must ensure I don't lose the existing code not shown in the Read output.
-        // Wait, I used Read with offset but not the full file. 
-        // I MUST READ THE FULL FILE BEFORE WRITING if I am rewriting the whole file.
-        // Or better, use SearchReplace. I used SearchReplace in the previous turn but it seems I switched to Write in the tool call.
-        // NO, I MUST USE SearchReplace because I don't have the full content of `add_admin_menu` and other methods.
+    /* ===================== PLUGIN ACTION LINKS ===================== */
+
+    public function add_marrison_action_links($actions, $plugin_file) {
+        // Controlla se Ã¨ il file del plugin Marrison Custom Updater
+        if (strpos($plugin_file, 'custom_updater.php') === false && strpos($plugin_file, 'marrison') === false) {
+            return $actions;
+        }
+
+        // Link alla pagina del Marrison Updater
+        $actions['marrison_settings'] = sprintf(
+            '<a href="%s">%s</a>',
+            esc_url(admin_url('admin.php?page=marrison-updater')),
+            esc_html__('Setting', 'marrison-custom-updater')
+        );
+
+        return $actions;
     }
+
+    public function add_plugin_row_meta($links, $file) {
+        if (strpos($file, 'custom_updater.php') !== false || strpos($file, 'marrison-custom-updater') !== false) {
+            $row_meta = [
+                'docs' => '<a href="https://github.com/marrisonlab/marrison-custom-updater" target="_blank" aria-label="' . esc_attr__('Visita il sito del plugin', 'marrison-custom-updater') . '">' . esc_html__('Visita il sito del plugin', 'marrison-custom-updater') . '</a>',
+            ];
+            return array_merge($links, $row_meta);
+        }
+        return $links;
+    }
+
+    /* ===================== REAL UPDATE ENGINE ===================== */
+
+    /* ===================== BACKUP & ROLLBACK ===================== */
+
+    public function restore_plugin() {
+        // Aumenta limiti esecuzione per evitare crash durante operazioni file
+        @ignore_user_abort(true);
+        @set_time_limit(0);
+
+        $filename = sanitize_file_name($_GET['file'] ?? '');
+        $slug_param = sanitize_text_field($_GET['slug'] ?? '');
+        
+        if (!empty($filename)) {
+             check_admin_referer('marrison_restore_' . $filename);
+        } elseif (!empty($slug_param)) {
+             check_admin_referer('marrison_restore_' . $slug_param);
+             // Fallback per vecchi link: cerca backup standard
+             $filename = $slug_param . '-backup.zip';
+             
+             // Se non esiste, cerca se c'Ã¨ un backup versionato
+             $backup_dir = $this->get_backup_dir();
+             if (!file_exists($backup_dir . '/' . $filename)) {
+                 $files = glob($backup_dir . '/' . $slug_param . '-*-backup.zip');
+                 if (!empty($files)) {
+                     $filename = basename($files[0]);
+                 }
+             }
+        } else {
+             wp_die('Missing parameters');
+        }
+
+        if (!current_user_can('install_plugins')) wp_die('Insufficient permissions');
+
+        $result = $this->perform_restore($filename);
+
+        if (is_wp_error($result)) {
+            wp_die('Error restoring backup: Error');
+        }
+        
+        $redirect_to = !empty($_REQUEST['redirect_to']) ? $_REQUEST['redirect_to'] : admin_url('admin.php?page=marrison-updater-backups&restored=' . $result);
+        wp_redirect($redirect_to);
+        exit;
+    }
+
+    public function restore_plugin_ajax() {
+        @ignore_user_abort(true);
+        @set_time_limit(0);
+
+        $filename = sanitize_file_name($_POST['filename'] ?? '');
+        $nonce = $_POST['nonce'] ?? '';
+
+        if (!wp_verify_nonce($nonce, 'marrison_restore_' . $filename)) {
+            wp_send_json_error('Security check failed');
+        }
+
+        if (!current_user_can('install_plugins')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+
+        if (empty($filename)) {
+            wp_send_json_error('Missing filename');
+        }
+
+        $result = $this->perform_restore($filename);
+
+        if (is_wp_error($result)) {
+            wp_send_json_error('Error');
+        }
+
+        wp_send_json_success(['slug' => $result]);
+    }
+
+    /* ===================== ACTIONS ===================== */
+
+    public function update_plugin() {
+        $slug = sanitize_text_field($_GET['slug'] ?? '');
+        check_admin_referer('marrison_update_' . $slug);
+
+        $this->perform_update($slug);
+
+        wp_redirect(admin_url('admin.php?page=marrison-updater&updated=' . $slug));
+        exit;
+    }
+
+    public function bulk_update() {
+        check_admin_referer('marrison_bulk_update');
+
+        $updated = [];
+        
+        // Update Plugins
+        foreach ($_POST['plugins'] ?? [] as $slug) {
+            if ($this->perform_update(sanitize_text_field($slug))) {
+                $updated[] = $slug;
+            }
+        }
+
+        // Update Themes
+        if (!empty($_POST['themes'])) {
+            $theme_updates = $this->get_available_theme_updates();
+            foreach ($_POST['themes'] as $slug) {
+                $slug = sanitize_text_field($slug);
+                $download_url = '';
+                foreach ($theme_updates as $u) {
+                    if ($u['slug'] === $slug) {
+                        $download_url = $u['download_url'];
+                        break;
+                    }
+                }
+                
+                if ($download_url && $this->perform_theme_update($slug, $download_url)) {
+                    $updated[] = $slug;
+                }
+            }
+        }
+
+        $query = http_build_query(['bulk_updated' => $updated]);
+        wp_redirect(admin_url('admin.php?page=marrison-updater&' . $query));
+        exit;
+    }
+
+    public function bulk_install() {
+        check_admin_referer('marrison_bulk_install');
+
+        $installed = [];
+        foreach ($_POST['plugins'] ?? [] as $slug) {
+            // perform_update gestisce anche l'installazione (scarica e copia)
+            if ($this->perform_update(sanitize_text_field($slug))) {
+                $installed[] = $slug;
+            }
+        }
+
+        $query = http_build_query(['installed' => $installed]);
+        wp_redirect(admin_url('admin.php?page=marrison-updater-installer&' . $query));
+        exit;
+    }
+
+    public function delete_internal_cache() {
+        delete_transient('marrison_available_updates');
+        delete_transient('marrison_available_updates_v2');
+        delete_transient('marrison_available_theme_updates');
+    }
+
+    public function clear_cache() {
+        check_admin_referer('marrison_clear_cache');
+        
+        $this->delete_internal_cache();
+        delete_site_transient('update_plugins');
+        delete_site_transient('update_themes');
+        wp_clean_plugins_cache(true);
+        wp_clean_themes_cache(true);
+        delete_option('marrison_known_private_slugs');
+
+        $redirect = !empty($_REQUEST['redirect_to']) ? $_REQUEST['redirect_to'] : admin_url('admin.php?page=marrison-updater-settings&cache_cleared=1');
+        wp_redirect($redirect);
+        exit;
+    }
+
+    public function force_check_mcu() {
+        check_admin_referer('marrison_force_check_mcu');
+        
+        // Pulisce cache interna
+        $this->delete_internal_cache();
+
+        // Pulisce cache specifica GitHub
+        delete_transient('marrison_updater_github_version');
+        
+        // Forza controllo aggiornamenti WP (Plugin)
+        delete_site_transient('update_plugins');
+        wp_clean_plugins_cache(true);
+        wp_update_plugins();
+
+        // Forza controllo aggiornamenti WP (Temi)
+        delete_site_transient('update_themes');
+        wp_clean_themes_cache(true);
+        wp_update_themes();
+        
+        $redirect = !empty($_REQUEST['redirect_to']) ? $_REQUEST['redirect_to'] : admin_url('admin.php?page=marrison-updater&mcu_checked=1');
+        wp_redirect($redirect);
+        exit;
+    }
+
+    public function save_repo_url() {
+        check_admin_referer('marrison_save_repo_url');
+
+        if (isset($_POST['marrison_remove_repo_url'])) {
+            delete_option('marrison_repo_url');
+            delete_option('marrison_themes_repo_url'); // Rimuove anche questo per pulizia, o gestire separatamente?
+            // Meglio gestire rimozioni separate se ci sono bottoni separati, ma qui sembra un form unico.
+            // Se l'utente vuole rimuovere solo uno, dovrebbe svuotare il campo.
+            // Il bottone "Rimuovi URL" attuale sembra inteso per resettare tutto o il principale.
+            // Manteniamo il comportamento per il principale, ma aggiungiamo logica per i temi se necessario.
+            // Anzi, miglioriamo: salviamo entrambi se presenti.
+            
+            // Se il bottone premuto è quello generico di rimozione (che era per il plugin repo)
+            delete_option('marrison_repo_url');
+            $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=removed');
+        } else {
+            // Salvataggio Plugin Repo
+            if (isset($_POST['marrison_repo_url'])) {
+                $url_input = $_POST['marrison_repo_url'];
+                // Aggiorna solo se l'input non è oscurato (preserviamo l'esistente se l'utente non lo modifica)
+                if ($url_input !== '********************') {
+                    $url = sanitize_url($url_input);
+                    update_option('marrison_repo_url', $url);
+                }
+            }
+
+            // Salvataggio Themes Repo
+            if (isset($_POST['marrison_themes_repo_url'])) {
+                $theme_url_input = $_POST['marrison_themes_repo_url'];
+                // Aggiorna solo se l'input non è oscurato
+                if ($theme_url_input !== '********************') {
+                    $theme_url = sanitize_url($theme_url_input);
+                    update_option('marrison_themes_repo_url', $theme_url);
+                }
+            }
+
+            $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=saved');
+        }
+
+        // Pulisce la cache dopo aver modificato l'URL
+        delete_transient('marrison_available_updates');
+        delete_site_transient('update_plugins');
+        delete_transient('marrison_available_theme_updates');
+        delete_site_transient('update_themes');
+
+        wp_redirect($redirect_url);
+        exit;
+    }
+
+    /* ===================== AJAX HANDLER ===================== */
+
+    public function update_plugin_ajax() {
+        $slug = sanitize_text_field($_POST['slug'] ?? '');
+        $nonce = sanitize_text_field($_POST['nonce'] ?? '');
+        
+        $nonce_valid = wp_verify_nonce($nonce, 'marrison_update_' . $slug) || 
+                       wp_verify_nonce($nonce, 'marrison_bulk_update') ||
+                       wp_verify_nonce($nonce, 'marrison_update_marrison-custom-updater');
+        
+        if (!$nonce_valid) {
+            wp_send_json_error('Security check failed');
+        }
+
+        // Verifica i permessi
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+
+        include_once ABSPATH . 'wp-admin/includes/plugin.php';
+
+        $plugin_file_before = '';
+        if ($slug === 'marrison-custom-updater') {
+            $plugin_file_before = plugin_basename(__FILE__);
+        } else {
+            // Trova il nome per migliorare la ricerca file
+            $updates = $this->get_available_updates();
+            $name = '';
+            foreach($updates as $u) {
+                if ($u['slug'] === $slug) {
+                    $name = $u['name'] ?? '';
+                    break;
+                }
+            }
+            $plugin_file_before = $this->find_plugin_file($slug, $name);
+        }
+        $was_active = $plugin_file_before && is_plugin_active($plugin_file_before);
+
+        $result = false;
+        
+        if ($slug === 'marrison-custom-updater') {
+            $transient = get_site_transient('update_plugins');
+            if (isset($transient->response[plugin_basename(__FILE__)])) {
+                $update = $transient->response[plugin_basename(__FILE__)];
+                $result = $this->perform_self_update($update->package);
+            }
+        } else {
+            $result = $this->perform_update($slug);
+        }
+
+        if ($result) {
+            $plugin_file_after = $plugin_file_before;
+            if (!$plugin_file_after || !file_exists(WP_PLUGIN_DIR . '/' . $plugin_file_after)) {
+                $plugin_file_after = $this->find_plugin_file($slug, $name);
+            }
+
+            if ($was_active && $plugin_file_after) {
+                if (!is_plugin_active($plugin_file_after)) {
+                    activate_plugin($plugin_file_after, '', false, false);
+                }
+            }
+
+            $this->check_for_available_updates();
+            wp_send_json_success('Plugin aggiornato con successo');
+        } else {
+            wp_send_json_error('Errore durante l\'aggiornamento del plugin');
+        }
+    }
+
+    /* ===================== THEME AJAX HANDLER ===================== */
+
+    public function update_private_theme_ajax() {
+        // Verifica il nonce
+        $slug = sanitize_text_field($_POST['slug'] ?? '');
+        $nonce = sanitize_text_field($_POST['nonce'] ?? '');
+        
+        $nonce_valid = wp_verify_nonce($nonce, 'marrison_update_theme_' . $slug) || 
+                       wp_verify_nonce($nonce, 'marrison_bulk_update');
+        
+        if (!$nonce_valid) {
+            wp_send_json_error('Security check failed');
+        }
+
+        // Verifica i permessi
+        if (!current_user_can('update_themes')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+
+        // Carica classi
+        include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+        include_once ABSPATH . 'wp-admin/includes/theme.php';
+
+        $skin = new Automatic_Upgrader_Skin();
+        $upgrader = new Theme_Upgrader($skin);
+        
+        // Trova l'URL di download
+        $download_url = '';
+        $updates = $this->get_available_theme_updates();
+        $theme_obj = wp_get_theme($slug);
+        
+        foreach ($updates as $u) {
+            // Check 1: Corrispondenza slug esatta
+            if ($u['slug'] === $slug) {
+                $download_url = $u['download_url'];
+                break;
+            }
+            
+            // Check 2: Se il tema è installato e lo slug non corrisponde, cerca per Nome
+            if ($theme_obj->exists() && strcasecmp($theme_obj->get('Name'), $u['name']) === 0) {
+                $download_url = $u['download_url'];
+                break;
+            }
+            
+            // Check 3: Cerca per TextDomain
+            if ($theme_obj->exists() && $theme_obj->get('TextDomain') === $u['slug']) {
+                $download_url = $u['download_url'];
+                break;
+            }
+        }
+        
+        if (empty($download_url)) {
+            wp_send_json_error('URL download non trovato per lo slug: ' . $slug);
+        }
+
+        // Esegui l'aggiornamento
+        if ($this->perform_theme_update($slug, $download_url)) {
+            wp_send_json_success('Tema aggiornato con successo');
+            $this->check_for_available_updates();
+        } else {
+            wp_send_json_error('Errore durante l\'aggiornamento del tema');
+        }
+    }
+
+    public function bulk_update_private_themes_ajax() {
+        $nonce = sanitize_text_field($_POST['nonce'] ?? '');
+        $themes = isset($_POST['themes']) ? array_map('sanitize_text_field', $_POST['themes']) : [];
+        
+        if (!wp_verify_nonce($nonce, 'marrison_bulk_update')) {
+            wp_die('Security check failed');
+        }
+
+        if (!current_user_can('update_themes')) {
+            wp_die('Insufficient permissions');
+        }
+
+        if (empty($themes)) {
+            wp_send_json_error('Nessun tema selezionato');
+        }
+
+        $results = [];
+        $success_count = 0;
+        
+        foreach ($themes as $slug) {
+            $download_url = '';
+            foreach ($this->get_available_theme_updates() as $u) {
+                if ($u['slug'] === $slug) {
+                    $download_url = $u['download_url'];
+                    break;
+                }
+            }
+            
+            if ($download_url && $this->perform_theme_update($slug, $download_url)) {
+                $results[$slug] = true;
+                $success_count++;
+            } else {
+                $results[$slug] = false;
+            }
+        }
+
+        if ($success_count > 0) {
+            wp_send_json_success([
+                'message' => sprintf('%d temi aggiornati con successo', $success_count),
+                'results' => $results,
+                'success_count' => $success_count,
+                'total_count' => count($themes)
+            ]);
+            $this->check_for_available_updates();
+        } else {
+            wp_send_json_error('Nessun tema è stato aggiornato');
+        }
+    }
+
+    /* ===================== BULK UPDATE AJAX HANDLER ===================== */
+
+    public function bulk_update_ajax() {
+        // Verifica il nonce
+        $nonce = sanitize_text_field($_POST['nonce'] ?? '');
+        $plugins = isset($_POST['plugins']) ? array_map('sanitize_text_field', $_POST['plugins']) : [];
+        
+        if (!wp_verify_nonce($nonce, 'marrison_bulk_update')) {
+            wp_die('Security check failed');
+        }
+
+        // Verifica i permessi
+        if (!current_user_can('manage_options')) {
+            wp_die('Insufficient permissions');
+        }
+
+        if (empty($plugins)) {
+            wp_send_json_error('Nessun plugin selezionato');
+        }
+
+        $results = [];
+        $success_count = 0;
+        
+        $available_updates = $this->get_available_updates();
+
+        foreach ($plugins as $slug) {
+            $result = false;
+            
+            // Trova il nome per la ricerca file e stato attivazione
+            $name = '';
+            foreach ($available_updates as $u) {
+                if ($u['slug'] === $slug) {
+                    $name = $u['name'] ?? '';
+                    break;
+                }
+            }
+
+            $plugin_file_before = $this->find_plugin_file($slug, $name);
+            $was_active = $plugin_file_before && is_plugin_active($plugin_file_before);
+            
+            // Controlla se è il plugin stesso (Marrison Custom Updater)
+            if ($slug === 'marrison-custom-updater') {
+                $transient = get_site_transient('update_plugins');
+                if (isset($transient->response[plugin_basename(__FILE__)])) {
+                    $update = $transient->response[plugin_basename(__FILE__)];
+                    $result = $this->perform_self_update($update->package);
+                }
+            } else {
+                $result = $this->perform_update($slug);
+            }
+            
+            $results[$slug] = $result;
+            if ($result) {
+                $success_count++;
+                
+                if ($was_active) {
+                    $plugin_file_after = $this->find_plugin_file($slug, $name);
+                    if ($plugin_file_after && !is_plugin_active($plugin_file_after)) {
+                        activate_plugin($plugin_file_after, '', false, false);
+                    }
+                }
+            }
+        }
+
+        if ($success_count > 0) {
+            wp_send_json_success([
+                'message' => sprintf('%d plugin aggiornati con successo', $success_count),
+                'results' => $results,
+                'success_count' => $success_count,
+                'total_count' => count($plugins)
+            ]);
+            
+            // Aggiorna il conteggio delle notifiche
+            $this->check_for_available_updates();
+        } else {
+            wp_send_json_error('Nessun plugin Ã¨ stato aggiornato');
+        }
+    }
+
+    /* ===================== ADMIN UI ===================== */
+
+    
+
+    
+
+    
+
+    
+
+
+    
+
+    
+
+
+    
+
+
+    
+
+    
+
+    
+
+    
 }
+
+new Marrison_Custom_Updater;
+
+/**
+ * Fix definitivo GitHub updater:
+ * - rinomina la cartella del plugin con suffisso versione (es. -1.9)
+ * - forza il refresh della cache plugin per mostrare la versione corretta in WP
+ */
+add_action( 'upgrader_process_complete', function ( $upgrader, $hook_extra ) {
+
+    // Agisce solo sui plugin
+    if ( empty( $hook_extra['type'] ) || $hook_extra['type'] !== 'plugin' ) {
+        return;
+    }
+
+    $plugins_dir = WP_PLUGIN_DIR;
+    $expected    = $plugins_dir . '/marrison-custom-updater';
+
+    // Cerca directory tipo: marrison-custom-updater-*
+    foreach ( glob( $plugins_dir . '/marrison-custom-updater-*', GLOB_ONLYDIR ) as $dir ) {
+
+        // Se la directory corretta esiste giÃ , salta
+        if ( is_dir( $expected ) ) {
+            continue;
+        }
+
+        // Rinomina e pulisce la cache plugin
+        if ( rename( $dir, $expected ) ) {
+            wp_clean_plugins_cache( true );
+        }
+
+        break;
+    }
+}, 10, 2 );             

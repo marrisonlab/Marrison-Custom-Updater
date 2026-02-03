@@ -792,7 +792,7 @@ trait Marrison_Admin_UI_Trait {
         ?>
         <div class="mcu-wrap">
             <div class="mcu-header">
-                <h1><span class="dashicons dashicons-cloud-upload"></span> AM Updater</h1>
+                <h1><span class="dashicons dashicons-cloud-upload"></span> Marrison Updater</h1>
                 <div class="mcu-header-actions">
                     <button type="button" class="mcu-button mcu-button-primary mcu-action-update-all" style="margin-right: 10px;" 
                             data-nonce-auto="<?php echo wp_create_nonce('marrison_auto_update'); ?>"
@@ -880,19 +880,7 @@ trait Marrison_Admin_UI_Trait {
                 <input type="hidden" name="action" value="marrison_bulk_update">
                 <div class="mcu-card" style="margin-bottom: 30px;">
                     <div class="mcu-card-header">
-                        <h2 class="mcu-card-title">
-                            <span class="dashicons dashicons-admin-plugins"></span> Plugin Repository Privato
-                            <?php 
-                            if (!empty($repo_url_config)) {
-                                $cache_status = get_transient('marrison_available_updates_v2');
-                                if ($cache_status !== false && is_array($cache_status)) {
-                                    echo '<span class="mcu-led mcu-led-green" title="Connesso al repository - Aggiornato"></span>';
-                                } else {
-                                    echo '<span class="mcu-led mcu-led-red" title="Errore connessione o repository vuoto"></span>';
-                                }
-                            }
-                            ?>
-                        </h2>
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-admin-plugins"></span> Plugin Repository Privato</h2>
                         <?php if ($repo_updates_count > 0): ?>
                             <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-bulk-update-private" data-type="plugin">Aggiorna Selezionati</button>
                         <?php endif; ?>
@@ -984,19 +972,7 @@ trait Marrison_Admin_UI_Trait {
                 </div>
                 <div class="mcu-card" style="margin-bottom: 30px;">
                     <div class="mcu-card-header">
-                        <h2 class="mcu-card-title">
-                            <span class="dashicons dashicons-art"></span> Temi Repository Privato
-                            <?php 
-                            if (!empty($theme_repo_url_config)) {
-                                $cache_status_themes = get_transient('marrison_available_theme_updates');
-                                if ($cache_status_themes !== false && is_array($cache_status_themes)) {
-                                    echo '<span class="mcu-led mcu-led-green" title="Connesso al repository temi - Aggiornato"></span>';
-                                } else {
-                                    echo '<span class="mcu-led mcu-led-red" title="Errore connessione o repository temi vuoto"></span>';
-                                }
-                            }
-                            ?>
-                        </h2>
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-art"></span> Temi Repository Privato</h2>
                         <?php if ($theme_updates_count > 0): ?>
                             <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-bulk-update-private" data-type="theme">Aggiorna Selezionati</button>
                         <?php endif; ?>
