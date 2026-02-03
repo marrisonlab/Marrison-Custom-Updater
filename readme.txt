@@ -1,18 +1,18 @@
-=== Marrison Custom Updater ===
+=== AM Updater ===
 Author: Angelo Marra
 Author URI:  https://marrisonlab.com
 Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.2.1
+Stable tag: 8.2.2
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
 
 == Description ==
 
-**Marrison Custom Updater** è una soluzione avanzata per gestire aggiornamenti di plugin e temi privati in WordPress. Permette di collegare il tuo sito WordPress a un repository personalizzato, consentendo di distribuire aggiornamenti per i tuoi plugin e temi proprietari con la stessa facilità di quelli ufficiali di WordPress.org.
+**AM Updater** (precedentemente Marrison Custom Updater) è una soluzione avanzata per gestire aggiornamenti di plugin e temi privati in WordPress. Permette di collegare il tuo sito WordPress a un repository personalizzato, consentendo di distribuire aggiornamenti per i tuoi plugin e temi proprietari con la stessa facilità di quelli ufficiali di WordPress.org.
 
 **Funzionalità Principali:**
 
@@ -28,9 +28,15 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
 1.  Carica la cartella `marrison-custom-updater` nella directory `/wp-content/plugins/` del tuo sito.
 2.  Attiva il plugin dal menu 'Plugin' di WordPress.
-3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
+3.  Vai su 'AM Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 8.2.2 =
+*   Rebranding: Rinominato plugin in "AM Updater".
+*   UI: Aggiunti indicatori LED (Verde/Rosso) nella dashboard per monitorare lo stato di connessione ai repository privati.
+*   Fix: Risolto bug critico che impediva il rilevamento degli aggiornamenti per i plugin pubblici del repository WordPress.
+*   Fix: Risolto problema di disattivazione automatica dei plugin dopo l'aggiornamento da GitHub (implementata rinomina automatica della cartella).
 
 = 8.2.1 =
 *   Email: Aggiunti banner di stato visivi (Verde/Rosso) per una rapida identificazione dell'esito.

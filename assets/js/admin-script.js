@@ -1,5 +1,5 @@
 jQuery(document).ready(function($) {
-    console.log('Marrison Custom Updater JS Loaded');
+    console.log('AM Updater JS Loaded');
     
     // UI Helpers
     const MCU = {
