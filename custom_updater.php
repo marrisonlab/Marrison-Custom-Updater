@@ -433,7 +433,11 @@ class Marrison_Custom_Updater {
     /* ===================== WP UPDATE HOOK ===================== */
 
     public function check_for_updates($transient) {
-        if (!is_object($transient)) $transient = new stdClass();
+        if (!is_object($transient)) {
+            // Se il transient non è un oggetto (es. false), lasciamo che WP lo rigeneri
+            // Invece di restituire un oggetto vuoto che bloccherebbe i controlli successivi
+            return $transient;
+        }
         
         // Assicurati che le proprietà esistano
         if (!isset($transient->response)) $transient->response = [];
@@ -552,7 +556,9 @@ class Marrison_Custom_Updater {
     /* ===================== THEME UPDATES ===================== */
 
     public function check_for_theme_updates($transient) {
-        if (!is_object($transient)) $transient = new stdClass();
+        if (!is_object($transient)) {
+            return $transient;
+        }
         
         if (!isset($transient->response)) $transient->response = [];
         if (!isset($transient->no_update)) $transient->no_update = [];
