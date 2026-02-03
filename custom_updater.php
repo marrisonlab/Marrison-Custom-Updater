@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: Marrison Custom Updater
+ * Plugin Name: AM Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.2.1
+ * Version: 8.2.3
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
