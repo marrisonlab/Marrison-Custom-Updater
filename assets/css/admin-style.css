@@ -1,6 +1,5 @@
 :root {
     --mcu-primary: #2271b1;
-    --mcu-primary-rgb: 34, 113, 177;
     --mcu-primary-hover: #135e96;
     --mcu-secondary: #646970;
     --mcu-success: #00a32a;
@@ -8,39 +7,17 @@
     --mcu-danger: #d63638;
     --mcu-bg: #f0f0f1;
     --mcu-card-bg: #ffffff;
-    --mcu-text: #1d2327;
-    --mcu-text-light: #50575e;
-    --mcu-border: #dcdcde;
-    --mcu-radius: 10px;
-    --mcu-shadow: 0 2px 4px rgba(0,0,0,0.04);
-    --mcu-shadow-hover: 0 8px 16px rgba(0,0,0,0.08);
-    --mcu-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-    --mcu-transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-/* Animations */
-@keyframes mcuFadeInUp {
-    from { opacity: 0; transform: translateY(15px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes mcuPulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-    100% { transform: scale(1); }
-}
-
-@keyframes mcuSpin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    --mcu-text: #3c434a;
+    --mcu-border: #c3c4c7;
+    --mcu-radius: 8px;
+    --mcu-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .mcu-wrap {
     max-width: 1200px;
-    margin: 30px auto;
-    font-family: var(--mcu-font);
+    margin: 20px auto;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
     color: var(--mcu-text);
-    animation: mcuFadeInUp 0.5s ease-out;
 }
 
 .mcu-header {
@@ -61,190 +38,112 @@
     color: #1d2327;
     display: flex;
     align-items: center;
-    gap: 15px;
-    letter-spacing: -0.5px;
+    gap: 12px;
 }
 
 .mcu-header h1 .dashicons {
-    background: linear-gradient(135deg, var(--mcu-primary), var(--mcu-primary-hover));
+    background: var(--mcu-primary);
     color: #fff;
-    padding: 10px;
-    border-radius: 10px;
+    padding: 8px;
+    border-radius: 8px;
     font-size: 24px;
     width: 24px;
     height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 10px rgba(var(--mcu-primary-rgb), 0.3);
+    box-shadow: 0 4px 6px rgba(34, 113, 177, 0.2);
 }
 
 .mcu-header-actions {
     display: flex;
-    gap: 12px;
-}
-
-/* Tabs Styling Override */
-.mcu-wrap .nav-tab-wrapper {
-    border-bottom: 1px solid var(--mcu-border);
-    margin-bottom: 30px !important;
-    padding-bottom: 0;
-}
-
-.mcu-wrap .nav-tab {
-    border: none;
-    background: transparent;
-    margin-left: 0;
-    margin-right: 20px;
-    padding: 12px 0;
-    font-weight: 600;
-    color: var(--mcu-text-light);
-    font-size: 15px;
-    transition: var(--mcu-transition);
-    border-bottom: 3px solid transparent;
-    opacity: 0.7;
-}
-
-.mcu-wrap .nav-tab:hover {
-    background: transparent;
-    color: var(--mcu-primary);
-    opacity: 1;
-}
-
-.mcu-wrap .nav-tab-active, 
-.mcu-wrap .nav-tab-active:hover, 
-.mcu-wrap .nav-tab-active:focus {
-    background: transparent;
-    border: none;
-    border-bottom: 3px solid var(--mcu-primary);
-    color: var(--mcu-text);
-    opacity: 1;
+    gap: 10px;
 }
 
 /* Dashboard Grid */
 .mcu-dashboard-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 25px;
-    margin-bottom: 35px;
+    gap: 20px;
+    margin-bottom: 30px;
 }
 
 .mcu-card {
     background: var(--mcu-card-bg);
     border-radius: var(--mcu-radius);
     box-shadow: var(--mcu-shadow);
-    padding: 25px;
-    transition: var(--mcu-transition);
-    border: 1px solid rgba(0,0,0,0.03);
-    position: relative;
-    overflow: hidden;
-}
-
-.mcu-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(90deg, var(--mcu-primary), #60a5fa);
-    opacity: 0;
-    transition: var(--mcu-transition);
+    padding: 20px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid rgba(0,0,0,0.05);
 }
 
 .mcu-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--mcu-shadow-hover);
-}
-
-.mcu-card:hover::before {
-    opacity: 1;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
 .mcu-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     border-bottom: 1px solid #f0f0f1;
-    padding-bottom: 15px;
+    padding-bottom: 10px;
 }
 
 .mcu-card-title {
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 600;
     margin: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
-    color: var(--mcu-text);
+    gap: 8px;
 }
 
 .mcu-card-title .dashicons {
     color: var(--mcu-primary);
-    background: rgba(var(--mcu-primary-rgb), 0.1);
-    padding: 6px;
-    border-radius: 6px;
-    width: 20px;
-    height: 20px;
-    font-size: 20px;
 }
 
 /* Stat Cards */
 .mcu-stat-card {
     text-align: center;
-    padding: 35px 25px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+    padding: 30px 20px;
 }
 
 .mcu-stat-number {
-    font-size: 42px;
-    font-weight: 800;
+    font-size: 36px;
+    font-weight: 700;
     color: var(--mcu-primary);
     line-height: 1;
-    margin-bottom: 10px;
-    transition: var(--mcu-transition);
-}
-
-.mcu-stat-card:hover .mcu-stat-number {
-    transform: scale(1.05);
+    margin-bottom: 5px;
 }
 
 .mcu-stat-label {
     color: var(--mcu-secondary);
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 14px;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
 }
 
 /* Table Styles */
 .mcu-table {
     width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    margin-top: 5px;
+    border-collapse: collapse;
+    margin-top: 10px;
 }
 
 .mcu-table th {
     text-align: left;
-    padding: 15px 20px;
-    color: var(--mcu-text-light);
+    padding: 12px;
+    color: var(--mcu-secondary);
     font-weight: 600;
-    font-size: 13px;
     border-bottom: 2px solid #f0f0f1;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
 }
 
 .mcu-table td {
-    padding: 15px 20px;
+    padding: 12px;
     border-bottom: 1px solid #f0f0f1;
     vertical-align: middle;
-    transition: background-color 0.2s;
 }
 
 .mcu-table tr:last-child td {
@@ -258,35 +157,32 @@
 /* Badges */
 .mcu-badge {
     display: inline-block;
-    padding: 6px 12px;
-    border-radius: 20px;
+    padding: 4px 8px;
+    border-radius: 4px;
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1;
-    letter-spacing: 0.3px;
-    text-transform: uppercase;
 }
 
-.mcu-badge-primary { background: #e5f1fb; color: var(--mcu-primary); border: 1px solid rgba(34, 113, 177, 0.2); }
-.mcu-badge-success { background: #e7f7ed; color: var(--mcu-success); border: 1px solid rgba(0, 163, 42, 0.2); }
-.mcu-badge-warning { background: #fbf5e0; color: var(--mcu-warning); border: 1px solid rgba(219, 166, 23, 0.2); }
-.mcu-badge-danger { background: #fbeaea; color: var(--mcu-danger); border: 1px solid rgba(214, 54, 56, 0.2); }
+.mcu-badge-primary { background: #e5f1fb; color: var(--mcu-primary); }
+.mcu-badge-success { background: #e7f7ed; color: var(--mcu-success); }
+.mcu-badge-warning { background: #fbf5e0; color: var(--mcu-warning); }
+.mcu-badge-danger { background: #fbeaea; color: var(--mcu-danger); }
 
 /* Buttons */
 .mcu-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 10px 20px;
-    border-radius: 6px;
-    font-weight: 600;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: 500;
     cursor: pointer;
     text-decoration: none;
-    transition: var(--mcu-transition);
+    transition: all 0.2s;
     border: none;
-    font-size: 14px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    font-size: 13px;
 }
 
 .mcu-button-primary {
@@ -297,61 +193,51 @@
 .mcu-button-primary:hover {
     background: var(--mcu-primary-hover);
     color: white;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(var(--mcu-primary-rgb), 0.3);
 }
 
 .mcu-button-secondary {
     background: white;
-    border: 1px solid #dcdcde;
+    border: 1px solid var(--mcu-primary);
     color: var(--mcu-primary);
 }
 
 .mcu-button-secondary:hover {
     background: #f0f6fc;
-    border-color: var(--mcu-primary);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
 }
 
 .mcu-button-sm {
-    padding: 6px 12px;
+    padding: 4px 10px;
     font-size: 12px;
 }
 
 .mcu-button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-    transform: none !important;
-    box-shadow: none !important;
 }
 
 /* Progress Bar */
 .mcu-progress-container {
     background: var(--mcu-card-bg);
-    padding: 25px;
+    padding: 20px;
     border-radius: var(--mcu-radius);
-    box-shadow: var(--mcu-shadow-hover);
-    margin-bottom: 25px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
     display: none;
-    border-left: 5px solid var(--mcu-warning);
-    animation: mcuFadeInUp 0.4s ease-out;
+    border-left: 4px solid var(--mcu-warning);
 }
 
 .mcu-progress-header {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 15px;
-    font-weight: 600;
-    font-size: 15px;
+    margin-bottom: 10px;
+    font-weight: 500;
 }
 
 .mcu-progress-track {
-    height: 12px;
+    height: 10px;
     background: #e0e0e0;
-    border-radius: 6px;
+    border-radius: 5px;
     overflow: hidden;
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .mcu-progress-bar {
@@ -370,93 +256,37 @@
 }
 
 .mcu-progress-status {
-    margin-top: 10px;
+    margin-top: 8px;
     font-size: 13px;
     color: var(--mcu-secondary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.mcu-progress-status::before {
-    content: '';
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border: 2px solid var(--mcu-primary);
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: mcuSpin 1s linear infinite;
 }
 
 /* Notices */
 .mcu-notice {
-    padding: 15px 20px;
+    padding: 12px 15px;
     border-radius: var(--mcu-radius);
-    margin-bottom: 25px;
+    margin-bottom: 20px;
     display: flex;
     align-items: center;
-    gap: 15px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    animation: mcuFadeInUp 0.4s ease-out;
+    gap: 10px;
 }
 
-.mcu-notice-success { 
-    background: #e7f7ed; 
-    color: #00691c; 
-    border-left: 5px solid var(--mcu-success); 
-}
-
-.mcu-notice-error { 
-    background: #fbeaea; 
-    color: #9f1517; 
-    border-left: 5px solid var(--mcu-danger); 
-}
-
-.mcu-notice-info {
-    background: #e5f1fb;
-    color: #00457a;
-    border-left: 5px solid var(--mcu-primary);
-}
+.mcu-notice-success { background: #e7f7ed; color: var(--mcu-success); border: 1px solid #c3e6cb; }
+.mcu-notice-error { background: #fbeaea; color: var(--mcu-danger); border: 1px solid #f5c6cb; }
 
 /* Empty State */
 .mcu-empty-state {
     text-align: center;
-    padding: 60px 20px;
+    padding: 40px;
     color: var(--mcu-secondary);
 }
 
 .mcu-empty-state .dashicons {
-    font-size: 64px;
-    width: 64px;
-    height: 64px;
-    margin-bottom: 15px;
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 10px;
     color: #dcdcde;
-    animation: mcuPulse 3s infinite;
-}
-
-/* Form Styles */
-.mcu-card input[type="text"],
-.mcu-card input[type="email"],
-.mcu-card input[type="password"],
-.mcu-card input[type="number"],
-.mcu-card input[type="time"],
-.mcu-card select,
-.mcu-card textarea {
-    border: 1px solid var(--mcu-border);
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 14px;
-    transition: var(--mcu-transition);
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
-}
-
-.mcu-card input:focus,
-.mcu-card select:focus,
-.mcu-card textarea:focus {
-    border-color: var(--mcu-primary);
-    box-shadow: 0 0 0 1px var(--mcu-primary), 0 2px 6px rgba(var(--mcu-primary-rgb), 0.2);
-    outline: none;
 }
 
 /* Responsive */
@@ -464,7 +294,7 @@
     .mcu-header {
         flex-direction: column;
         align-items: flex-start;
-        gap: 20px;
+        gap: 15px;
     }
     
     .mcu-header-actions {
@@ -474,9 +304,5 @@
     
     .mcu-button {
         width: 100%;
-    }
-
-    .mcu-dashboard-grid {
-        grid-template-columns: 1fr;
     }
 }

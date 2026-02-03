@@ -1,18 +1,18 @@
-=== AM Updater ===
+=== Marrison Custom Updater ===
 Author: Angelo Marra
 Author URI:  https://marrisonlab.com
 Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.2.3
+Stable tag: 8.3
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
 
 == Description ==
 
-**AM Updater** è una soluzione avanzata per gestire aggiornamenti di plugin e temi privati in WordPress. Permette di collegare il tuo sito WordPress a un repository personalizzato, consentendo di distribuire aggiornamenti per i tuoi plugin e temi proprietari con la stessa facilità di quelli ufficiali di WordPress.org.
+**Marrison Custom Updater** è una soluzione avanzata per gestire aggiornamenti di plugin e temi privati in WordPress. Permette di collegare il tuo sito WordPress a un repository personalizzato, consentendo di distribuire aggiornamenti per i tuoi plugin e temi proprietari con la stessa facilità di quelli ufficiali di WordPress.org.
 
 **Funzionalità Principali:**
 
@@ -32,10 +32,8 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
 == Changelog ==
 
-= 8.2.3 =
-*   Rebranding: Plugin rinominato in "AM Updater".
-*   UI: Aggiornati i nomi nelle pagine di amministrazione e nei menu.
-*   Fix: Miglioramenti vari alla stabilità.
+= 8.3 =
+* Fix: Risolto problema critico per cui l'aggiornamento automatico del plugin stesso (self-update) poteva causare la disattivazione del plugin. Implementata strategia di aggiornamento atomico con backup preventivo.
 
 = 8.2.1 =
 *   Email: Aggiunti banner di stato visivi (Verde/Rosso) per una rapida identificazione dell'esito.

@@ -259,24 +259,70 @@ trait Marrison_Update_Operations_Trait {
         global $wp_filesystem;
         require_once ABSPATH . 'wp-admin/includes/file.php';
         WP_Filesystem();
-        if (!$wp_filesystem) return false;
+        if (!$wp_filesystem) return new WP_Error('fs_error', 'Filesystem init failed');
+        
         $zip = download_url($download_url);
-        if (is_wp_error($zip)) return false;
+        if (is_wp_error($zip)) return $zip;
+        
         $upgrade_dir = WP_CONTENT_DIR . '/upgrade/marrison-custom-updater-temp';
+        $wp_filesystem->delete($upgrade_dir, true); // Clean previous attempts
         wp_mkdir_p($upgrade_dir);
-        unzip_file($zip, $upgrade_dir);
-        unlink($zip);
+        
+        $unzip = unzip_file($zip, $upgrade_dir);
+        @unlink($zip);
+        
+        if (is_wp_error($unzip)) return $unzip;
+        
         $dirs = glob($upgrade_dir . '/*', GLOB_ONLYDIR);
-        if (empty($dirs)) return false;
+        if (empty($dirs)) {
+             $wp_filesystem->delete($upgrade_dir, true);
+             return new WP_Error('empty_zip', 'Zip archive is empty or invalid structure');
+        }
+        
         $source = trailingslashit($dirs[0]);
         $dest   = trailingslashit(WP_PLUGIN_DIR . '/marrison-custom-updater');
+        
+        // Strategy: Move current to backup, copy new, if fail restore backup
+        $backup_dest = WP_PLUGIN_DIR . '/marrison-custom-updater-backup-' . time();
+        $moved_backup = false;
+        
         if ($wp_filesystem->is_dir($dest)) {
-            $wp_filesystem->delete($dest, true);
+            // Try to move to backup
+            if (!$wp_filesystem->move($dest, $backup_dest)) {
+                // If move fails, try direct delete (fallback, risky but standard)
+                // But better to fail safe if we can't backup
+                // Let's try to proceed with delete if move failed? 
+                // No, let's try copy_dir first to a temp dest? 
+                // Actually, standard WP way is Maintenance mode + delete + copy.
+                // But we want to avoid deactivation.
+                // Let's try standard delete if move fails, but log it?
+                // For now, let's assume move works or fail.
+                $wp_filesystem->delete($upgrade_dir, true);
+                return new WP_Error('backup_failed', 'Could not backup existing version');
+            }
+            $moved_backup = true;
         }
-        copy_dir($source, $dest);
+        
+        $result = copy_dir($source, $dest);
+        
+        if (is_wp_error($result)) {
+            // Restore backup
+            if ($moved_backup) {
+                $wp_filesystem->move($backup_dest, $dest);
+            }
+            $wp_filesystem->delete($upgrade_dir, true);
+            return $result;
+        }
+        
+        // Success
+        if ($moved_backup) {
+            $wp_filesystem->delete($backup_dest, true);
+        }
         $wp_filesystem->delete($upgrade_dir, true);
+        
         delete_site_transient('update_plugins');
         wp_clean_plugins_cache(true);
+        
         return true;
     }
 

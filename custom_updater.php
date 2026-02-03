@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: AM Updater
+ * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.2.3
+ * Version: 8.3
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -433,11 +433,7 @@ class Marrison_Custom_Updater {
     /* ===================== WP UPDATE HOOK ===================== */
 
     public function check_for_updates($transient) {
-        if (!is_object($transient)) {
-            // Se il transient non è un oggetto (es. false), lasciamo che WP lo rigeneri
-            // Invece di restituire un oggetto vuoto che bloccherebbe i controlli successivi
-            return $transient;
-        }
+        if (!is_object($transient)) $transient = new stdClass();
         
         // Assicurati che le proprietà esistano
         if (!isset($transient->response)) $transient->response = [];
@@ -556,9 +552,7 @@ class Marrison_Custom_Updater {
     /* ===================== THEME UPDATES ===================== */
 
     public function check_for_theme_updates($transient) {
-        if (!is_object($transient)) {
-            return $transient;
-        }
+        if (!is_object($transient)) $transient = new stdClass();
         
         if (!isset($transient->response)) $transient->response = [];
         if (!isset($transient->no_update)) $transient->no_update = [];

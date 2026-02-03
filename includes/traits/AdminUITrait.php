@@ -4,8 +4,8 @@ trait Marrison_Admin_UI_Trait {
         if (strpos($hook, 'marrison-updater') === false) {
             return;
         }
-        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . '../../assets/css/admin-style.css', [], '8.2.3');
-        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . '../../assets/js/admin-script.js', ['jquery'], '8.2.3', true);
+        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . '../../assets/css/admin-style.css', [], '8.2.0');
+        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . '../../assets/js/admin-script.js', ['jquery'], '8.2.0', true);
         wp_localize_script('mcu-admin-script', 'marrisonUpdater', [
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('marrison_ajax_nonce')
