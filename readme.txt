@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.4
+Stable tag: 8.5
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -31,6 +31,12 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 8.5 =
+* Feature: Implementato aggiornamento forzato delle traduzioni (Core, Temi, Plugin) con pulizia profonda della cache e timeout esteso.
+* Feature: Aggiunta automazione per l'aggiornamento del database di Elementor dopo l'aggiornamento del plugin.
+* Feature: Integrato stato aggiornamento DB Elementor nel report email automatico.
+* Fix: Aggiunto delay di sicurezza (3 secondi) prima del trigger DB Elementor per stabilità filesystem.
 
 = 8.4 =
 * UI: Aggiornati i nomi delle frequenze di aggiornamento (Giornaliera, Settimanale, Mensile, Semestrale) per una migliore coerenza.

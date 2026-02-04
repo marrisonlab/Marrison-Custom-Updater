@@ -609,6 +609,22 @@ trait Marrison_Scheduling_Trait {
             $log_entry['message'] = 'Translations processed. Preparing email...';
             update_option('marrison_last_cron_log', $log_entry);
             
+            // Check Elementor Log if Elementor was updated
+            $elementor_db_info = null;
+            $elementor_was_updated = false;
+            foreach ($updated_plugins as $p) {
+                if (stripos($p['name'], 'elementor') !== false) {
+                    $elementor_was_updated = true;
+                    break;
+                }
+            }
+            if ($elementor_was_updated && is_plugin_active('elementor/elementor.php')) {
+                 $elementor_log = get_option('elementor_log');
+                 if (!empty($elementor_log)) {
+                     $elementor_db_info = $elementor_log;
+                 }
+            }
+
             $email = get_option('marrison_auto_update_email');
             if ($email) {
                 $has_updates = (!empty($updated_plugins) || !empty($updated_themes) || $updated_translations > 0);
@@ -839,6 +855,20 @@ trait Marrison_Scheduling_Trait {
                     $message_html .= '</ul>';
                 } else {
                     $message_html .= '<p style="font-size: 13px; color: #777;">Nessun plugin inattivo.</p>';
+                }
+                
+                if ($elementor_db_info) {
+                     $message_html .= '<h3 style="' . $style_section_title . '">Elementor DB Update Status</h3>';
+                     $message_html .= '<div style="background: #f0f0f1; padding: 10px; font-size: 12px; border-left: 4px solid #0073aa; margin-top: 10px;">';
+                     if (is_array($elementor_db_info)) {
+                         foreach ($elementor_db_info as $key => $value) {
+                             $val_str = is_string($value) ? $value : print_r($value, true);
+                             $message_html .= '<strong>' . esc_html($key) . ':</strong> ' . esc_html($val_str) . '<br>';
+                         }
+                     } else {
+                         $message_html .= esc_html(print_r($elementor_db_info, true));
+                     }
+                     $message_html .= '</div>';
                 }
                 
                 $message_html .= '<div style="' . $style_footer . '">';

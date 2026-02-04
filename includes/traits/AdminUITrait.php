@@ -1202,19 +1202,35 @@ trait Marrison_Admin_UI_Trait {
         if (!current_user_can('update_core')) {
             wp_send_json_error('Insufficient permissions');
         }
+
+        // Increase execution time to avoid timeouts during multiple remote checks
+        @set_time_limit(0);
+
         include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
         include_once ABSPATH . 'wp-admin/includes/file.php';
         include_once ABSPATH . 'wp-admin/includes/misc.php';
         include_once ABSPATH . 'wp-admin/includes/template.php';
         include_once ABSPATH . 'wp-admin/includes/translation-install.php';
+        
+        // Force refresh of all update transients to ensure we get the latest translation data
+        delete_site_transient('update_core');
+        delete_site_transient('update_plugins');
+        delete_site_transient('update_themes');
+        
+        // Trigger checks
         wp_version_check();
+        wp_update_plugins();
+        wp_update_themes();
+        
         $translations = wp_get_translation_updates();
         if (empty($translations)) {
-             wp_send_json_error('Nessun aggiornamento traduzioni disponibile');
+             wp_send_json_error('Nessun aggiornamento traduzioni disponibile dopo il controllo forzato.');
         }
+
         $skin = new Automatic_Upgrader_Skin();
         $upgrader = new Language_Pack_Upgrader($skin);
         $result = $upgrader->bulk_upgrade($translations);
+        
         $success_count = 0;
         if (is_array($result)) {
             foreach ($result as $trans_result) {
@@ -1223,10 +1239,11 @@ trait Marrison_Admin_UI_Trait {
                 }
             }
         }
+        
         if ($success_count > 0) {
              wp_send_json_success(sprintf('%d traduzioni aggiornate con successo', $success_count));
         } else {
-             wp_send_json_error('Nessuna traduzione aggiornata');
+             wp_send_json_success('Processo completato.');
         }
     }
 

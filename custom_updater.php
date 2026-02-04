@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.4
+ * Version: 8.5
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -37,6 +37,8 @@ class Marrison_Custom_Updater {
         add_action('delete_site_transient_update_plugins', [$this, 'delete_internal_cache']);
         add_action('delete_site_transient_update_themes', [$this, 'delete_internal_cache']);
         add_action('upgrader_process_complete', [$this, 'delete_internal_cache'], 10, 2);
+        // Hook per triggerare l'update del DB di Elementor
+        add_action('upgrader_process_complete', [$this, 'trigger_elementor_db_update'], 20, 2);
 
         add_action('admin_menu', [$this, 'add_admin_menu']);
         add_action('admin_post_marrison_update_plugin', [$this, 'update_plugin']);

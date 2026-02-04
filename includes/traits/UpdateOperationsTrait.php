@@ -481,4 +481,56 @@ trait Marrison_Update_Operations_Trait {
         wp_clean_themes_cache(true);
         return true;
     }
+
+    public function trigger_elementor_db_update($upgrader_object, $options) {
+        if (!isset($options['action']) || $options['action'] !== 'update') {
+            return;
+        }
+        if (!isset($options['type']) || $options['type'] !== 'plugin') {
+            return;
+        }
+        
+        $plugins = [];
+        if (isset($options['plugins']) && is_array($options['plugins'])) {
+            $plugins = $options['plugins'];
+        } elseif (isset($options['plugin'])) {
+            $plugins = [$options['plugin']];
+        }
+
+        if (empty($plugins)) {
+            return;
+        }
+
+        $elementor_updated = false;
+        foreach ($plugins as $plugin) {
+            // Elementor slug/file is typically 'elementor/elementor.php'
+            if (strpos($plugin, 'elementor/elementor.php') !== false) {
+                $elementor_updated = true;
+                break;
+            }
+        }
+
+        if ($elementor_updated) {
+            // Breve delay per assicurare che il filesystem sia stabile e la cache aggiornata
+            sleep(3);
+
+            if ( ! defined( 'ELEMENTOR_VERSION' ) ) {
+                return;
+            }
+            
+            // Assicurati che le classi necessarie siano caricate
+            if ( class_exists( '\Elementor\App\Modules\ImportExport\Utils' ) || class_exists( '\Elementor\Plugin' ) ) {
+                
+                // Forza l'aggiornamento del database di Elementor
+                if ( class_exists( '\Elementor\Api' ) ) {
+                    \Elementor\Api::get_remote_info();
+                }
+            
+                if (isset(\Elementor\Plugin::$instance->updater) && method_exists(\Elementor\Plugin::$instance->updater, 'update')) {
+                    \Elementor\Plugin::$instance->updater->update();
+                    error_log('[Marrison Updater] Elementor DB update triggered automatically.');
+                }
+            }
+        }
+    }
 }
