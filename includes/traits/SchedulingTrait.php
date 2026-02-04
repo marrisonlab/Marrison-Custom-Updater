@@ -7,11 +7,11 @@ trait Marrison_Scheduling_Trait {
         ];
         $schedules['monthly'] = [
             'interval' => 2592000, // 30 days
-            'display'  => __('Una volta al mese', 'marrison-custom-updater')
+            'display'  => __('Mensile', 'marrison-custom-updater')
         ];
         $schedules['biannual'] = [
             'interval' => 15552000, // 180 days (6 months)
-            'display'  => __('Ogni 6 mesi', 'marrison-custom-updater')
+            'display'  => __('Semestrale', 'marrison-custom-updater')
         ];
         return $schedules;
     }
@@ -40,8 +40,24 @@ trait Marrison_Scheduling_Trait {
                 $target_time = clone $now;
             } else {
                 $target_time->setDate($now->format('Y'), $now->format('m'), $now->format('d'));
+                
+                // Se l'orario specificato è già passato per oggi
                 if ($target_time <= $now) {
-                    $target_time->modify('+1 day');
+                    switch ($frequency) {
+                        case 'weekly':
+                            $target_time->modify('+1 week');
+                            break;
+                        case 'monthly':
+                            $target_time->modify('+1 month');
+                            break;
+                        case 'biannual':
+                            $target_time->modify('+6 months');
+                            break;
+                        case 'daily':
+                        default:
+                            $target_time->modify('+1 day');
+                            break;
+                    }
                 }
             }
 

@@ -279,10 +279,10 @@ trait Marrison_Admin_UI_Trait {
                                 <th scope="row"><label for="marrison_auto_update_frequency">Frequenza</label></th>
                                 <td>
                                     <select id="marrison_auto_update_frequency" name="marrison_auto_update_frequency">
-                                        <option value="daily" <?php selected('daily', get_option('marrison_auto_update_frequency')); ?>>Ogni giorno</option>
+                                        <option value="daily" <?php selected('daily', get_option('marrison_auto_update_frequency')); ?>>Giornaliera</option>
                                         <option value="weekly" <?php selected('weekly', get_option('marrison_auto_update_frequency')); ?>>Settimanale</option>
-                                        <option value="monthly" <?php selected('monthly', get_option('marrison_auto_update_frequency')); ?>>Una volta al mese</option>
-                                        <option value="biannual" <?php selected('biannual', get_option('marrison_auto_update_frequency')); ?>>Una volta ogni 6 mesi</option>
+                                        <option value="monthly" <?php selected('monthly', get_option('marrison_auto_update_frequency')); ?>>Mensile</option>
+                                        <option value="biannual" <?php selected('biannual', get_option('marrison_auto_update_frequency')); ?>>Semestrale</option>
                                     </select>
                                 </td>
                             </tr>
@@ -311,9 +311,18 @@ trait Marrison_Admin_UI_Trait {
                             $tz = new DateTimeZone('Europe/Rome');
                             $date = new DateTime('@' . $next_run);
                             $date->setTimezone($tz);
+                            
+                            $freq_slug = get_option('marrison_auto_update_frequency', 'daily');
+                            $freq_labels = [
+                                'daily' => 'Giornaliera',
+                                'weekly' => 'Settimanale',
+                                'monthly' => 'Mensile',
+                                'biannual' => 'Semestrale'
+                            ];
+                            $freq_label = isset($freq_labels[$freq_slug]) ? $freq_labels[$freq_slug] : $freq_slug;
                         ?>
                             <div class="mcu-notice mcu-notice-info" style="margin-top: 20px;">
-                                <span class="dashicons dashicons-clock"></span> Prossima esecuzione programmata: <strong><?php echo $date->format('d/m/Y H:i'); ?></strong>
+                                <span class="dashicons dashicons-clock"></span> Prossima esecuzione programmata: <strong><?php echo $date->format('d/m/Y H:i'); ?></strong> <small>(Frequenza: <?php echo esc_html($freq_label); ?>)</small>
                             </div>
                         <?php endif; ?>
                         <?php 

@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 8.3
+Stable tag: 8.4
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -31,6 +31,10 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 8.4 =
+* UI: Aggiornati i nomi delle frequenze di aggiornamento (Giornaliera, Settimanale, Mensile, Semestrale) per una migliore coerenza.
+* Fix: Migliorato il calcolo della prossima esecuzione programmata per rispettare correttamente la frequenza impostata (Giornaliera, Settimanale, Mensile, Semestrale).
 
 = 8.3 =
 * Fix: Risolto problema critico per cui l'aggiornamento automatico del plugin stesso (self-update) poteva causare la disattivazione del plugin. Implementata strategia di aggiornamento atomico con backup preventivo.
