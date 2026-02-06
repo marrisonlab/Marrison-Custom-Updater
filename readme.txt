@@ -3,7 +3,7 @@ Author: Angelo Marra
 Author URI:  https://marrisonlab.com
 Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
-Tested up to: 6.9
+Tested up to: 6.9.1
 Requires PHP: 7.4
 Stable tag: 8.5
 License: GPL-3.0+
