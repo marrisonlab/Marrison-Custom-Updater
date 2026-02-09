@@ -1,4 +1,5 @@
 <?php
+if (!trait_exists('Marrison_Admin_UI_Trait')) {
 trait Marrison_Admin_UI_Trait {
     public function enqueue_admin_scripts($hook) {
         if (strpos($hook, 'marrison-updater') === false) {

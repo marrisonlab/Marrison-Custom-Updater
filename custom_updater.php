@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.5
+ * Version: 8.5.1
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -13,6 +13,25 @@ require_once __DIR__ . '/includes/traits/SchedulingTrait.php';
 require_once __DIR__ . '/includes/traits/AdminUITrait.php';
 require_once __DIR__ . '/includes/traits/UpdateOperationsTrait.php';
 
+// Conflict Prevention: Check for Marrison Custom Installer
+$mcu_active_plugins = (array) get_option('active_plugins', []);
+$mcu_is_installer_active = in_array('marrison-custom-installer/marrison-custom-installer.php', $mcu_active_plugins);
+
+if (is_multisite()) {
+    $mcu_network_active = get_site_option('active_sitewide_plugins');
+    if (isset($mcu_network_active['marrison-custom-installer/marrison-custom-installer.php'])) {
+        $mcu_is_installer_active = true;
+    }
+}
+
+if ($mcu_is_installer_active || class_exists('Marrison_Custom_Installer')) {
+    add_action('admin_notices', function() {
+        echo '<div class="error"><p><strong>Marrison Custom Updater</strong> cannot be activated while <strong>Marrison Custom Installer</strong> is active. Please deactivate one of them.</p></div>';
+    });
+    return;
+}
+
+if (!class_exists('Marrison_Custom_Updater')) {
 class Marrison_Custom_Updater {
 
     private $updates_url = '';
@@ -1121,6 +1140,7 @@ class Marrison_Custom_Updater {
             $plugin_file_before = $this->find_plugin_file($slug, $name);
         }
         $was_active = $plugin_file_before && is_plugin_active($plugin_file_before);
+        $was_network_active = $plugin_file_before && is_multisite() && is_plugin_active_for_network($plugin_file_before);
 
         $result = false;
         
@@ -1135,14 +1155,25 @@ class Marrison_Custom_Updater {
         }
 
         if ($result) {
+            // Force cache clear immediately to ensure file system is in sync
+            wp_clean_plugins_cache(true);
+
             $plugin_file_after = $plugin_file_before;
             if (!$plugin_file_after || !file_exists(WP_PLUGIN_DIR . '/' . $plugin_file_after)) {
                 $plugin_file_after = $this->find_plugin_file($slug, $name);
             }
 
             if ($was_active && $plugin_file_after) {
-                if (!is_plugin_active($plugin_file_after)) {
-                    activate_plugin($plugin_file_after, '', false, false);
+                // Force reactivation
+                $activate = activate_plugin($plugin_file_after, '', $was_network_active, false);
+                if (is_wp_error($activate)) {
+                    error_log('Marrison Updater: Failed to reactivate plugin ' . $slug . ': ' . $activate->get_error_message());
+                } else {
+                     // Double check if it is really active
+                    if ( ! is_plugin_active( $plugin_file_after ) ) {
+                         // Try one more time
+                         activate_plugin($plugin_file_after, '', $was_network_active, false);
+                    }
                 }
             }
 
@@ -1286,6 +1317,8 @@ class Marrison_Custom_Updater {
             wp_send_json_error('Nessun plugin selezionato');
         }
 
+        include_once ABSPATH . 'wp-admin/includes/plugin.php';
+
         $results = [];
         $success_count = 0;
         
@@ -1305,6 +1338,7 @@ class Marrison_Custom_Updater {
 
             $plugin_file_before = $this->find_plugin_file($slug, $name);
             $was_active = $plugin_file_before && is_plugin_active($plugin_file_before);
+            $was_network_active = $plugin_file_before && is_multisite() && is_plugin_active_for_network($plugin_file_before);
             
             // Controlla se è il plugin stesso (Marrison Custom Updater)
             if ($slug === 'marrison-custom-updater') {
@@ -1321,10 +1355,21 @@ class Marrison_Custom_Updater {
             if ($result) {
                 $success_count++;
                 
+                // Force cache clear
+                wp_clean_plugins_cache(true);
+
                 if ($was_active) {
                     $plugin_file_after = $this->find_plugin_file($slug, $name);
-                    if ($plugin_file_after && !is_plugin_active($plugin_file_after)) {
-                        activate_plugin($plugin_file_after, '', false, false);
+                    if ($plugin_file_after) {
+                        $activate = activate_plugin($plugin_file_after, '', $was_network_active, false);
+                        if (is_wp_error($activate)) {
+                            error_log('Marrison Updater Bulk: Failed to reactivate plugin ' . $slug . ': ' . $activate->get_error_message());
+                        } else {
+                             // Double check
+                            if ( ! is_plugin_active( $plugin_file_after ) ) {
+                                 activate_plugin($plugin_file_after, '', $was_network_active, false);
+                            }
+                        }
                     }
                 }
             }

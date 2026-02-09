@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 8.5
+Stable tag: 8.5.1
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -31,6 +31,10 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 8.5.1 =
+* Fix: Risolto problema critico di riattivazione plugin post-aggiornamento (introdotto doppio controllo di stato e pulizia cache aggressiva).
+* Fix: Risolto conflitto fatale (Fatal Error) prevenendo l'attivazione simultanea di Marrison Custom Installer.
 
 = 8.5 =
 * Feature: Implementato aggiornamento forzato delle traduzioni (Core, Temi, Plugin) con pulizia profonda della cache e timeout esteso.

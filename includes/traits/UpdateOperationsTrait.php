@@ -1,4 +1,5 @@
 <?php
+if (!trait_exists('Marrison_Update_Operations_Trait')) {
 trait Marrison_Update_Operations_Trait {
     private function get_available_updates() {
         $custom_repo_url = get_option('marrison_repo_url');
