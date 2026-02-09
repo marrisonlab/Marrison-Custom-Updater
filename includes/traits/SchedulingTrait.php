@@ -1,5 +1,5 @@
 <?php
-trait Marrison_Scheduling_Trait {
+trait MCU_Scheduling_Trait {
     public function add_custom_cron_intervals($schedules) {
         $schedules['weekly'] = [
             'interval' => 604800, // 7 days

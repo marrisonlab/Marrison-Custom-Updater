@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.5
+ * Version: 8.6
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -13,14 +13,15 @@ require_once __DIR__ . '/includes/traits/SchedulingTrait.php';
 require_once __DIR__ . '/includes/traits/AdminUITrait.php';
 require_once __DIR__ . '/includes/traits/UpdateOperationsTrait.php';
 
-class Marrison_Custom_Updater {
+if (!class_exists('MCU_Custom_Updater')) {
+class MCU_Custom_Updater {
 
     private $updates_url = '';
     private $cache_duration;
 
-    use Marrison_Scheduling_Trait;
-    use Marrison_Admin_UI_Trait;
-    use Marrison_Update_Operations_Trait;
+    use MCU_Scheduling_Trait;
+    use MCU_Admin_UI_Trait;
+    use MCU_Update_Operations_Trait;
 
     public function __construct() {
         $this->cache_duration = defined('HOUR_IN_SECONDS') ? 6 * constant('HOUR_IN_SECONDS') : 21600;
@@ -1121,6 +1122,7 @@ class Marrison_Custom_Updater {
             $plugin_file_before = $this->find_plugin_file($slug, $name);
         }
         $was_active = $plugin_file_before && is_plugin_active($plugin_file_before);
+        $was_network_active = $plugin_file_before && is_multisite() && is_plugin_active_for_network($plugin_file_before);
 
         $result = false;
         
@@ -1140,9 +1142,20 @@ class Marrison_Custom_Updater {
                 $plugin_file_after = $this->find_plugin_file($slug, $name);
             }
 
+            // Force cache clear
+            wp_clean_plugins_cache(true);
+
             if ($was_active && $plugin_file_after) {
-                if (!is_plugin_active($plugin_file_after)) {
-                    activate_plugin($plugin_file_after, '', false, false);
+                // Force reactivation
+                $activate = activate_plugin($plugin_file_after, '', $was_network_active, false);
+                if (is_wp_error($activate)) {
+                    error_log('Marrison Updater: Failed to reactivate plugin ' . $slug . ': ' . $activate->get_error_message());
+                } else {
+                     // Double check if it is really active
+                    if ( ! is_plugin_active( $plugin_file_after ) ) {
+                         // Try one more time
+                         activate_plugin($plugin_file_after, '', $was_network_active, false);
+                    }
                 }
             }
 
@@ -1305,6 +1318,7 @@ class Marrison_Custom_Updater {
 
             $plugin_file_before = $this->find_plugin_file($slug, $name);
             $was_active = $plugin_file_before && is_plugin_active($plugin_file_before);
+            $was_network_active = $plugin_file_before && is_multisite() && is_plugin_active_for_network($plugin_file_before);
             
             // Controlla se è il plugin stesso (Marrison Custom Updater)
             if ($slug === 'marrison-custom-updater') {
@@ -1321,10 +1335,21 @@ class Marrison_Custom_Updater {
             if ($result) {
                 $success_count++;
                 
+                // Force cache clear
+                wp_clean_plugins_cache(true);
+
                 if ($was_active) {
                     $plugin_file_after = $this->find_plugin_file($slug, $name);
-                    if ($plugin_file_after && !is_plugin_active($plugin_file_after)) {
-                        activate_plugin($plugin_file_after, '', false, false);
+                    if ($plugin_file_after) {
+                        $activate = activate_plugin($plugin_file_after, '', $was_network_active, false);
+                        if (is_wp_error($activate)) {
+                            error_log('Marrison Updater Bulk: Failed to reactivate plugin ' . $slug . ': ' . $activate->get_error_message());
+                        } else {
+                             // Double check
+                            if ( ! is_plugin_active( $plugin_file_after ) ) {
+                                 activate_plugin($plugin_file_after, '', $was_network_active, false);
+                            }
+                        }
                     }
                 }
             }
@@ -1372,8 +1397,11 @@ class Marrison_Custom_Updater {
 
     
 }
+}
 
-new Marrison_Custom_Updater;
+if (class_exists('MCU_Custom_Updater')) {
+    new MCU_Custom_Updater;
+}
 
 /**
  * Fix definitivo GitHub updater:
