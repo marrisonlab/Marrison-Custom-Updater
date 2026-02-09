@@ -47,12 +47,46 @@ jQuery(document).ready(function($) {
             setTimeout(() => {
                 $notice.slideUp(() => $notice.remove());
             }, 5000);
-
-            $(document).on('click', '.notice-dismiss', function() {
-                $(this).closest('.mcu-notice').slideUp(() => $(this).closest('.mcu-notice').remove());
-            });
         }
     };
+
+    $(document).on('click', '.notice-dismiss', function() {
+        $(this).closest('.mcu-notice').slideUp(() => $(this).closest('.mcu-notice').remove());
+    });
+
+    // Monitoring Sync
+    $('#mcu_sync_monitoring').on('click', function(e) {
+        e.preventDefault();
+        var $btn = $(this);
+        var $result = $('#mcu_sync_result');
+        
+        $btn.prop('disabled', true).text('Sincronizzazione...');
+        $result.text('').removeClass('mcu-text-success mcu-text-error');
+        
+        $.ajax({
+            url: marrisonUpdater.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'marrison_sync_monitoring',
+                nonce: marrisonUpdater.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    $result.text('Sincronizzato!').css('color', 'green');
+                    MCU.toast('Stato inviato al master con successo.', 'success');
+                } else {
+                    $result.text('Errore').css('color', 'red');
+                    MCU.toast('Errore: ' + (response.data || 'Errore sconosciuto'), 'error');
+                }
+            },
+            error: function() {
+                $result.text('Errore di connessione').css('color', 'red');
+            },
+            complete: function() {
+                $btn.prop('disabled', false).text('Sincronizza Ora');
+            }
+        });
+    });
 
     // --- Single Update Handler ---
     $('.mcu-action-update').on('click', function(e) {

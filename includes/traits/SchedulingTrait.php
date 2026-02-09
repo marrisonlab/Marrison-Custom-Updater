@@ -619,9 +619,14 @@ trait MCU_Scheduling_Trait {
                 }
             }
             if ($elementor_was_updated && is_plugin_active('elementor/elementor.php')) {
-                 $elementor_log = get_option('elementor_log');
-                 if (!empty($elementor_log)) {
-                     $elementor_db_info = $elementor_log;
+                 if (class_exists('\Elementor\Plugin') && isset(\Elementor\Plugin::$instance->db)) {
+                      if (method_exists(\Elementor\Plugin::$instance->db, 'is_upgrade_required') && \Elementor\Plugin::$instance->db->is_upgrade_required()) {
+                           $elementor_db_info = 'Richiesto (Processo in background avviato)';
+                      } else {
+                           $elementor_db_info = 'Non richiesto (Database già aggiornato)';
+                      }
+                 } else {
+                      $elementor_db_info = 'Impossibile verificare (Elementor non caricato)';
                  }
             }
 
@@ -858,16 +863,9 @@ trait MCU_Scheduling_Trait {
                 }
                 
                 if ($elementor_db_info) {
-                     $message_html .= '<h3 style="' . $style_section_title . '">Elementor DB Update Status</h3>';
-                     $message_html .= '<div style="background: #f0f0f1; padding: 10px; font-size: 12px; border-left: 4px solid #0073aa; margin-top: 10px;">';
-                     if (is_array($elementor_db_info)) {
-                         foreach ($elementor_db_info as $key => $value) {
-                             $val_str = is_string($value) ? $value : print_r($value, true);
-                             $message_html .= '<strong>' . esc_html($key) . ':</strong> ' . esc_html($val_str) . '<br>';
-                         }
-                     } else {
-                         $message_html .= esc_html(print_r($elementor_db_info, true));
-                     }
+                     $message_html .= '<h3 style="' . $style_section_title . '">Elementor Data</h3>';
+                     $message_html .= '<div style="background: #f0f0f1; padding: 10px; font-size: 13px; border-left: 4px solid #0073aa; margin-top: 10px;">';
+                     $message_html .= '<strong>Stato Aggiornamento DB:</strong> ' . esc_html(is_string($elementor_db_info) ? $elementor_db_info : print_r($elementor_db_info, true));
                      $message_html .= '</div>';
                 }
                 
@@ -903,6 +901,12 @@ trait MCU_Scheduling_Trait {
                 $log_entry['status'] = 'completed';
                 $log_entry['message'] = 'Nessuna email configurata.';
                 update_option('marrison_last_cron_log', $log_entry);
+            }
+
+            // --- Monitoring Sync ---
+            // Invia report se il monitoring è abilitato (requisito: solo manuale o programmato)
+            if (method_exists($this, 'send_monitoring_report')) {
+                $this->send_monitoring_report();
             }
 
         } catch (Throwable $e) {

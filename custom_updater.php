@@ -3,7 +3,7 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 8.6
+ * Version: 8.7
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
@@ -27,6 +27,21 @@ class MCU_Custom_Updater {
         $this->cache_duration = defined('HOUR_IN_SECONDS') ? 6 * constant('HOUR_IN_SECONDS') : 21600;
 
         add_action('plugins_loaded', [$this, 'load_textdomain']);
+        
+        // REST API
+        add_action('rest_api_init', function() {
+            register_rest_route('mcu/v1', '/trigger-sync', [
+                'methods' => 'GET',
+                'callback' => [$this, 'trigger_sync_rest'],
+                'permission_callback' => '__return_true', // Public endpoint but logic requires enabled monitoring
+            ]);
+
+            register_rest_route('mcu/v1', '/trigger-update-all', [
+                'methods' => 'POST',
+                'callback' => [$this, 'trigger_update_all_rest'],
+                'permission_callback' => '__return_true', // Secured by monitoring_enabled check
+            ]);
+        });
 
         // Usa site_transient_update_plugins invece di pre_set_site_transient_update_plugins
         // per iniettare gli aggiornamenti in tempo reale quando WP controlla la cache
@@ -40,14 +55,23 @@ class MCU_Custom_Updater {
         add_action('upgrader_process_complete', [$this, 'delete_internal_cache'], 10, 2);
         // Hook per triggerare l'update del DB di Elementor
         add_action('upgrader_process_complete', [$this, 'trigger_elementor_db_update'], 20, 2);
+        
+        // Hook per tracciare l'ultimo aggiornamento plugin (manuale o automatico)
+        add_action('upgrader_process_complete', [$this, 'update_last_plugin_update_timestamp'], 10, 0);
+        
+        // Monitoring: Rimosso hook globale per soddisfare richiesta "SOLO manuale o programmato"
+        // add_action('upgrader_process_complete', [$this, 'send_monitoring_report'], 30, 2);
 
         add_action('admin_menu', [$this, 'add_admin_menu']);
         add_action('admin_post_marrison_update_plugin', [$this, 'update_plugin']);
         add_action('admin_post_marrison_restore_plugin', [$this, 'restore_plugin']);
         add_action('admin_post_marrison_bulk_update', [$this, 'bulk_update']);
         add_action('admin_post_marrison_clear_cache', [$this, 'clear_cache']);
-        add_action('admin_post_marrison_save_repo_url', [$this, 'save_repo_url']);
+        add_action('admin_post_mcu_save_repo_url', [$this, 'save_repo_url']);
         add_action('admin_post_marrison_force_check_mcu', [$this, 'force_check_mcu']);
+        
+        // Monitoring AJAX
+        add_action('wp_ajax_marrison_sync_monitoring', [$this, 'ajax_sync_monitoring']);
         add_action('admin_post_marrison_download_repo_file', [$this, 'download_repo_file']);
         add_action('admin_post_marrison_save_scheduling', [$this, 'save_scheduling_settings']);
         
@@ -80,6 +104,7 @@ class MCU_Custom_Updater {
         add_action('admin_menu', [$this, 'add_menu_notification_badge'], 999);
         add_action('admin_head', [$this, 'add_menu_badge_styles']);
         add_action('admin_init', [$this, 'check_for_available_updates']);
+        add_action('admin_init', [$this, 'flush_rules_on_upgrade']);
         
         // Filtro per abilitare auto-update per questo plugin
         // add_filter('auto_update_plugin', [$this, 'auto_update_specific_plugins'], 10, 2);
@@ -425,6 +450,14 @@ class MCU_Custom_Updater {
         }
         
         update_option('marrison_available_updates_count', $update_count);
+    }
+
+    public function flush_rules_on_upgrade() {
+        // Run only once for version 8.7
+        if (get_option('marrison_custom_updater_version') !== '8.7') {
+            flush_rewrite_rules();
+            update_option('marrison_custom_updater_version', '8.7');
+        }
     }
 
     
@@ -1036,8 +1069,238 @@ class MCU_Custom_Updater {
         exit;
     }
 
+    public function ajax_sync_monitoring() {
+        check_ajax_referer('marrison_ajax_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permessi insufficienti');
+        }
+
+        $result = $this->send_monitoring_report();
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error($result->get_error_message());
+        } elseif (isset($result['response']['code']) && $result['response']['code'] !== 200) {
+            wp_send_json_error('Errore remoto: ' . $result['response']['code']);
+        } else {
+            wp_send_json_success('Report inviato con successo');
+        }
+    }
+
+    public function update_last_plugin_update_timestamp() {
+        update_option('marrison_last_plugins_update_time', current_time('mysql'));
+    }
+
+    public function send_monitoring_report() {
+        // Controllo se il monitoring è abilitato (salvo override manuale se necessario, ma qui seguiamo la config)
+        if (get_option('mcu_monitoring_enabled', 'no') !== 'yes') {
+            return new WP_Error('disabled', 'Monitoring disabilitato');
+        }
+
+        $monitoring_url = get_option('mcu_monitoring_url');
+        if (empty($monitoring_url)) {
+            return new WP_Error('no_url', 'URL di monitoraggio non configurato');
+        }
+
+        if (!function_exists('get_plugin_data')) {
+            require_once(ABSPATH . 'wp-admin/includes/plugin.php');
+        }
+        $plugin_data = get_plugin_data(__FILE__);
+        $version = $plugin_data['Version'] ?? '8.6';
+
+        // Calcolo statistiche plugin
+        if (!function_exists('get_plugins')) {
+            require_once(ABSPATH . 'wp-admin/includes/plugin.php');
+        }
+        $all_plugins = get_plugins();
+        $total_plugins = count($all_plugins);
+        
+        $update_plugins = get_site_transient('update_plugins');
+        $updates_count = 0;
+        if (!empty($update_plugins) && isset($update_plugins->response)) {
+            $updates_count = count($update_plugins->response);
+        }
+        
+        $updated_plugins_count = max(0, $total_plugins - $updates_count);
+
+        // Prepare detailed plugins data
+        $plugins_detail = [];
+        foreach ($all_plugins as $file_path => $plugin_info) {
+            $has_update = isset($update_plugins->response[$file_path]);
+            $new_version = '';
+            
+            if ($has_update) {
+                $update_info = $update_plugins->response[$file_path];
+                // $update_info can be object or array
+                if (is_object($update_info)) {
+                    $new_version = $update_info->new_version ?? '';
+                } elseif (is_array($update_info)) {
+                    $new_version = $update_info['new_version'] ?? '';
+                }
+            }
+            
+            $plugins_detail[] = [
+                'name' => $plugin_info['Name'],
+                'version' => $plugin_info['Version'],
+                'update_available' => $has_update,
+                'new_version' => $new_version
+            ];
+        }
+
+        $last_log = get_option('marrison_last_cron_log', []);
+        $last_run_cron = $last_log['time'] ?? 'Mai';
+        
+        // Recupera l'ultimo timestamp di aggiornamento plugin (manuale o automatico)
+        $last_plugins_update = get_option('marrison_last_plugins_update_time', 'Mai');
+
+        $data = [
+            'site_url' => get_site_url(),
+            'site_name' => get_bloginfo('name'),
+            'version' => $version,
+            'mcu_active' => true,
+            'scheduling_active' => get_option('marrison_auto_update_enabled') === 'yes',
+            'frequency' => get_option('marrison_auto_update_frequency', 'daily'),
+            'last_run' => $last_run_cron,
+            'plugins_total' => $total_plugins,
+            'plugins_updated' => $updated_plugins_count,
+            'last_plugins_update_time' => $last_plugins_update,
+            'plugins_data' => $plugins_detail
+        ];
+
+        $endpoint = trailingslashit($monitoring_url) . 'wp-json/mmu/v1/report';
+
+        $response = wp_remote_post($endpoint, [
+            'body' => json_encode($data),
+            'headers' => [
+                'Content-Type' => 'application/json'
+            ],
+            'timeout' => 15,
+            'sslverify' => false 
+        ]);
+
+        return $response;
+    }
+
+    public function trigger_sync_rest() {
+        $result = $this->send_monitoring_report();
+        if (is_wp_error($result)) {
+            return new WP_Error('sync_failed', $result->get_error_message(), ['status' => 500]);
+        }
+        return rest_ensure_response(['success' => true, 'message' => 'Sync triggered']);
+    }
+
+    public function trigger_update_all_rest($request) {
+        // 1. Check if monitoring is enabled
+        if (get_option('mcu_monitoring_enabled', 'no') !== 'yes') {
+             return new WP_Error('disabled', 'Remote updates disabled', ['status' => 403]);
+        }
+
+        // 2. Load required files
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+        require_once ABSPATH . 'wp-admin/includes/class-plugin-upgrader.php';
+        
+        // 3. Force Check Updates
+        try {
+            wp_clean_plugins_cache(true);
+            wp_update_plugins();
+            
+            $transient = get_site_transient('update_plugins');
+            $updated = [];
+            $failed = [];
+            
+            if (!empty($transient->response)) {
+                // Need to set up filesystem credentials if not direct
+                $url = 'site_url'; // Dummy context
+                if (false === ($creds = request_filesystem_credentials($url, '', false, false, null))) {
+                     return new WP_Error('fs_creds', 'Filesystem credentials required', ['status' => 500]);
+                }
+    
+                if (!WP_Filesystem($creds)) {
+                     return new WP_Error('fs_init', 'Filesystem initialization failed', ['status' => 500]);
+                }
+    
+                $skin = new Automatic_Upgrader_Skin();
+                $upgrader = new Plugin_Upgrader($skin);
+                
+                foreach ($transient->response as $file => $data) {
+                     // Check if active to reactivate later
+                     $was_active = is_plugin_active($file);
+                     
+                     $result = $upgrader->upgrade($file);
+                     
+                     if (is_wp_error($result) || !$result) {
+                         $failed[] = $file;
+                     } else {
+                         $updated[] = $file;
+                         if ($was_active && !is_plugin_active($file)) {
+                             activate_plugin($file, '', false, false);
+                         }
+                     }
+                }
+            }
+            
+            // 4. Send Report back immediately to update Master UI
+            $this->send_monitoring_report();
+            
+            return rest_ensure_response([
+                'success' => true, 
+                'updated_count' => count($updated), 
+                'failed_count' => count($failed),
+                'updated_plugins' => $updated
+            ]);
+        } catch (Throwable $e) {
+            return new WP_Error('fatal_error', $e->getMessage(), ['status' => 500]);
+        }
+    }
+
+    public function download_repo_file() {
+        if (!current_user_can('manage_options')) {
+            wp_die('Permessi insufficienti');
+        }
+
+        $type = $_POST['file_type'] ?? 'plugin';
+        
+        if ($type === 'plugin') {
+            $content = '<?php
+// Silent is golden.
+// Directory listing prevention
+header("HTTP/1.0 403 Forbidden");
+?>';
+            // In realta qui servirebbe lo script index.php che fa il listing
+            // Ma per ora mettiamo un placeholder o il contenuto reale se lo abbiamo
+            // Il codice originale probabilmente intendeva scaricare un file index.php "modello"
+            
+            // Creiamo un index.php semplice che fa il listing dei file zip
+            $content = '<?php
+$files = glob("*.zip");
+$data = [];
+foreach ($files as $file) {
+    $slug = basename($file, ".zip");
+    // Cerca info basilari
+    $data[$slug] = [
+        "name" => $slug,
+        "version" => "1.0.0", // Fallback
+        "download_url" => (isset($_SERVER["HTTPS"]) ? "https://" : "http://") . $_SERVER["HTTP_HOST"] . $_SERVER["REQUEST_URI"] . $file
+    ];
+}
+header("Content-Type: application/json");
+echo json_encode($data);
+';
+            $filename = 'index.php';
+        } else {
+            wp_die('Tipo file non supportato');
+        }
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        echo $content;
+        exit;
+    }
+
     public function save_repo_url() {
-        check_admin_referer('marrison_save_repo_url');
+        check_admin_referer('mcu_save_repo_url');
 
         if (isset($_POST['marrison_remove_repo_url'])) {
             delete_option('marrison_repo_url');
@@ -1072,7 +1335,25 @@ class MCU_Custom_Updater {
                 }
             }
 
-            $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=saved');
+            // Salvataggio Monitoring URL
+            if (isset($_POST['mcu_monitoring_url'])) {
+                $mon_enabled = isset($_POST['mcu_monitoring_enabled']) ? 'yes' : 'no';
+                update_option('mcu_monitoring_enabled', $mon_enabled);
+
+                $mon_url_input = $_POST['mcu_monitoring_url'];
+                if ($mon_url_input !== '********************') {
+                    $mon_url = esc_url_raw($mon_url_input);
+                    update_option('mcu_monitoring_url', $mon_url);
+                }
+                
+                if ($mon_enabled === 'yes') {
+                    $this->send_monitoring_report();
+                }
+                
+                $redirect_tab = '&tab=monitoring';
+            }
+
+            $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=saved' . ($redirect_tab ?? ''));
         }
 
         // Pulisce la cache dopo aver modificato l'URL
@@ -1396,6 +1677,8 @@ class MCU_Custom_Updater {
     
 
     
+
+
 }
 }
 
