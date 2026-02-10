@@ -3,7 +3,11 @@
  * Plugin Name: Marrison Custom Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
+<<<<<<< Updated upstream
  * Version: 8.6
+=======
+ * Version: 9.0
+>>>>>>> Stashed changes
  * Author: Angelo Marra
  * Author URI:  https://marrisonlab.com
  */
