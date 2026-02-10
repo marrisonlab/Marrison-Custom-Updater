@@ -250,6 +250,7 @@ trait MCU_Update_Operations_Trait {
             
             delete_site_transient('update_plugins');
             wp_clean_plugins_cache(true);
+            update_option('marrison_last_plugins_update_time', current_time('mysql'));
             return true;
         }
         return new WP_Error('update_not_found', __('Aggiornamento non trovato.', 'marrison-custom-updater'));
@@ -483,6 +484,11 @@ trait MCU_Update_Operations_Trait {
     }
 
     public function trigger_elementor_db_update($upgrader_object, $options) {
+        // Send monitoring report on update
+        if (method_exists($this, 'send_monitoring_report')) {
+            $this->send_monitoring_report();
+        }
+
         if (!isset($options['action']) || $options['action'] !== 'update') {
             return;
         }
@@ -522,10 +528,8 @@ trait MCU_Update_Operations_Trait {
             if ( class_exists( '\Elementor\App\Modules\ImportExport\Utils' ) || class_exists( '\Elementor\Plugin' ) ) {
                 
                 // Forza l'aggiornamento del database di Elementor
-                if ( class_exists( '\Elementor\Api' ) ) {
-                    \Elementor\Api::get_remote_info();
-                }
-            
+                // Rimosso il metodo get_remote_info() che non esiste nelle versioni recenti o è privato
+                
                 if (isset(\Elementor\Plugin::$instance->updater) && method_exists(\Elementor\Plugin::$instance->updater, 'update')) {
                     \Elementor\Plugin::$instance->updater->update();
                     error_log('[Marrison Updater] Elementor DB update triggered automatically.');

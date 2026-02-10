@@ -4,8 +4,8 @@ trait MCU_Admin_UI_Trait {
         if (strpos($hook, 'marrison-updater') === false) {
             return;
         }
-        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . '../../assets/css/admin-style.css', [], '8.6');
-        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . '../../assets/js/admin-script.js', ['jquery'], '8.6', true);
+        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . '../../assets/css/admin-style.css', [], '8.6.1');
+        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . '../../assets/js/admin-script.js', ['jquery'], '8.6.1', true);
         wp_localize_script('mcu-admin-script', 'marrisonUpdater', [
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('marrison_ajax_nonce')
@@ -59,6 +59,7 @@ trait MCU_Admin_UI_Trait {
             <h2 class="nav-tab-wrapper" style="margin-bottom: 20px;">
                 <a href="?page=marrison-updater-settings&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">Generale</a>
                 <a href="?page=marrison-updater-settings&tab=scheduling" class="nav-tab <?php echo $active_tab == 'scheduling' ? 'nav-tab-active' : ''; ?>">Programmazione</a>
+                <a href="?page=marrison-updater-settings&tab=monitoring" class="nav-tab <?php echo $active_tab == 'monitoring' ? 'nav-tab-active' : ''; ?>">Monitoring</a>
                 <a href="?page=marrison-updater-settings&tab=howto" class="nav-tab <?php echo $active_tab == 'howto' ? 'nav-tab-active' : ''; ?>">Guida & Download</a>
             </h2>
             <?php if ($settingsUpdated === 'saved'): ?>
@@ -78,8 +79,8 @@ trait MCU_Admin_UI_Trait {
                         <h2 class="mcu-card-title"><span class="dashicons dashicons-database"></span> Impostazioni Repository</h2>
                     </div>
                     <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
-                        <?php wp_nonce_field('marrison_save_repo_url'); ?>
-                        <input type="hidden" name="action" value="marrison_save_repo_url">
+                        <?php wp_nonce_field('mcu_save_repo_url'); ?>
+                        <input type="hidden" name="action" value="mcu_save_repo_url">
                         <table class="form-table">
                             <tr>
                                 <th scope="row"><label for="marrison_repo_url">Indirizzo Repository Plugin</label></th>
@@ -271,8 +272,11 @@ trait MCU_Admin_UI_Trait {
                             <tr>
                                 <th scope="row"><label for="marrison_auto_update_enabled">Abilita Aggiornamenti Automatici</label></th>
                                 <td>
-                                    <input type="checkbox" id="marrison_auto_update_enabled" name="marrison_auto_update_enabled" value="yes" <?php checked('yes', get_option('marrison_auto_update_enabled')); ?>>
-                                    <label for="marrison_auto_update_enabled">Attiva aggiornamento automatico periodico</label>
+                                    <label class="mcu-switch">
+                                        <input type="checkbox" id="marrison_auto_update_enabled" name="marrison_auto_update_enabled" value="yes" <?php checked('yes', get_option('marrison_auto_update_enabled')); ?>>
+                                        <span class="mcu-slider"></span>
+                                    </label>
+                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;">Attiva aggiornamento automatico periodico</p>
                                 </td>
                             </tr>
                             <tr>
@@ -343,6 +347,46 @@ trait MCU_Admin_UI_Trait {
                             <button class="mcu-button mcu-button-primary" type="submit">Salva Programmazione</button>
                         </div>
                     </form>
+                </div>
+            <?php elseif ($active_tab == 'monitoring'): ?>
+                <div class="mcu-card">
+                    <div class="mcu-card-header">
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-chart-area"></span> Monitoring</h2>
+                    </div>
+                    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                        <?php wp_nonce_field('mcu_save_repo_url'); ?>
+                        <input type="hidden" name="action" value="mcu_save_repo_url">
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row"><label for="mcu_monitoring_enabled">Abilita Monitoring</label></th>
+                                <td>
+                                    <label class="mcu-switch">
+                                        <input type="checkbox" id="mcu_monitoring_enabled" name="mcu_monitoring_enabled" value="yes" <?php checked(get_option('mcu_monitoring_enabled', 'no'), 'yes'); ?>>
+                                        <span class="mcu-slider"></span>
+                                    </label>
+                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;">Abilita il sistema di monitoraggio remoto.</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="mcu_monitoring_url">URL Master Updater</label></th>
+                                <td>
+                                    <input type="password" id="mcu_monitoring_url" name="mcu_monitoring_url" value="<?php echo get_option('mcu_monitoring_url') ? '********************' : ''; ?>" class="regular-text" style="width: 100%; max-width: 500px;" placeholder="https://master-site.com">
+                                    <p class="description">Inserisci l'URL del sito dove è installato Marrison Master Updater.</p>
+                                </td>
+                            </tr>
+                        </table>
+                        <div style="margin-top: 20px; display: flex; gap: 10px; align-items: center;">
+                            <button class="mcu-button mcu-button-primary" type="submit">Salva Impostazioni</button>
+                            <button type="button" id="mcu_sync_monitoring" class="button button-secondary">Sincronizza Ora</button>
+                            <span id="mcu_sync_result" style="font-weight: bold; margin-left: 10px;"></span>
+                        </div>
+                    </form>
+                    
+                    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+                    
+                    <h3>Download Master Plugin</h3>
+                    <p>Scarica il plugin Marrison Master Updater da installare sul sito di monitoraggio.</p>
+                    <a href="https://marrisonlab.com/wp-repo/marrison-master-updater.zip" class="button button-secondary" target="_blank">Scarica Marrison Master Updater</a>
                 </div>
             <?php elseif ($active_tab == 'howto'): ?>
                 <div class="mcu-card">

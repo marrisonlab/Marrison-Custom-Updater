@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.0
+Stable tag: 8.6
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -31,12 +31,6 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
-
-= 9.0 =
-* Feature: Aggiunto endpoint REST API `trigger-update-all` per permettere aggiornamenti remoti di massa dal Master Updater.
-* Feature: Integrata creazione automatica di backup prima degli aggiornamenti remoti per maggiore sicurezza.
-* Email: Semplificato il report email per gli aggiornamenti del database di Elementor per una migliore leggibilità.
-* Core: Migliorata la gestione delle risposte nelle chiamate API remote.
 
 = 8.6 =
 * Fix: Rimosso controllo conflitto con Marrison Custom Installer e reso plugin indipendente.
