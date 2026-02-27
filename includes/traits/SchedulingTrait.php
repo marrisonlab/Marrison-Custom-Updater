@@ -903,11 +903,7 @@ trait MCU_Scheduling_Trait {
                 update_option('marrison_last_cron_log', $log_entry);
             }
 
-            // --- Monitoring Sync ---
-            // Invia report se il monitoring è abilitato (requisito: solo manuale o programmato)
-            if (method_exists($this, 'send_monitoring_report')) {
-                $this->send_monitoring_report();
-            }
+
 
         } catch (Throwable $e) {
             $log_entry['status'] = 'error';

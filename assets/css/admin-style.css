@@ -1,6 +1,6 @@
 :root {
-    --mcu-primary: #2271b1;
-    --mcu-primary-hover: #135e96;
+    --mcu-primary: #874abd;
+    --mcu-primary-hover: #fd5ec0;
     --mcu-secondary: #646970;
     --mcu-success: #00a32a;
     --mcu-warning: #dba617;
@@ -196,13 +196,15 @@
 }
 
 .mcu-button-secondary {
-    background: white;
-    border: 1px solid var(--mcu-primary);
-    color: var(--mcu-primary);
+    background: #874abd;
+    border: 1px solid #874abd;
+    color: white;
 }
 
 .mcu-button-secondary:hover {
-    background: #f0f6fc;
+    background: #fd5ec0;
+    border: 1px solid #fd5ec0;
+    color: white;
 }
 
 .mcu-button-sm {

@@ -484,10 +484,7 @@ trait MCU_Update_Operations_Trait {
     }
 
     public function trigger_elementor_db_update($upgrader_object, $options) {
-        // Send monitoring report on update
-        if (method_exists($this, 'send_monitoring_report')) {
-            $this->send_monitoring_report();
-        }
+
 
         if (!isset($options['action']) || $options['action'] !== 'update') {
             return;
