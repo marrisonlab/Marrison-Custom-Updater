@@ -497,15 +497,13 @@ trait MCU_Admin_UI_Trait {
                         <ol style="margin-left: 20px; list-style: decimal;">
                             <li>Crea una cartella pubblica sul tuo server (es. <code>https://tuosito.com/my-repo/themes/</code>).</li>
                             <li>Scarica il file <code>index.php</code> qui sotto (specifico per i temi).</li>
-                            <li>Rinomina il file scaricato in <code>index.php</code> se necessario, oppure caricalo così com'è se supportato, ma solitamente deve chiamarsi index.php per essere servito di default. <em>Nota: il file scaricato si chiamerà index-themes.php, rinominalo in index.php sul server.</em></li>
                             <li>Carica il file nella cartella appena creata.</li>
                             <li>Carica i file <code>.zip</code> dei tuoi temi nella stessa cartella.</li>
                             <li>Inserisci l'URL della cartella (es. <code>https://tuosito.com/my-repo/themes/</code>) nelle Impostazioni di questo plugin.</li>
                         </ol>
                         <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin-top: 15px;">
-                            <?php wp_nonce_field('marrison_download_repo_file'); ?>
-                            <input type="hidden" name="action" value="marrison_download_repo_file">
-                            <input type="hidden" name="file_type" value="theme">
+                            <?php wp_nonce_field('marrison_download_theme_repo_file'); ?>
+                            <input type="hidden" name="action" value="marrison_download_theme_repo_file">
                             <button type="submit" class="mcu-button mcu-button-primary"><span class="dashicons dashicons-download"></span> Scarica index.php per Temi</button>
                         </form>
                     </div>
@@ -534,27 +532,58 @@ trait MCU_Admin_UI_Trait {
         if (!current_user_can('manage_options')) {
             wp_die('Permessi insufficienti');
         }
-        $type = $_POST['file_type'] ?? 'plugin';
-        if ($type === 'theme') {
-            $source_dir = plugin_dir_path(__FILE__) . '../../add_this_file_for_themes_repo/';
-            $file = $source_dir . 'index.php';
-            $filename = 'index-themes.php';
-        } else {
-            $source_dir = plugin_dir_path(__FILE__) . '../../add_this_file_for_plugin_repo/';
-            $file = $source_dir . 'index.php';
-            $filename = 'index.php';
+
+        // Use MCU_PLUGIN_DIR if defined, otherwise fallback to dirname logic
+        $base_path = defined('MCU_PLUGIN_DIR') ? MCU_PLUGIN_DIR : plugin_dir_path(dirname(dirname(dirname(__FILE__))));
+        
+        $file_path = $base_path . 'add_this_file_for_plugin_repo/index.php';
+
+        if (!file_exists($file_path)) {
+            // Debug info in case of failure
+            wp_die('File non trovato: ' . esc_html($file_path) . ' (Base: ' . esc_html($base_path) . ')');
         }
-        if (!file_exists($file)) {
-            wp_die('File non trovato: ' . esc_html($file));
-        }
+
+        // Clean buffer to prevent corruption
+        if (ob_get_length()) ob_end_clean();
+
         header('Content-Description: File Transfer');
         header('Content-Type: application/octet-stream');
-        header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
+        header('Content-Disposition: attachment; filename="index.php"');
         header('Expires: 0');
         header('Cache-Control: must-revalidate');
         header('Pragma: public');
-        header('Content-Length: ' . filesize($file));
-        readfile($file);
+        header('Content-Length: ' . filesize($file_path));
+        readfile($file_path);
+        exit;
+    }
+
+    public function download_theme_repo_file() {
+        check_admin_referer('marrison_download_theme_repo_file');
+        if (!current_user_can('manage_options')) {
+            wp_die('Permessi insufficienti');
+        }
+
+        // Use MCU_PLUGIN_DIR if defined, otherwise fallback to dirname logic
+        $base_path = defined('MCU_PLUGIN_DIR') ? MCU_PLUGIN_DIR : plugin_dir_path(dirname(dirname(dirname(__FILE__))));
+        
+        $file_path = $base_path . 'add_this_file_for_themes_repo/index.php';
+
+        if (!file_exists($file_path)) {
+            // Debug info in case of failure
+            wp_die('File non trovato: ' . esc_html($file_path) . ' (Base: ' . esc_html($base_path) . ')');
+        }
+
+        // Clean buffer to prevent corruption
+        if (ob_get_length()) ob_end_clean();
+
+        header('Content-Description: File Transfer');
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="index.php"');
+        header('Expires: 0');
+        header('Cache-Control: must-revalidate');
+        header('Pragma: public');
+        header('Content-Length: ' . filesize($file_path));
+        readfile($file_path);
         exit;
     }
 

@@ -32,6 +32,15 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
 == Changelog ==
 
+= 9.2 =
+* UI: Centrati i pulsanti nella testata della pagina Aggiornamenti tra titolo e logo.
+* UI: Standardizzati i colori dei pulsanti in tutto il plugin (normale: viola scuro, hover: rosa acceso).
+* UI: Rimossi i contatori dei plugin nel repository (informazione privata) dalla dashboard e dalle impostazioni.
+* UI: Spostato il blocco "Strumenti Avanzati" nella tab "Guida & Download".
+* UI: Pulizia delle colonne nelle tabelle dei plugin e temi monitorati (rimosse colonne File, Slug e Stato).
+* Fix: Risolto il problema del download del file index.php per il repository dei temi (percorsi assoluti e logica separata).
+* Core: Introdotta costante globale `MCU_PLUGIN_DIR` per una gestione più robusta dei percorsi dei file.
+
 = 9.1 =
 * Feature: Aggiornamento alla versione 9.1 con miglioramenti generali di stabilità e prestazioni.
 * Update: Versione stabile aggiornata per riflettere l'ultimo rilascio.

@@ -73,11 +73,20 @@ foreach ($files as $zip_file) {
             
             // Rimuove la versione dal nome del file se presente
             // Es: my-theme-1.0.0.zip -> my-theme
-            $slug = preg_replace('/-\d+(\.\d+)*(-custom)?$/', '', $zip_filename);
+            // my-theme-custom-1.2.3.zip -> my-theme-custom
+            // my-theme-v2.1.0.zip -> my-theme
+            $slug = preg_replace('/[-_]?\d+(\.\d+)*.*$/', '', $zip_filename);
+            $slug = preg_replace('/[-_]?(v|version)[-_]?\d+.*$/i', '', $slug);
+            $slug = trim($slug, '-_');
             
             // Se non riesce a estrarre lo slug dal nome file, usa il nome della cartella interna
             if (empty($slug) && strpos($theme_info['file'], '/') !== false) {
                 $slug = dirname($theme_info['file']);
+            }
+            
+            // Fallback: usa il nome del file senza estensione
+            if (empty($slug)) {
+                $slug = $zip_filename;
             }
             
             // URL completo per il download
@@ -88,7 +97,7 @@ foreach ($files as $zip_file) {
                 'slug' => $slug,
                 'version' => $version ?: '1.0.0',
                 'author' => $author ?: 'Unknown',
-                'description' => $description ?: 'Tema personalizzato',
+                'description' => $description ?: 'Custom Theme',
                 'requires_php' => $requires_php,
                 'download_url' => $download_url,
                 'homepage' => '',
