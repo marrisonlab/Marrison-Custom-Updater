@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentazione WP Master Updater</title>
+    <style>
+        :root {
+            --primary-color: #874abd;
+            --secondary-color: #fd5ec0;
+            --text-color: #333;
+            --bg-color: #f9f9f9;
+            --header-bg: #11111e;
+            --sidebar-width: 280px;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+        }
+        /* Sidebar Navigation */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: #fff;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow-y: auto;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .sidebar h2 {
+            color: var(--primary-color);
+            font-size: 1.2em;
+            margin-top: 0;
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 10px;
+        }
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+        }
+        .sidebar li {
+            margin-bottom: 10px;
+        }
+        .sidebar a {
+            text-decoration: none;
+            color: #555;
+            display: block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            background-color: #f0f0f1;
+            color: var(--primary-color);
+            padding-left: 15px;
+        }
+        
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+        }
+        h1, h2, h3 {
+            color: #2c3338;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+        .version-badge {
+            background: var(--secondary-color);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.5em;
+            vertical-align: middle;
+        }
+        section {
+            background: #fff;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            scroll-margin-top: 20px;
+        }
+        .screenshot {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+            max-width: 100%;
+            margin: 15px 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        code {
+            background: #f0f0f1;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+            color: #d63638;
+        }
+        .note {
+            background-color: #fff8e5;
+            border-left: 4px solid #ffba00;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .button-desc {
+            display: inline-block;
+            background: var(--primary-color);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .button-desc.secondary {
+            background: #f0f0f1;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background-color: #f9f9f9;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>Indice</h2>
+    <ul>
+        <li><a href="#intro">Introduzione</a></li>
+        <li><a href="#installazione">Installazione</a></li>
+        <li><a href="#configurazione">Configurazione</a></li>
+        <li><a href="#dashboard">Dashboard Aggiornamenti</a></li>
+        <li><a href="#impostazioni">Impostazioni</a></li>
+        <li><a href="#backup">Gestione Backup</a></li>
+        <li><a href="#guida-download">Guida & Download</a></li>
+        <li><a href="#automazione">Automazione e Cron</a></li>
+    </ul>
+</div>
+
+<div class="main-content">
+    <section id="intro">
+        <h1>WP Master Updater <span class="version-badge">v9.2</span></h1>
+        <p><strong>WP Master Updater</strong> è una soluzione avanzata per la gestione degli aggiornamenti di plugin e temi privati in WordPress. Permette di collegare il tuo sito WordPress a un repository personalizzato (ospitato su un tuo server), consentendo di distribuire aggiornamenti per i tuoi prodotti proprietari con la stessa facilità di quelli ufficiali di WordPress.org.</p>
+        <h3>Funzionalità Chiave:</h3>
+        <ul>
+            <li>Collegamento a Repository Privati (Plugin e Temi).</li>
+            <li>Dashboard unificata per aggiornamenti pubblici e privati.</li>
+            <li>Sistema di Backup automatico pre-aggiornamento con Rollback one-click.</li>
+            <li>Aggiornamenti automatici programmati (Giornalieri, Settimanali, Mensili).</li>
+            <li>Gestione centralizzata delle traduzioni.</li>
+        </ul>
+    </section>
+
+    <section id="installazione">
+        <h2>Installazione</h2>
+        <ol>
+            <li>Carica la cartella <code>marrison-custom-updater</code> nella directory <code>/wp-content/plugins/</code> del tuo sito WordPress.</li>
+            <li>Accedi al pannello di amministrazione di WordPress.</li>
+            <li>Vai su <strong>Plugin</strong> e attiva <strong>WP Master Updater</strong>.</li>
+            <li>Dopo l'attivazione, vedrai la voce <strong>WP Master Updater</strong> (o <em>WPMU</em>) nel menu laterale.</li>
+        </ol>
+    </section>
+
+    <section id="dashboard">
+        <h2>Dashboard Aggiornamenti</h2>
+        <p>Accessibile dal menu <strong>WP Master Updater > Aggiornamenti</strong>.</p>
+        <p>Questa è la schermata principale dove puoi monitorare lo stato di tutti i plugin e temi installati.</p>
+        
+        <h3>Schede Statistiche</h3>
+        <p>In alto trovi delle card riassuntive:</p>
+        <ul>
+            <li><strong>Plugin Privati:</strong> Numero di aggiornamenti disponibili dal tuo repo privato.</li>
+            <li><strong>Plugin Pubblici:</strong> Numero di aggiornamenti dal repo ufficiale WordPress.</li>
+            <li><strong>Temi Privati:</strong> Aggiornamenti disponibili per i temi proprietari.</li>
+            <li><strong>Temi Pubblici:</strong> Aggiornamenti per temi standard.</li>
+            <li><strong>Traduzioni:</strong> Aggiornamenti delle lingue disponibili.</li>
+        </ul>
+
+        <h3>Tabelle di Aggiornamento</h3>
+        <p>Il plugin separa chiaramente gli aggiornamenti in diverse sezioni:</p>
+        <ol>
+            <li><strong>Plugin Repository Privato:</strong> Lista dei tuoi plugin custom che necessitano aggiornamento.</li>
+            <li><strong>Temi Repository Privato:</strong> Lista dei tuoi temi custom da aggiornare.</li>
+            <li><strong>Repository Ufficiale WordPress:</strong> Lista standard dei plugin pubblici.</li>
+        </ol>
+
+        <h3>Azioni Disponibili</h3>
+        <ul>
+            <li><span class="button-desc">Aggiorna</span>: Esegue l'aggiornamento del singolo elemento. Prima dell'aggiornamento viene creato automaticamente un backup.</li>
+            <li><span class="button-desc">Aggiorna Selezionati</span>: (Pulsante in alto a destra nelle tabelle) Esegue l'aggiornamento massivo di tutti gli elementi selezionati tramite checkbox.</li>
+            <li><span class="button-desc">Aggiorna Tutti</span>: Per i plugin ufficiali, aggiorna l'intera lista in un colpo solo.</li>
+        </ul>
+    </section>
+
+    <section id="impostazioni">
+        <h2>Impostazioni</h2>
+        <p>Accessibile dal menu <strong>WP Master Updater > Impostazioni</strong>. L'area è divisa in tre tab principali.</p>
+
+        <h3>1. Tab Generale</h3>
+        <p>Qui configuri il collegamento con il tuo server remoto.</p>
+        <ul>
+            <li><strong>Indirizzo Repository Plugin:</strong> Inserisci l'URL della cartella sul tuo server dove sono ospitati i plugin (es. <code>https://tuosito.com/repo/plugins/</code>).</li>
+            <li><strong>Indirizzo Repository Temi:</strong> Inserisci l'URL per i temi (es. <code>https://tuosito.com/repo/themes/</code>).</li>
+            <li><span class="button-desc">Salva Impostazioni</span>: Memorizza gli URL inseriti.</li>
+            <li><span class="button-desc secondary">Rimuovi URL</span>: Cancella le configurazioni e scollega il sito dal repository.</li>
+        </ul>
+        <p>In questa pagina sono visibili anche le tabelle riassuntive dei <strong>Plugin Monitorati</strong> e <strong>Temi Monitorati</strong>, che mostrano la versione installata confrontata con quella remota.</p>
+
+        <h3>2. Tab Programmazione</h3>
+        <p>Gestisce l'automazione degli aggiornamenti.</p>
+        <ul>
+            <li><strong>Abilita Aggiornamenti Automatici:</strong> Attiva/Disattiva il cron job che cerca ed esegue gli aggiornamenti in background.</li>
+            <li><strong>Frequenza:</strong> Scegli ogni quanto eseguire il controllo (Giornaliera, Settimanale, Mensile, Semestrale).</li>
+            <li><span class="button-desc secondary">Invia email di test</span>: Verifica che il sistema di notifica via email funzioni correttamente.</li>
+        </ul>
+    </section>
+
+    <section id="guida-download">
+        <h2>Guida & Download</h2>
+        <p>Questa sezione (nel menu Impostazioni) è fondamentale per chi gestisce il repository lato server.</p>
+        
+        <h3>Configurazione Lato Server</h3>
+        <p>Perché il plugin funzioni, devi preparare il tuo server:</p>
+        <ol>
+            <li>Crea una cartella pubblica (es. <code>/my-repo/plugins/</code>).</li>
+            <li>Carica all'interno i file <code>.zip</code> dei tuoi plugin.</li>
+            <li><strong>File Index:</strong> Devi scaricare e caricare un file speciale <code>index.php</code> che gestisce la lettura delle versioni.</li>
+        </ol>
+
+        <h3>Pulsanti di Download</h3>
+        <ul>
+            <li><span class="button-desc">Scarica index.php per Plugin</span>: Scarica il file da caricare nella cartella dei plugin sul server.</li>
+            <li><span class="button-desc">Scarica index.php per Temi</span>: Scarica il file (specifico) da caricare nella cartella dei temi.</li>
+        </ul>
+        <div class="note">
+            <strong>Importante:</strong> I file index.php per plugin e temi sono diversi e contengono logiche separate. Assicurati di usare quello corretto per ogni cartella.
+        </div>
+
+        <h3>Strumenti Avanzati</h3>
+        <ul>
+            <li><span class="button-desc secondary">Forza controllo aggiornamenti MCU</span>: Pulisce la cache interna di WordPress e forza una nuova verifica immediata delle versioni dal repository. Utile quando hai appena caricato un aggiornamento sul server e non vuoi aspettare il controllo automatico.</li>
+        </ul>
+    </section>
+
+    <section id="backup">
+        <h2>Gestione Backup</h2>
+        <p>Accessibile dal menu <strong>WP Master Updater > Backup</strong>.</p>
+        <p>Ogni volta che esegui un aggiornamento tramite questo plugin, viene creato automaticamente un backup della versione precedente.</p>
+        
+        <h3>Funzionalità:</h3>
+        <ul>
+            <li><strong>Lista Backup:</strong> Elenco cronologico di tutti i backup salvati (file <code>.zip</code>).</li>
+            <li><strong>Dettagli:</strong> Mostra nome plugin/tema, versione salvata, versione attuale installata, data e dimensione.</li>
+            <li><span class="button-desc secondary">Ripristina</span>: Cliccando questo pulsante, il plugin corrente viene sovrascritto con la versione contenuta nel backup. Utile in caso di aggiornamenti che rompono il sito ("Rollback").</li>
+        </ul>
+        <div class="note">
+            I backup sono salvati nella cartella <code>/wp-content/marrison-backups/</code> del tuo server.
+        </div>
+    </section>
+
+    <section id="automazione">
+        <h2>Automazione e Cron</h2>
+        <p>Il plugin utilizza il sistema WP-Cron di WordPress per gestire le operazioni pianificate.</p>
+        <ul>
+            <li><strong>Controllo Aggiornamenti:</strong> Avviene automaticamente in base alla frequenza scelta.</li>
+            <li><strong>Notifiche Email:</strong> Al termine di un aggiornamento automatico, viene inviata una email all'amministratore con il report dettagliato (successi, errori, versioni aggiornate).</li>
+            <li><strong>Elementor:</strong> Se usi Elementor, il plugin include un trigger automatico per aggiornare il database di Elementor dopo un update, prevenendo problemi di layout.</li>
+        </ul>
+    </section>
+
+</div>
+
+</body>
+</html>
