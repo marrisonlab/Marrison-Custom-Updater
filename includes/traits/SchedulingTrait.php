@@ -454,6 +454,11 @@ trait MCU_Scheduling_Trait {
                     if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
                     if (in_array($slug, $private_slugs)) continue;
                     
+                    // Exclude
+                    if ($this->is_item_excluded($slug, 'plugin')) {
+                        continue;
+                    }
+
                     // Check PHP Requirements
                     if (isset($data_plugin->requires_php) && version_compare(phpversion(), $data_plugin->requires_php, '<')) {
                         $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $file);
@@ -520,6 +525,11 @@ trait MCU_Scheduling_Trait {
                 if (!empty($current->response)) {
                     $themes = array_keys($current->response);
                     
+                    // Filter excluded themes
+                    $themes = array_filter($themes, function($slug) {
+                        return !$this->is_item_excluded($slug, 'theme');
+                    });
+
                     // Prepara info versioni temi
                     $theme_info_map = [];
                     foreach ($themes as $slug) {

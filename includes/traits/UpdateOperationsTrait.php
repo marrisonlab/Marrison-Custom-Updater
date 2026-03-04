@@ -61,6 +61,13 @@ trait MCU_Update_Operations_Trait {
         return $updates;
     }
 
+    protected function is_item_excluded($slug, $type = 'plugin') {
+        $option_name = ($type === 'theme') ? 'marrison_excluded_themes' : 'marrison_excluded_plugins';
+        $excluded = get_option($option_name, []);
+        if (!is_array($excluded)) $excluded = [];
+        return in_array($slug, $excluded);
+    }
+
     public function check_for_updates($transient) {
         if (empty($transient->checked)) {
             return $transient;
@@ -70,6 +77,11 @@ trait MCU_Update_Operations_Trait {
 
         foreach ($updates as $update) {
             $slug = $update['slug'];
+            
+            if ($this->is_item_excluded($slug, 'plugin')) {
+                continue;
+            }
+
             $plugin_file = $this->find_plugin_file($slug, $update['name'] ?? '');
 
             if ($plugin_file && isset($transient->checked[$plugin_file])) {
@@ -102,6 +114,11 @@ trait MCU_Update_Operations_Trait {
 
         foreach ($updates as $update) {
             $slug = $update['slug'];
+
+            if ($this->is_item_excluded($slug, 'theme')) {
+                continue;
+            }
+
             $theme = wp_get_theme($slug);
 
             if ($theme->exists()) {

@@ -148,11 +148,12 @@ trait MCU_Admin_UI_Trait {
         if (strpos($hook, 'marrison-updater') === false) {
             return;
         }
-        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . '../../assets/css/admin-style.css', [], '8.6.1');
-        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . '../../assets/js/admin-script.js', ['jquery'], '8.6.1', true);
+        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . '../../assets/css/admin-style.css', [], '9.2.1');
+        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . '../../assets/js/admin-script.js', ['jquery'], '9.2.1', true);
         wp_localize_script('mcu-admin-script', 'marrisonUpdater', [
             'ajaxurl' => admin_url('admin-ajax.php'),
-            'nonce'   => wp_create_nonce('marrison_ajax_nonce')
+            'nonce'   => wp_create_nonce('marrison_ajax_nonce'),
+            'toggle_exclusion_nonce' => wp_create_nonce('marrison_toggle_exclusion')
         ]);
     }
 
@@ -201,6 +202,7 @@ trait MCU_Admin_UI_Trait {
             <h2 class="nav-tab-wrapper" style="margin-bottom: 20px;">
                 <a href="?page=marrison-updater-settings&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">Generale</a>
                 <a href="?page=marrison-updater-settings&tab=scheduling" class="nav-tab <?php echo $active_tab == 'scheduling' ? 'nav-tab-active' : ''; ?>">Programmazione</a>
+                <a href="?page=marrison-updater-settings&tab=exclusions" class="nav-tab <?php echo $active_tab == 'exclusions' ? 'nav-tab-active' : ''; ?>">Esclusioni</a>
                 <!-- Monitoring tab removed -->
 
                 <a href="?page=marrison-updater-settings&tab=howto" class="nav-tab <?php echo $active_tab == 'howto' ? 'nav-tab-active' : ''; ?>">Guida & Download</a>
@@ -259,6 +261,7 @@ trait MCU_Admin_UI_Trait {
                         if ($file && isset($plugins[$file])) {
                             $installed_count++;
                             $installed_list[] = [
+                                'slug' => $u['slug'],
                                 'name' => $u['name'],
                                 'file' => $file,
                                 'version' => $plugins[$file]['Version'],
@@ -288,20 +291,23 @@ trait MCU_Admin_UI_Trait {
                             <thead>
                                 <tr>
                                     <th>Plugin Installato</th>
-                                    <th>File</th>
                                     <th>Versione Installata</th>
                                     <th>Versione Repository</th>
-
+                                    <th style="width: 80px; text-align: center;">Escludi</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($installed_list as $item): ?>
                                     <tr>
                                         <td><strong><?php echo esc_html($item['name']); ?></strong></td>
-
                                         <td><?php echo esc_html($item['version']); ?></td>
                                         <td><?php echo esc_html($item['remote_version']); ?></td>
-
+                                        <td style="text-align: center;">
+                                            <label class="mcu-switch mcu-switch-sm">
+                                                <input type="checkbox" class="marrison_exclude_toggle" data-slug="<?php echo esc_attr($item['slug']); ?>" data-type="plugin" <?php checked($this->is_item_excluded($item['slug'], 'plugin')); ?>>
+                                                <span class="mcu-slider"></span>
+                                            </label>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -334,6 +340,7 @@ trait MCU_Admin_UI_Trait {
                             $theme_installed_count++;
                             $theme_installed_list[] = [
                                 'name' => $u['name'],
+                                'repo_slug' => $u['slug'],
                                 'slug' => $detected_slug,
                                 'version' => $is_installed ? $theme->get('Version') : '-',
                                 'remote_version' => $u['version'],
@@ -361,20 +368,25 @@ trait MCU_Admin_UI_Trait {
                         </div>
                         <table class="mcu-table">
                             <thead>
-                            <tr>
-                                <th>Tema</th>
-                                <th>Versione Installata</th>
-                                <th>Versione Repository</th>
-                            </tr>
-                        </thead>
+                                <tr>
+                                    <th>Tema</th>
+                                    <th>Versione Installata</th>
+                                    <th>Versione Repository</th>
+                                    <th style="width: 80px; text-align: center;">Escludi</th>
+                                </tr>
+                            </thead>
                             <tbody>
                                 <?php foreach ($theme_installed_list as $item): ?>
                                     <tr>
                                         <td><strong><?php echo esc_html($item['name']); ?></strong></td>
-
                                         <td><?php echo esc_html($item['version']); ?></td>
                                         <td><?php echo esc_html($item['remote_version']); ?></td>
-
+                                        <td style="text-align: center;">
+                                            <label class="mcu-switch mcu-switch-sm">
+                                                <input type="checkbox" class="marrison_exclude_toggle" data-slug="<?php echo esc_attr($item['repo_slug']); ?>" data-type="theme" <?php checked($this->is_item_excluded($item['repo_slug'], 'theme')); ?>>
+                                                <span class="mcu-slider"></span>
+                                            </label>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -469,7 +481,76 @@ trait MCU_Admin_UI_Trait {
                         </div>
                     </form>
                 </div>
-            <?php // Monitoring UI removed ?>
+            <?php elseif ($active_tab == 'exclusions'): ?>
+                <div class="mcu-card">
+                    <div class="mcu-card-header">
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-hidden"></span> Esclusioni Plugin</h2>
+                    </div>
+                    <p class="description" style="margin-bottom: 15px;">Seleziona i plugin che vuoi escludere dagli aggiornamenti automatici e dalle notifiche (sia privati che ufficiali).</p>
+                    <table class="mcu-table">
+                        <thead>
+                            <tr>
+                                <th>Plugin</th>
+                                <th>Versione</th>
+                                <th style="width: 80px; text-align: center;">Escludi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            $all_plugins = get_plugins();
+                            foreach ($all_plugins as $plugin_file => $plugin_data):
+                                $slug = dirname($plugin_file);
+                                if ($slug === '.' || $slug === '') $slug = basename($plugin_file, '.php');
+                                $is_excluded = $this->is_item_excluded($slug, 'plugin');
+                            ?>
+                                <tr>
+                                    <td><strong><?php echo esc_html($plugin_data['Name']); ?></strong></td>
+                                    <td><?php echo esc_html($plugin_data['Version']); ?></td>
+                                    <td style="text-align: center;">
+                                        <label class="mcu-switch mcu-switch-sm">
+                                            <input type="checkbox" class="marrison_exclude_toggle" data-slug="<?php echo esc_attr($slug); ?>" data-type="plugin" <?php checked($is_excluded); ?>>
+                                            <span class="mcu-slider"></span>
+                                        </label>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mcu-card" style="margin-top: 30px;">
+                    <div class="mcu-card-header">
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-hidden"></span> Esclusioni Temi</h2>
+                    </div>
+                    <p class="description" style="margin-bottom: 15px;">Seleziona i temi che vuoi escludere dagli aggiornamenti automatici e dalle notifiche.</p>
+                    <table class="mcu-table">
+                        <thead>
+                            <tr>
+                                <th>Tema</th>
+                                <th>Versione</th>
+                                <th style="width: 80px; text-align: center;">Escludi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            $all_themes = wp_get_themes();
+                            foreach ($all_themes as $theme_slug => $theme):
+                                $is_excluded = $this->is_item_excluded($theme_slug, 'theme');
+                            ?>
+                                <tr>
+                                    <td><strong><?php echo esc_html($theme->get('Name')); ?></strong></td>
+                                    <td><?php echo esc_html($theme->get('Version')); ?></td>
+                                    <td style="text-align: center;">
+                                        <label class="mcu-switch mcu-switch-sm">
+                                            <input type="checkbox" class="marrison_exclude_toggle" data-slug="<?php echo esc_attr($theme_slug); ?>" data-type="theme" <?php checked($is_excluded); ?>>
+                                            <span class="mcu-slider"></span>
+                                        </label>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
 
             <?php elseif ($active_tab == 'howto'): ?>
                 <div class="mcu-card">
@@ -896,6 +977,11 @@ trait MCU_Admin_UI_Trait {
         $settingsUpdated = $_GET['settings-updated'] ?? '';
         $repo_updates_count = 0;
         foreach($updates as $u) {
+            // Check exclusion
+            if ($this->is_item_excluded($u['slug'], 'plugin')) {
+                continue;
+            }
+
             $file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
             if ($file && isset($plugins[$file]) && version_compare(trim($plugins[$file]['Version']), trim($u['version']), '<')) {
                 $repo_updates_count++;
@@ -905,6 +991,12 @@ trait MCU_Admin_UI_Trait {
         $installed_themes = wp_get_themes();
         foreach($theme_updates as $u) {
             $slug = $u['slug'];
+
+            // Check exclusion
+            if ($this->is_item_excluded($slug, 'theme')) {
+                continue;
+            }
+
             $theme = wp_get_theme($slug);
             if (!$theme->exists()) {
                 foreach ($installed_themes as $t_slug => $t_obj) {
@@ -937,6 +1029,11 @@ trait MCU_Admin_UI_Trait {
         }
         if (!empty($transient_plugins->response)) {
             foreach ($transient_plugins->response as $file => $data) {
+                // Check exclusion
+                $slug = isset($data->slug) ? $data->slug : dirname($file);
+                if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
+                if ($this->is_item_excluded($slug, 'plugin')) continue;
+
                 if (in_array($file, $private_files_check)) continue;
                 $check_slugs = [dirname($file), basename($file, '.php')];
                 if (isset($data->slug)) $check_slugs[] = $data->slug;
@@ -959,6 +1056,11 @@ trait MCU_Admin_UI_Trait {
         }
         if (!empty($transient_themes->response)) {
             foreach ($transient_themes->response as $slug => $data) {
+                // Check exclusion
+                if ($this->is_item_excluded($slug, 'theme')) {
+                    continue;
+                }
+                
                 if (in_array($slug, $private_theme_slugs)) continue;
                 $public_theme_updates_count++;
             }
@@ -1422,6 +1524,11 @@ trait MCU_Admin_UI_Trait {
         $plugins = get_plugins();
         $private_to_update = [];
         foreach ($private_updates as $u) {
+            // Exclude if toggled off
+            if ($this->is_item_excluded($u['slug'], 'plugin')) {
+                continue;
+            }
+
             $file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
             if ($file && isset($plugins[$file]) && version_compare($plugins[$file]['Version'], $u['version'], '<')) {
                 $private_to_update[] = [
@@ -1449,6 +1556,12 @@ trait MCU_Admin_UI_Trait {
                 if (in_array($file, $private_files)) continue;
                 $slug = isset($data->slug) ? $data->slug : dirname($file);
                 if ($slug === '.') $slug = basename($file, '.php');
+                
+                // Exclude if toggled off
+                if ($this->is_item_excluded($slug, 'plugin')) {
+                    continue;
+                }
+
                 $check_slugs = [dirname($file), basename($file, '.php')];
                 if (isset($data->slug)) $check_slugs[] = $data->slug;
                 $is_private = false;
@@ -1472,7 +1585,17 @@ trait MCU_Admin_UI_Trait {
         }
         wp_update_themes();
         $theme_updates = get_site_transient('update_themes');
-        $themes_count = !empty($theme_updates->response) ? count($theme_updates->response) : 0;
+        
+        // Filter themes count
+        $themes_count = 0;
+        if (!empty($theme_updates->response)) {
+             foreach ($theme_updates->response as $slug => $data) {
+                 if (!$this->is_item_excluded($slug, 'theme')) {
+                     $themes_count++;
+                 }
+             }
+        }
+
         wp_version_check();
         include_once ABSPATH . 'wp-admin/includes/translation-install.php';
         $translation_updates = wp_get_translation_updates();

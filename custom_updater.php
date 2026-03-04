@@ -81,6 +81,7 @@ class MCU_Custom_Updater {
         add_action('wp_ajax_marrison_update_translations_ajax', [$this, 'update_translations_ajax']);
         add_action('wp_ajax_marrison_get_all_updates_ajax', [$this, 'get_all_updates_ajax']);
         add_action('wp_ajax_marrison_test_email', [$this, 'send_test_email_ajax']);
+        add_action('wp_ajax_marrison_toggle_exclusion', [$this, 'toggle_exclusion_ajax']);
         
         // Aggiungi script e stili per la pagina admin
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
@@ -115,6 +116,43 @@ class MCU_Custom_Updater {
             return true;
         }
         return $update;
+    }
+
+    public function toggle_exclusion_ajax() {
+        check_ajax_referer('marrison_toggle_exclusion', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permessi insufficienti');
+        }
+
+        $type = sanitize_text_field($_POST['type']);
+        $slug = sanitize_text_field($_POST['slug']);
+        $state = filter_var($_POST['state'], FILTER_VALIDATE_BOOLEAN);
+
+        $option_name = ($type === 'theme') ? 'marrison_excluded_themes' : 'marrison_excluded_plugins';
+        $excluded = get_option($option_name, []);
+        if (!is_array($excluded)) $excluded = [];
+
+        if ($state) {
+            // Add to exclusion
+            if (!in_array($slug, $excluded)) {
+                $excluded[] = $slug;
+            }
+        } else {
+            // Remove from exclusion
+            $excluded = array_values(array_filter($excluded, function($s) use ($slug) {
+                return $s !== $slug;
+            }));
+        }
+
+        update_option($option_name, $excluded);
+        
+        // Clear transients so update check reflects change immediately
+        delete_site_transient('update_plugins');
+        delete_site_transient('update_themes');
+        delete_transient('marrison_available_updates_v2');
+        delete_transient('marrison_available_theme_updates');
+
+        wp_send_json_success(['excluded' => $excluded]);
     }
 
     /* ===================== PERMISSIONS CHECK REMOVED ===================== */
@@ -408,6 +446,9 @@ class MCU_Custom_Updater {
         $update_count = 0;
         
         foreach ($updates as $u) {
+            if ($this->is_item_excluded($u['slug'], 'plugin')) {
+                continue;
+            }
             $file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
             if ($file && isset($plugins[$file]) && version_compare($plugins[$file]['Version'], $u['version'], '<')) {
                 $update_count++;
@@ -420,6 +461,11 @@ class MCU_Custom_Updater {
         
         foreach ($theme_updates as $u) {
             $slug = $u['slug'];
+
+            if ($this->is_item_excluded($slug, 'theme')) {
+                continue;
+            }
+            
             $theme = wp_get_theme($slug);
             
             // Logica di fallback per trovare il tema se lo slug non corrisponde
@@ -537,6 +583,11 @@ class MCU_Custom_Updater {
 
         // 2. Inietta i NUOVI aggiornamenti dal repository privato (se disponibili)
         foreach ($this->get_available_updates() as $update) {
+            // Check exclusion
+            if ($this->is_item_excluded($update['slug'], 'plugin')) {
+                continue;
+            }
+
             $file = $this->find_plugin_file($update['slug'], $update['name'] ?? '');
             if (!$file || !isset($plugins[$file])) continue;
 
@@ -589,6 +640,11 @@ class MCU_Custom_Updater {
         // Inietta i NUOVI aggiornamenti dal repository privato
         foreach ($this->get_available_theme_updates() as $update) {
             $slug = $update['slug'];
+
+            // Check exclusion
+            if ($this->is_item_excluded($slug, 'theme')) {
+                continue;
+            }
             
             // Cerca il tema installato
             $theme = wp_get_theme($slug);
