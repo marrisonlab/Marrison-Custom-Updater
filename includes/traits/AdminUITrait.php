@@ -1032,12 +1032,35 @@ trait MCU_Admin_UI_Trait {
         }
         if (!empty($transient_plugins->response)) {
             foreach ($transient_plugins->response as $file => $data) {
-                // Check exclusion
-                $slug = isset($data->slug) ? $data->slug : dirname($file);
+                // Check exclusion - use directory slug as primary, WordPress.org slug as fallback
+                $slug = dirname($file);
                 if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
-                if ($this->is_item_excluded($slug, 'plugin')) continue;
+                
+                // Also check WordPress.org slug for exclusion
+                $wp_org_slug = isset($data->slug) ? $data->slug : $slug;
+                
+                if ($this->is_item_excluded($slug, 'plugin') || $this->is_item_excluded($wp_org_slug, 'plugin')) continue;
 
                 if (in_array($file, $private_files_check)) continue;
+                
+                // Check if this is a premium/private plugin (not from WordPress.org)
+                $is_premium = false;
+                if (isset($plugins[$file])) {
+                    $plugin_data = $plugins[$file];
+                    // Premium plugins usually don't have WordPress.org plugin URI
+                    if (!isset($plugin_data['PluginURI']) || 
+                        strpos($plugin_data['PluginURI'], 'wordpress.org/plugins') === false) {
+                        $is_premium = true;
+                    }
+                }
+                
+                // For premium plugins, count them directly
+                if ($is_premium) {
+                    $public_plugin_updates_count++;
+                    continue;
+                }
+                
+                // Regular WordPress.org plugins
                 $check_slugs = [dirname($file), basename($file, '.php')];
                 if (isset($data->slug)) $check_slugs[] = $data->slug;
                 $found_private = false;
@@ -1198,17 +1221,20 @@ trait MCU_Admin_UI_Trait {
                                 if ($file && isset($plugins[$file])) {
                                     $data = $plugins[$file];
                                     $slug = $u['slug']; 
+                                    $is_excluded = $this->is_item_excluded($slug, 'plugin');
                                     $has_update = version_compare(trim($data['Version']), trim($u['version']), '<');
-                                    if ($has_update) $has_repo_updates = true;
-                                    $row_style = $has_update ? '' : 'opacity: 0.6; background: #f9f9f9;';
+                                    if ($has_update && !$is_excluded) $has_repo_updates = true;
+                                    $row_style = (!$has_update || $is_excluded) ? 'opacity: 0.6; background: #f9f9f9;' : '';
                             ?>
                                 <tr style="<?php echo $row_style; ?>">
                                     <td>
-                                        <?php if($has_update): ?>
+                                        <?php if($has_update && !$is_excluded): ?>
                                             <?php 
                                             $nonce = ($slug === 'marrison-custom-updater') ? wp_create_nonce('marrison_update_marrison-custom-updater') : wp_create_nonce('marrison_update_' . $slug);
                                             ?>
                                             <input type="checkbox" name="plugins[]" value="<?php echo esc_attr($slug); ?>" data-nonce="<?php echo esc_attr($nonce); ?>">
+                                        <?php elseif($is_excluded): ?>
+                                            <span class="dashicons dashicons-hidden" style="color:var(--mcu-warning);" title="Escluso dagli aggiornamenti"></span>
                                         <?php else: ?>
                                             <span class="dashicons dashicons-yes" style="color:var(--mcu-success);"></span>
                                         <?php endif; ?>
@@ -1216,6 +1242,11 @@ trait MCU_Admin_UI_Trait {
                                     <td>
                                         <strong><?php echo esc_html($u['name']); ?></strong>
                                         <div style="font-size:11px; color:#888;"><?php echo esc_html($slug); ?></div>
+                                        <?php if($is_excluded): ?>
+                                            <div style="margin-top: 4px;">
+                                                <span class="mcu-badge mcu-badge-warning" style="font-size:10px;">Escluso</span>
+                                            </div>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <span class="mcu-badge mcu-badge-<?php echo $has_update ? 'warning' : 'success'; ?>">
@@ -1227,7 +1258,7 @@ trait MCU_Admin_UI_Trait {
                                         <?php endif; ?>
                                     </td>
                                     <td style="text-align:right;">
-                                        <?php if ($has_update): ?>
+                                        <?php if ($has_update && !$is_excluded): ?>
                                             <?php 
                                             $is_self_update = ($slug === 'marrison-custom-updater');
                                             $nonce = $is_self_update ? wp_create_nonce('marrison_update_marrison-custom-updater') : wp_create_nonce('marrison_update_' . $slug);
@@ -1238,6 +1269,8 @@ trait MCU_Admin_UI_Trait {
                                                     data-nonce="<?php echo esc_attr($nonce); ?>">
                                                 Aggiorna
                                             </button>
+                                        <?php elseif($is_excluded): ?>
+                                            <span style="color:var(--mcu-warning); font-size:12px; font-weight:500;">Escluso</span>
                                         <?php else: ?>
                                             <span style="color:var(--mcu-success); font-size:12px; font-weight:500;">Aggiornato</span>
                                         <?php endif; ?>
@@ -1282,6 +1315,7 @@ trait MCU_Admin_UI_Trait {
                         $has_theme_updates = false;
                         foreach ($theme_updates as $u):
                             $slug = $u['slug'];
+                            $is_excluded = $this->is_item_excluded($slug, 'theme');
                             $theme = wp_get_theme($slug);
                             if (!$theme->exists()) {
                                 foreach ($installed_themes as $t_slug => $t_obj) {
@@ -1294,14 +1328,16 @@ trait MCU_Admin_UI_Trait {
                             }
                             if ($theme->exists()) {
                                 $has_update = version_compare($theme->get('Version'), $u['version'], '<');
-                                if ($has_update) $has_theme_updates = true;
-                                $row_style = $has_update ? '' : 'opacity: 0.6; background: #f9f9f9;';
+                                if ($has_update && !$is_excluded) $has_theme_updates = true;
+                                $row_style = (!$has_update || $is_excluded) ? 'opacity: 0.6; background: #f9f9f9;' : '';
                         ?>
                             <tr style="<?php echo $row_style; ?>">
                                 <td>
-                                    <?php if($has_update): ?>
+                                    <?php if($has_update && !$is_excluded): ?>
                                         <?php $nonce = wp_create_nonce('marrison_update_theme_' . $slug); ?>
                                         <input type="checkbox" name="themes[]" value="<?php echo esc_attr($slug); ?>" data-nonce="<?php echo esc_attr($nonce); ?>">
+                                    <?php elseif($is_excluded): ?>
+                                        <span class="dashicons dashicons-hidden" style="color:var(--mcu-warning);" title="Escluso dagli aggiornamenti"></span>
                                     <?php else: ?>
                                         <span class="dashicons dashicons-yes" style="color:var(--mcu-success);"></span>
                                     <?php endif; ?>
@@ -1315,9 +1351,14 @@ trait MCU_Admin_UI_Trait {
                                         <span class="dashicons dashicons-arrow-right-alt2" style="font-size:12px;vertical-align:middle;margin:0 5px;"></span>
                                         <span class="mcu-badge mcu-badge-success"><?php echo esc_html($u['version']); ?></span>
                                     <?php endif; ?>
+                                    <?php if($is_excluded): ?>
+                                        <div style="margin-top: 4px;">
+                                            <span class="mcu-badge mcu-badge-warning" style="font-size:10px;">Escluso</span>
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
                                 <td style="text-align:right;">
-                                    <?php if ($has_update): ?>
+                                    <?php if ($has_update && !$is_excluded): ?>
                                         <?php $nonce = wp_create_nonce('marrison_update_theme_' . $slug); ?>
                                         <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-update" 
                                                 data-slug="<?php echo esc_attr($slug); ?>"
@@ -1326,6 +1367,8 @@ trait MCU_Admin_UI_Trait {
                                                 data-type="theme">
                                             Aggiorna
                                         </button>
+                                    <?php elseif($is_excluded): ?>
+                                        <span style="color:var(--mcu-warning); font-size:12px; font-weight:500;">Escluso</span>
                                     <?php else: ?>
                                         <span style="color:var(--mcu-success); font-size:12px; font-weight:500;">Aggiornato</span>
                                     <?php endif; ?>
@@ -1362,9 +1405,40 @@ trait MCU_Admin_UI_Trait {
                 $plugins_with_auto_update = [];
                 if (!empty($transient->response)) {
                     foreach ($transient->response as $file => $data) {
-                        $slug = isset($data->slug) ? $data->slug : dirname($file);
-                        if ($slug === '.') $slug = basename($file, '.php');
+                        // Use directory slug as primary, WordPress.org slug as fallback
+                        $slug = dirname($file);
+                        if ($slug === '.' || $slug === '') $slug = basename($file, '.php');
+                        
+                        // Also check WordPress.org slug for exclusion
+                        $wp_org_slug = isset($data->slug) ? $data->slug : $slug;
+                        
                         if (in_array($file, $private_files)) continue;
+                        
+                        // Check if this is a premium/private plugin (not from WordPress.org)
+                        $is_premium = false;
+                        if (isset($plugins[$file])) {
+                            $plugin_data = $plugins[$file];
+                            // Premium plugins usually don't have WordPress.org plugin URI
+                            if (!isset($plugin_data['PluginURI']) || 
+                                strpos($plugin_data['PluginURI'], 'wordpress.org/plugins') === false) {
+                                $is_premium = true;
+                            }
+                        }
+                        
+                        // For premium plugins, we need different logic
+                        if ($is_premium) {
+                            // Include premium plugins in the list
+                            $plugins_with_auto_update[$slug] = [
+                                'name' => isset($plugins[$file]['Name']) ? $plugins[$file]['Name'] : $slug,
+                                'current_version' => isset($plugins[$file]['Version']) ? $plugins[$file]['Version'] : '?',
+                                'new_version' => $data->new_version ?? '?',
+                                'is_premium' => true,
+                                'wp_org_slug' => $wp_org_slug
+                            ];
+                            continue;
+                        }
+                        
+                        // Regular WordPress.org plugins
                         $check_slugs = [];
                         $check_slugs[] = dirname($file);
                         $check_slugs[] = basename($file, '.php');
@@ -1377,18 +1451,22 @@ trait MCU_Admin_UI_Trait {
                             }
                         }
                         if ($found_private) continue;
+                        
+                        // Include all public plugins (even excluded ones)
                         $plugins_with_auto_update[$slug] = [
                             'name' => isset($plugins[$file]['Name']) ? $plugins[$file]['Name'] : $slug,
                             'current_version' => isset($plugins[$file]['Version']) ? $plugins[$file]['Version'] : '?',
-                            'new_version' => $data->new_version ?? '?'
+                            'new_version' => $data->new_version ?? '?',
+                            'is_premium' => false,
+                            'wp_org_slug' => $wp_org_slug
                         ];
                     }
                 }
             ?>
             <div class="mcu-card">
                 <div class="mcu-card-header">
-                    <h2 class="mcu-card-title"><span class="dashicons dashicons-wordpress"></span> Repository Ufficiale WordPress</h2>
-                    <?php if (!empty($plugins_with_auto_update)): ?>
+                    <h2 class="mcu-card-title"><span class="dashicons dashicons-wordpress"></span> Plugin con Aggiornamenti</h2>
+                    <?php if ($public_plugin_updates_count > 0): ?>
                         <?php $auto_update_nonce = wp_create_nonce('marrison_auto_update'); ?>
                         <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-auto-update" data-nonce="<?php echo esc_attr($auto_update_nonce); ?>">
                             Aggiorna Tutti
@@ -1398,7 +1476,7 @@ trait MCU_Admin_UI_Trait {
                 <?php if (empty($plugins_with_auto_update)): ?>
                     <div class="mcu-empty-state">
                         <span class="dashicons dashicons-yes-alt"></span>
-                        <p>Tutti i plugin ufficiali sono aggiornati.</p>
+                        <p>Tutti i plugin sono aggiornati.</p>
                     </div>
                 <?php else: ?>
                     <table class="mcu-table">
@@ -1407,16 +1485,41 @@ trait MCU_Admin_UI_Trait {
                                 <th>Plugin</th>
                                 <th>Versione Attuale</th>
                                 <th>Nuova Versione</th>
+                                <th>Tipo</th>
                                 <th>Stato</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($plugins_with_auto_update as $slug => $info): ?>
-                                <tr>
-                                    <td><?php echo esc_html($info['name']); ?></td>
+                            <?php foreach ($plugins_with_auto_update as $slug => $info):
+                                // Check exclusion using both directory slug and WordPress.org slug
+                                $is_excluded = $this->is_item_excluded($slug, 'plugin') || 
+                                             (isset($info['wp_org_slug']) && $this->is_item_excluded($info['wp_org_slug'], 'plugin'));
+                            ?>
+                                <tr style="<?php echo $is_excluded ? 'opacity: 0.6; background: #f9f9f9;' : ''; ?>">
+                                    <td>
+                                        <?php echo esc_html($info['name']); ?>
+                                        <?php if($is_excluded): ?>
+                                            <div style="margin-top: 4px;">
+                                                <span class="mcu-badge mcu-badge-warning" style="font-size:10px;">Escluso</span>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?php echo esc_html($info['current_version']); ?></td>
                                     <td><span class="mcu-badge mcu-badge-primary"><?php echo esc_html($info['new_version']); ?></span></td>
-                                    <td><span class="mcu-badge mcu-badge-warning">In attesa</span></td>
+                                    <td>
+                                        <?php if(isset($info['is_premium']) && $info['is_premium']): ?>
+                                            <span class="mcu-badge mcu-badge-warning" style="font-size:10px;">Premium</span>
+                                        <?php else: ?>
+                                            <span class="mcu-badge mcu-badge-success" style="font-size:10px;">WordPress.org</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if($is_excluded): ?>
+                                            <span class="mcu-badge mcu-badge-warning">Escluso</span>
+                                        <?php else: ?>
+                                            <span class="mcu-badge mcu-badge-warning">In attesa</span>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
