@@ -293,7 +293,6 @@ trait MCU_Admin_UI_Trait {
                                     <th>Plugin Installato</th>
                                     <th>Versione Installata</th>
                                     <th>Versione Repository</th>
-                                    <th style="width: 80px; text-align: center;">Escludi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -302,12 +301,6 @@ trait MCU_Admin_UI_Trait {
                                         <td><strong><?php echo esc_html($item['name']); ?></strong></td>
                                         <td><?php echo esc_html($item['version']); ?></td>
                                         <td><?php echo esc_html($item['remote_version']); ?></td>
-                                        <td style="text-align: center;">
-                                            <label class="mcu-switch mcu-switch-sm">
-                                                <input type="checkbox" class="marrison_exclude_toggle" data-slug="<?php echo esc_attr($item['slug']); ?>" data-type="plugin" <?php checked($this->is_item_excluded($item['slug'], 'plugin')); ?>>
-                                                <span class="mcu-slider"></span>
-                                            </label>
-                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -372,7 +365,6 @@ trait MCU_Admin_UI_Trait {
                                     <th>Tema</th>
                                     <th>Versione Installata</th>
                                     <th>Versione Repository</th>
-                                    <th style="width: 80px; text-align: center;">Escludi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -381,12 +373,6 @@ trait MCU_Admin_UI_Trait {
                                         <td><strong><?php echo esc_html($item['name']); ?></strong></td>
                                         <td><?php echo esc_html($item['version']); ?></td>
                                         <td><?php echo esc_html($item['remote_version']); ?></td>
-                                        <td style="text-align: center;">
-                                            <label class="mcu-switch mcu-switch-sm">
-                                                <input type="checkbox" class="marrison_exclude_toggle" data-slug="<?php echo esc_attr($item['repo_slug']); ?>" data-type="theme" <?php checked($this->is_item_excluded($item['repo_slug'], 'theme')); ?>>
-                                                <span class="mcu-slider"></span>
-                                            </label>
-                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -857,13 +843,19 @@ trait MCU_Admin_UI_Trait {
                         $type_label = 'Plugin';
                         $parse_name = substr($filename, 7);
                     }
-                    if (preg_match('/^(.*?)-v(.*)-backup\.zip$/', $parse_name, $matches)) {
+                    if (preg_match('/^(.*?)-v(.*?)-(\d{8})-(\d{6})-backup\.zip$/', $parse_name, $matches)) {
+                        $slug = $matches[1];
+                        $backup_version = $matches[2];
+                    } elseif (preg_match('/^(.*?)-v(.*)-backup\.zip$/', $parse_name, $matches)) {
                         $slug = $matches[1];
                         $backup_version = $matches[2];
                     } elseif (preg_match('/^(.*?)-backup\.zip$/', $parse_name, $matches)) {
                         $slug = $matches[1];
                     } else {
-                        if (preg_match('/^(.*)-v(.*)-backup\.zip$/', $filename, $matches)) {
+                        if (preg_match('/^(.*)-v(.*)-(\d{8})-(\d{6})-backup\.zip$/', $filename, $matches)) {
+                            $slug = $matches[1];
+                            $backup_version = $matches[2];
+                        } elseif (preg_match('/^(.*)-v(.*)-backup\.zip$/', $filename, $matches)) {
                             $slug = $matches[1];
                             $backup_version = $matches[2];
                         } else {
@@ -942,13 +934,23 @@ trait MCU_Admin_UI_Trait {
                                     <td style="text-align:right;">
                                         <?php 
                                         $restore_nonce = wp_create_nonce('marrison_restore_' . $info['filename']); 
+                                        $is_active_version = ($info['backup_version'] !== 'N/A' && $info['backup_version'] === $current_version);
                                         ?>
-                                        <button type="button" 
-                                                class="mcu-button mcu-button-secondary mcu-button-sm mcu-action-restore" 
-                                                data-filename="<?php echo esc_attr($info['filename']); ?>"
-                                                data-nonce="<?php echo esc_attr($restore_nonce); ?>">
-                                            <span class="dashicons dashicons-undo"></span> Ripristina
-                                        </button>
+                                        <?php if ($is_active_version): ?>
+                                            <button type="button" 
+                                                    class="mcu-button mcu-button-secondary mcu-button-sm mcu-action-restore updated" 
+                                                    disabled
+                                                    style="opacity: 0.7; cursor: not-allowed;">
+                                                <span class="dashicons dashicons-yes"></span> Ripristinato
+                                            </button>
+                                        <?php else: ?>
+                                            <button type="button" 
+                                                    class="mcu-button mcu-button-secondary mcu-button-sm mcu-action-restore" 
+                                                    data-filename="<?php echo esc_attr($info['filename']); ?>"
+                                                    data-nonce="<?php echo esc_attr($restore_nonce); ?>">
+                                                <span class="dashicons dashicons-undo"></span> Ripristina
+                                            </button>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

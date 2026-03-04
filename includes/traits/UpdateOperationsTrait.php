@@ -73,6 +73,21 @@ trait MCU_Update_Operations_Trait {
             return $transient;
         }
 
+        // --- Filter out excluded plugins from ALL updates (including public repo) ---
+        if (!empty($transient->response)) {
+            $excluded_plugins = get_option('marrison_excluded_plugins', []);
+            if (!empty($excluded_plugins)) {
+                foreach ($transient->response as $plugin_file => $data) {
+                    $slug = dirname($plugin_file);
+                    if ($slug === '.' || $slug === '') $slug = basename($plugin_file, '.php');
+                    
+                    if (in_array($slug, $excluded_plugins)) {
+                        unset($transient->response[$plugin_file]);
+                    }
+                }
+            }
+        }
+
         $updates = $this->get_available_updates();
 
         foreach ($updates as $update) {
@@ -108,6 +123,18 @@ trait MCU_Update_Operations_Trait {
     public function check_for_theme_updates($transient) {
         if (empty($transient->checked)) {
             return $transient;
+        }
+
+        // --- Filter out excluded themes from ALL updates (including public repo) ---
+        if (!empty($transient->response)) {
+            $excluded_themes = get_option('marrison_excluded_themes', []);
+            if (!empty($excluded_themes)) {
+                foreach ($excluded_themes as $excluded_slug) {
+                    if (isset($transient->response[$excluded_slug])) {
+                        unset($transient->response[$excluded_slug]);
+                    }
+                }
+            }
         }
 
         $updates = $this->get_available_theme_updates();
@@ -436,6 +463,19 @@ trait MCU_Update_Operations_Trait {
             if (!$wp_filesystem) {
                 return new WP_Error('fs_error', 'Filesystem error - Object is null');
             }
+
+            // Check if plugin is active before deleting
+            $was_active = false;
+            if ($type === 'plugin') {
+                if (!function_exists('is_plugin_active')) {
+                    require_once ABSPATH . 'wp-admin/includes/plugin.php';
+                }
+                $current_file = $this->find_plugin_file($slug);
+                if ($current_file && is_plugin_active($current_file)) {
+                    $was_active = true;
+                }
+            }
+
             $dest_root = ($type === 'theme') ? get_theme_root() : WP_PLUGIN_DIR;
             $dest = $dest_root . '/' . $slug;
             if (realpath($dest) === realpath($dest_root)) {
@@ -460,6 +500,13 @@ trait MCU_Update_Operations_Trait {
             } else {
                 delete_site_transient('update_plugins');
                 wp_clean_plugins_cache(true);
+
+                if ($was_active) {
+                    $new_file = $this->find_plugin_file($slug);
+                    if ($new_file) {
+                        activate_plugin($new_file);
+                    }
+                }
             }
             if (function_exists('opcache_reset')) {
                 @opcache_reset();

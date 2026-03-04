@@ -79,11 +79,12 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
+                    $btn.removeClass('updating').addClass('updated').prop('disabled', true).html('<span class="dashicons dashicons-yes"></span> Ripristinato');
                     MCU.updateProgress(100, 'Ripristino completato!');
                     MCU.toast('Backup ripristinato con successo!', 'success');
                     setTimeout(function() {
                         location.reload();
-                    }, 1000);
+                    }, 1500);
                 } else {
                     $btn.prop('disabled', false).removeClass('updating').html('<span class="dashicons dashicons-undo"></span> Ripristina');
                     MCU.updateProgress(100, 'Errore!');
