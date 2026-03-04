@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.2
+ * Version: 9.3
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  */
@@ -347,6 +347,9 @@ class MCU_Custom_Updater {
     }
 
     public function update_official_plugin_ajax() {
+        @ignore_user_abort(true);
+        @set_time_limit(0);
+
         $nonce = sanitize_text_field($_POST['nonce'] ?? '');
         $file = sanitize_text_field($_POST['file'] ?? '');
         $package = isset($_POST['package']) ? esc_url_raw($_POST['package']) : '';
@@ -368,6 +371,18 @@ class MCU_Custom_Updater {
         include_once ABSPATH . 'wp-admin/includes/plugin.php';
         
         $was_active = is_plugin_active($file);
+        $plugin_slug = dirname($file);
+        if ($plugin_slug === '.' || $plugin_slug === '') {
+            $plugin_slug = basename($file, '.php');
+        }
+
+        $all_plugins = get_plugins();
+        $current_version = '';
+        if (isset($all_plugins[$file])) {
+            $current_version = $all_plugins[$file]['Version'];
+        }
+
+        $this->create_backup($plugin_slug, $current_version, 'plugin', $file);
         
         // Ensure update info is present in transient
         $transient = get_site_transient('update_plugins');

@@ -1,0 +1,131 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [9.3.0] - 2025-03-04
+
+### Added
+- **Backup/Restore Extended**: Complete backup/restore functionality now covers all plugins and themes, including both public and private repositories
+- **Orphan Backup Cleanup**: Automatic removal of backups for plugins that are no longer installed on the site
+- **Single-File Plugin Support**: Full backup/restore support for single-file plugins (not just directory-based plugins)
+
+### Fixed
+- **Update All Button**: Fixed "Aggiorna tutto" button that became unresponsive after backup extension
+- **Timeout Issues**: Extended execution time limits for bulk update endpoints to handle backup operations during mass updates
+
+### Improved
+- **Backup Reliability**: Enhanced backup filename handling and slug detection for both single-file and directory plugins
+- **Restore Process**: Improved restore logic to handle both plugin types seamlessly
+- **Performance**: Optimized backup cleanup routine to run efficiently when accessing backup page
+
+## [9.2.0] - Previous Release
+
+### UI Improvements
+- Centered action buttons in the Updates page header between title and logo
+- Standardized button colors throughout the plugin (normal: dark purple, hover: bright pink)
+- Removed repository plugin counters (private information) from dashboard and settings
+- Moved "Advanced Tools" block to "Guide & Download" tab
+- Cleaned up plugin and themes monitoring tables (removed File, Slug, and Status columns)
+
+### Bug Fixes
+- Fixed theme repository index.php download issue (absolute paths and separate logic)
+- Introduced global `MCU_PLUGIN_DIR` constant for more robust file path management
+
+## [9.1.0] - Previous Release
+
+### General
+- Feature update to version 9.1 with general stability and performance improvements
+- Updated stable version to reflect latest release
+
+## [8.6.0] - Previous Release
+
+### Bug Fixes
+- Removed conflict check with Marrison Custom Installer and made plugin independent
+- Renamed main class and traits to MCU_* to avoid name collisions
+- Eliminated unwanted activation notice
+
+## [8.5.0] - Previous Release
+
+### Added
+- Implemented forced translation updates (Core, Themes, Plugins) with deep cache cleanup and extended timeout
+- Added automation for Elementor database update after plugin update
+- Integrated Elementor DB update status in automatic email report
+
+### Bug Fixes
+- Added safety delay (3 seconds) before Elementor DB trigger for filesystem stability
+
+## [8.4.0] - Previous Release
+
+### UI Improvements
+- Updated update frequency names (Daily, Weekly, Monthly, Semi-annual) for better consistency
+
+### Bug Fixes
+- Improved next scheduled execution calculation to correctly respect set frequency (Daily, Weekly, Monthly, Semi-annual)
+
+## [8.3.0] - Previous Release
+
+### Bug Fixes
+- Fixed critical issue where plugin self-update could cause plugin deactivation
+- Implemented atomic update strategy with preventive backup
+
+## [8.2.1] - Previous Release
+
+### Email Improvements
+- Added visual status banners (Green/Red) for quick outcome identification
+- Enhanced report with detailed sections for errors and skipped updates
+- Optimized email graphics (logo, clean footer)
+
+### Core Improvements
+- Improved error handling during updates (captures WP_Error error codes)
+- Added PHP requirements check before update
+- Removed "About" tab from settings panel
+
+## [8.2.0] - Previous Release
+
+### Refactoring
+- Complete code restructuring using Traits to improve modularity and stability
+
+### Email Improvements
+- Renovated notification email graphics with modern responsive design
+- Added version details (Previous -> New) in update report
+
+### Bug Fixes
+- Resolved function redefinition conflicts with WordPress core
+
+## [8.1.5] - Previous Release
+
+### Internationalization
+- Made scheduling option strings (Weekly, Monthly, etc.) and test email messages translatable
+- Updated .pot file with latest strings
+
+## [8.1.4] - Previous Release
+
+### Added
+- Weekly scheduling option for automatic updates
+
+## [8.1.3] - Previous Release
+
+### Bug Fixes
+- Fixed update detection issue for WPCode Lite (insert-headers-and-footers) when Marrison Custom Updater is active
+- Improved private plugin exclusion logic to avoid false positives
+
+## [8.1.2] - Previous Release
+
+### Improvements
+- Enhanced private plugin update detection logic
+- Added ability to exclude installed private plugins from standard WordPress checks to avoid conflicts
+
+## [8.1.1] - Previous Release
+
+### Improvements
+- Improved cron job management: added detailed logs and error handling (try-catch) to prevent blocks
+- Fixed bug that prevented email report sending when there were no updates (now always sends if scheduled)
+- Resolved PHP "Undefined variable" notice in cron job
+
+## [8.1.0] - Previous Release
+
+### Added
+- Initial release with core functionality

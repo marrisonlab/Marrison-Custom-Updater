@@ -246,15 +246,171 @@ jQuery(document).ready(function($) {
 
     // --- Update All (Repo + Public) ---
     $('.mcu-action-update-all').on('click', function(e) {
-        // ... (existing implementation if any, or placeholder)
-        // For now, let's just trigger a reload or implement a complex queue
-        // Since the user didn't ask for this specifically, we focus on what's there.
-        // Assuming this button triggers a PHP action via form submit usually, but here it has data-attributes.
-        // If it's just a link wrapper or form submit, let it be. 
-        // If it needs JS:
-        if ($(this).hasClass('mcu-action-update-all')) {
-            // Implement if needed, otherwise skip
+        e.preventDefault();
+        
+        var $btn = $(this);
+        var nonceAll = $btn.attr('data-nonce-all');
+        var nonceBulk = $btn.attr('data-nonce-bulk');
+        var nonceAuto = $btn.attr('data-nonce-auto');
+        
+        if (!confirm('Sei sicuro di voler aggiornare tutti i plugin, temi e traduzioni?')) {
+            return;
         }
+
+        $btn.prop('disabled', true).addClass('updating');
+        MCU.showProgress('Controllo aggiornamenti in corso...');
+        MCU.updateProgress(5, 'Recupero lista aggiornamenti...');
+
+        $.ajax({
+            url: marrisonUpdater.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'marrison_get_all_updates_ajax',
+                nonce: nonceAll
+            },
+            success: function(response) {
+                if (!response.success) {
+                    MCU.updateProgress(100, 'Errore: ' + (response.data || 'Sconosciuto'));
+                    MCU.toast('Errore durante il recupero degli aggiornamenti', 'error');
+                    $btn.prop('disabled', false).removeClass('updating');
+                    return;
+                }
+
+                var data = response.data;
+                var queue = [];
+
+                // 1. Private Plugins
+                if (data.plugins_private && data.plugins_private.length > 0) {
+                    data.plugins_private.forEach(function(plugin) {
+                        queue.push({
+                            type: 'plugin_private',
+                            label: 'Plugin Privato: ' + (plugin.name || plugin.slug),
+                            slug: plugin.slug,
+                            nonce: nonceBulk
+                        });
+                    });
+                }
+
+                // 2. Official Plugins
+                if (data.plugins_official && data.plugins_official.length > 0) {
+                    data.plugins_official.forEach(function(plugin) {
+                        queue.push({
+                            type: 'plugin_official',
+                            label: 'Plugin Ufficiale: ' + (plugin.name || plugin.slug),
+                            file: plugin.file,
+                            package: plugin.package,
+                            new_version: plugin.version,
+                            nonce: nonceAuto
+                        });
+                    });
+                }
+
+                // 3. Themes
+                if (data.themes_count > 0) {
+                    queue.push({
+                        type: 'themes',
+                        label: 'Temi (' + data.themes_count + ')',
+                        nonce: nonceAll // or nonceAuto depending on backend
+                    });
+                }
+
+                // 4. Translations
+                if (data.translations_count > 0) {
+                    queue.push({
+                        type: 'translations',
+                        label: 'Traduzioni (' + data.translations_count + ')',
+                        nonce: nonceAuto
+                    });
+                }
+
+                if (queue.length === 0) {
+                    MCU.updateProgress(100, 'Nessun aggiornamento necessario.');
+                    MCU.toast('Tutto aggiornato!', 'success');
+                    $btn.prop('disabled', false).removeClass('updating');
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1000);
+                    return;
+                }
+
+                // Process Queue
+                var total = queue.length;
+                var processed = 0;
+                var successCount = 0;
+                var failCount = 0;
+
+                function processQueue(index) {
+                    if (index >= total) {
+                        MCU.updateProgress(100, 'Tutti gli aggiornamenti completati!');
+                        MCU.toast('Aggiornamento massivo completato.', 'success');
+                        setTimeout(function() {
+                            location.reload();
+                        }, 1500);
+                        return;
+                    }
+
+                    var item = queue[index];
+                    var progress = Math.round(((index + 1) / total) * 100);
+                    MCU.updateProgress(progress, 'Aggiornamento in corso: ' + item.label + '...');
+
+                    var ajaxData = {};
+                    
+                    if (item.type === 'plugin_private') {
+                        ajaxData = {
+                            action: 'marrison_update_plugin_ajax',
+                            slug: item.slug,
+                            nonce: item.nonce
+                        };
+                    } else if (item.type === 'plugin_official') {
+                        ajaxData = {
+                            action: 'marrison_update_official_plugin_ajax',
+                            file: item.file,
+                            package: item.package,
+                            new_version: item.new_version,
+                            nonce: item.nonce
+                        };
+                    } else if (item.type === 'themes') {
+                        ajaxData = {
+                            action: 'marrison_update_all_themes_ajax',
+                            nonce: item.nonce
+                        };
+                    } else if (item.type === 'translations') {
+                        ajaxData = {
+                            action: 'marrison_update_translations_ajax',
+                            nonce: item.nonce
+                        };
+                    }
+
+                    $.ajax({
+                        url: marrisonUpdater.ajaxurl,
+                        type: 'POST',
+                        data: ajaxData,
+                        success: function(res) {
+                            if (res.success) {
+                                successCount++;
+                            } else {
+                                failCount++;
+                                console.error('Update failed for ' + item.label, res);
+                            }
+                        },
+                        error: function() {
+                            failCount++;
+                        },
+                        complete: function() {
+                            processed++;
+                            processQueue(index + 1);
+                        }
+                    });
+                }
+
+                processQueue(0);
+            },
+            error: function() {
+                MCU.updateProgress(100, 'Errore di connessione');
+                MCU.toast('Errore di connessione al server.', 'error');
+                $btn.prop('disabled', false).removeClass('updating');
+            }
+        });
     });
 
     // --- Clear Cache ---

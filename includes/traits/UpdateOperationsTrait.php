@@ -381,32 +381,92 @@ trait MCU_Update_Operations_Trait {
         return $dir;
     }
 
+    private function cleanup_orphan_plugin_backups() {
+        $backup_dir = $this->get_backup_dir();
+        if (!is_dir($backup_dir)) {
+            return;
+        }
+
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        $installed_slugs = [];
+        foreach (array_keys(get_plugins()) as $plugin_file) {
+            $plugin_dir = dirname($plugin_file);
+            if ($plugin_dir === '.' || $plugin_dir === '') {
+                $installed_slugs[] = basename($plugin_file, '.php');
+            } else {
+                $installed_slugs[] = $plugin_dir;
+            }
+        }
+        $installed_slugs = array_values(array_unique(array_filter($installed_slugs)));
+
+        foreach (glob($backup_dir . '/*-backup.zip') as $file) {
+            $filename = basename($file);
+            $is_plugin_backup = true;
+            $parse_name = $filename;
+
+            if (strpos($filename, 'theme-') === 0) {
+                continue;
+            }
+
+            if (strpos($filename, 'plugin-') === 0) {
+                $parse_name = substr($filename, 7);
+            }
+
+            $slug = '';
+            if (preg_match('/^(.*?)-v.*-backup\.zip$/', $parse_name, $matches)) {
+                $slug = $matches[1];
+            } elseif (preg_match('/^(.*?)-backup\.zip$/', $parse_name, $matches)) {
+                $slug = $matches[1];
+            }
+
+            if (!$is_plugin_backup || empty($slug)) {
+                continue;
+            }
+
+            if (!in_array($slug, $installed_slugs, true)) {
+                @unlink($file);
+            }
+        }
+    }
+
     private function create_backup($slug, $version = '', $type = 'plugin', $known_file = '') {
         $source = '';
+        $backup_slug = $slug;
         if ($type === 'plugin') {
             $plugin_file = $known_file ? $known_file : $this->find_plugin_file($slug);
             if (!$plugin_file) return false;
             $plugin_dir = dirname($plugin_file);
             if ($plugin_dir === '.' || $plugin_dir === '') {
-                return false;
+                $source = WP_PLUGIN_DIR . '/' . $plugin_file;
+                $backup_slug = basename($plugin_file, '.php');
+            } else {
+                $source = WP_PLUGIN_DIR . '/' . $plugin_dir;
+                $backup_slug = $plugin_dir;
             }
-            $source = WP_PLUGIN_DIR . '/' . $plugin_dir;
         } else {
             $theme = wp_get_theme($slug);
             if (!$theme->exists()) return false;
             $source = get_theme_root() . '/' . $slug;
         }
-        if (!is_dir($source)) return false;
+        if (!file_exists($source)) return false;
+        if (empty($backup_slug)) return false;
         $backup_dir = $this->get_backup_dir();
-        $pattern = $backup_dir . '/' . $type . '-' . $slug . '-*-backup.zip';
+        $pattern = $backup_dir . '/' . $type . '-' . $backup_slug . '-*-backup.zip';
         foreach (glob($pattern) as $f) @unlink($f);
         if ($type === 'plugin') {
-            foreach (glob($backup_dir . '/' . $slug . '-*-backup.zip') as $f) @unlink($f);
+            foreach (glob($backup_dir . '/' . $backup_slug . '-*-backup.zip') as $f) @unlink($f);
+            if ($backup_slug !== $slug) {
+                foreach (glob($backup_dir . '/' . $slug . '-*-backup.zip') as $f) @unlink($f);
+                foreach (glob($backup_dir . '/plugin-' . $slug . '-*-backup.zip') as $f) @unlink($f);
+            }
         }
         $date = date('Ymd');
         $time = date('His');
         $ver_str = $version ? $version : 'na';
-        $filename = sprintf('%s-%s-v%s-%s-%s-backup.zip', $type, $slug, $ver_str, $date, $time);
+        $filename = sprintf('%s-%s-v%s-%s-%s-backup.zip', $type, $backup_slug, $ver_str, $date, $time);
         $zip_file = $backup_dir . '/' . $filename;
         if (file_exists($zip_file)) @unlink($zip_file);
         if (!class_exists('PclZip')) {
@@ -487,6 +547,14 @@ trait MCU_Update_Operations_Trait {
                     $trash_dir = $dest_root . '/.' . $slug . '_trash_' . time();
                     if ($wp_filesystem->move($dest, $trash_dir)) {
                         $wp_filesystem->delete($trash_dir, true);
+                    }
+                }
+            } elseif ($type === 'plugin') {
+                $current_file = $this->find_plugin_file($slug);
+                if ($current_file && dirname($current_file) === '.') {
+                    $single_file_dest = WP_PLUGIN_DIR . '/' . $current_file;
+                    if ($wp_filesystem->exists($single_file_dest)) {
+                        $wp_filesystem->delete($single_file_dest);
                     }
                 }
             }

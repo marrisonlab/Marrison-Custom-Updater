@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.2
+Stable tag: 9.3
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -18,7 +18,8 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
 *   **Repository Privato:** Collega il tuo sito a una fonte esterna per ricevere aggiornamenti per plugin e temi non presenti nella directory ufficiale.
 *   **Gestione Aggiornamenti Unificata:** Visualizza e installa aggiornamenti per plugin e temi privati direttamente dalla dashboard.
-*   **Sistema di Backup Integrato:** Esegue automaticamente backup dei plugin prima dell'aggiornamento, permettendo il ripristino rapido (rollback) in caso di problemi.
+*   **Sistema di Backup Integrato:** Esegue automaticamente backup di tutti i plugin e temi (privati e pubblici) prima dell'aggiornamento, permettendo il ripristino rapido (rollback) in caso di problemi.
+*   **Pulizia Backup Orfani:** Rimuove automaticamente i backup dei plugin che non sono più installati sul sito.
 *   **Aggiornamenti Automatici:** Configura aggiornamenti automatici programmati (giornalieri o settimanali) con notifiche email dettagliate.
 *   **Gestione Traduzioni:** Strumento dedicato per aggiornare le traduzioni dei plugin.
 *   **Log e Debug:** Sistema di logging integrato per monitorare le operazioni di aggiornamento e cron job.
@@ -31,6 +32,13 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 9.3 =
+* **Feature:** Esteso il sistema di backup/restore a tutti i plugin e temi, inclusi quelli da repository pubbliche e private.
+* **Feature:** Aggiunta pulizia automatica dei backup orfani (backup di plugin non più installati).
+* **Improvement:** Supporto completo per plugin single-file e plugin in cartella nel sistema di backup/restore.
+* **Fix:** Risolto il problema del pulsante "Aggiorna tutto" che non rispondeva dopo l'introduzione dei backup estesi.
+* **Improvement:** Esteso il tempo di esecuzione per gli endpoint di aggiornamento massivo per gestire backup durante update multipli.
 
 = 9.2 =
 * UI: Centrati i pulsanti nella testata della pagina Aggiornamenti tra titolo e logo.

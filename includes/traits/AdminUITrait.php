@@ -804,6 +804,7 @@ trait MCU_Admin_UI_Trait {
 
     public function backup_page() {
         $restored = $_GET['restored'] ?? '';
+        $this->cleanup_orphan_plugin_backups();
         if (!function_exists('get_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
@@ -1441,7 +1442,14 @@ trait MCU_Admin_UI_Trait {
     }
 
     public function update_all_themes_ajax() {
-        check_ajax_referer('marrison_auto_update', 'nonce');
+        @ignore_user_abort(true);
+        @set_time_limit(0);
+
+        $nonce = $_POST['nonce'] ?? '';
+        if (!wp_verify_nonce($nonce, 'marrison_auto_update') && !wp_verify_nonce($nonce, 'marrison_update_all')) {
+            wp_send_json_error('Security check failed');
+        }
+        
         if (!current_user_can('update_themes')) {
             wp_send_json_error('Insufficient permissions');
         }
@@ -1452,7 +1460,24 @@ trait MCU_Admin_UI_Trait {
         if (empty($current->response)) {
              wp_send_json_error('Nessun aggiornamento temi disponibile');
         }
-        $themes = array_keys($current->response);
+        
+        $themes = [];
+        foreach (array_keys($current->response) as $theme_slug) {
+            if (!$this->is_item_excluded($theme_slug, 'theme')) {
+                $themes[] = $theme_slug;
+            }
+        }
+        
+        if (empty($themes)) {
+             wp_send_json_error('Nessun tema da aggiornare (esclusi o aggiornati)');
+        }
+
+        foreach ($themes as $theme_slug) {
+            $theme = wp_get_theme($theme_slug);
+            $current_version = $theme->exists() ? $theme->get('Version') : '';
+            $this->create_backup($theme_slug, $current_version, 'theme');
+        }
+
         $skin = new Automatic_Upgrader_Skin();
         $upgrader = new Theme_Upgrader($skin);
         $result = $upgrader->bulk_upgrade($themes);
@@ -1586,13 +1611,20 @@ trait MCU_Admin_UI_Trait {
             }
         }
         wp_update_themes();
-        $theme_updates = get_site_transient('update_themes');
+        $theme_updates_transient = get_site_transient('update_themes');
         
-        // Filter themes count
+        // Filter themes count and collect data
+        $themes_to_update = [];
         $themes_count = 0;
-        if (!empty($theme_updates->response)) {
-             foreach ($theme_updates->response as $slug => $data) {
+        if (!empty($theme_updates_transient->response)) {
+             foreach ($theme_updates_transient->response as $slug => $data) {
                  if (!$this->is_item_excluded($slug, 'theme')) {
+                     $themes_to_update[] = [
+                         'slug' => $slug,
+                         'version' => $data['new_version'] ?? ($data->new_version ?? ''),
+                         'package' => $data['package'] ?? ($data->package ?? ''),
+                         'url' => $data['url'] ?? ($data->url ?? '')
+                     ];
                      $themes_count++;
                  }
              }
@@ -1605,12 +1637,17 @@ trait MCU_Admin_UI_Trait {
         return [
             'plugins_private' => $private_to_update,
             'plugins_official' => $official_to_update,
+            'themes' => $themes_to_update,
             'themes_count' => $themes_count,
             'translations_count' => $translations_count
         ];
     }
 
     public function get_all_updates_ajax() {
+        // Increase execution time and memory for this heavy operation
+        @set_time_limit(0);
+        @ini_set('memory_limit', '512M');
+        
         check_ajax_referer('marrison_update_all', 'nonce');
         if (!current_user_can('manage_options')) {
             wp_send_json_error('Insufficient permissions');
