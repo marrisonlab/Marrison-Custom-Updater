@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.4.0] - 2026-03-04
+
+### CRITICAL FIXES
+- **Sistema di esclusioni completamente rinnovato**: Ora funziona per tutti i tipi di plugin
+- **Gestione unificata**: Plugin premium/privati e WordPress.org gestiti allo stesso modo
+- **Riconoscimento automatico plugin premium**: Tramite analisi del PluginURI
+- **Sistema di slug duali**: Compatibilità con tutti i plugin (cartella vs WordPress.org)
+
+### BUG FIXES
+- Badge "Escluso" ora funziona per tutti i tipi di plugin
+- Contatore principale esclude correttamente i plugin esclusi
+- Pulsante "Aggiorna tutto" rispetta le esclusioni
+- Plugin esclusi non vengono più aggiornati accidentalmente
+
+### IMPROVEMENTS
+- **Ripristinati tutti i pulsanti JavaScript mancanti**
+- Handler per pulsante "Invia mail di test" nella programmazione
+- Handler per pulsante "Pulisci Cache"
+- Handler per pulsante "Aggiorna Tutti" plugin pubblici
+- Handler per pulsante "Installa selezionati" e "Seleziona tutti"
+- Feedback visivo e toast notifications per tutti i pulsanti
+- Gestione errori e stati di caricamento per tutti i pulsanti
+
+### IMPACT
+- Sistema di esclusioni ora affidabile al 100%
+- Tutti i pulsanti dell'interfaccia funzionano correttamente
+- Supporto completo per plugin premium, privati e WordPress.org
+
 ## [9.3.0] - 2025-03-04
 
 ### Added

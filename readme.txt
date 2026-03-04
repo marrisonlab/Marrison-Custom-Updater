@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.3
+Stable tag: 9.4
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -32,6 +32,22 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 9.4 =
+* **Correzione critica**: Sistema di esclusioni completamente rinnovato
+* **Nuovo sistema**: Gestione unificata per plugin premium/privati e WordPress.org
+* **Miglioramento**: Riconoscimento automatico plugin premium tramite PluginURI
+* **Miglioramento**: Sistema di slug duali per compatibilità con tutti i plugin
+* **Correzione**: Badge "Escluso" ora funziona per tutti i tipi di plugin
+* **Correzione**: Contatore principale esclude correttamente i plugin esclusi
+* **Correzione**: Pulsante "Aggiorna tutto" rispetta le esclusioni
+* **Correzione**: Ripristinati tutti i pulsanti JavaScript mancanti
+* **Nuovo**: Handler per pulsante "Invia mail di test" nella programmazione
+* **Nuovo**: Handler per pulsante "Pulisci Cache"
+* **Nuovo**: Handler per pulsante "Aggiorna Tutti" plugin pubblici
+* **Nuovo**: Handler per pulsante "Installa selezionati" e "Seleziona tutti"
+* **Miglioramento**: Feedback visivo e toast notifications per tutti i pulsanti
+* **Miglioramento**: Gestione errori e stati di caricamento per tutti i pulsanti
 
 = 9.3 =
 * **Feature:** Esteso il sistema di backup/restore a tutti i plugin e temi, inclusi quelli da repository pubbliche e private.

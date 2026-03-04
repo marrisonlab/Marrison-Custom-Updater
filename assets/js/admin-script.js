@@ -463,4 +463,173 @@ jQuery(document).ready(function($) {
         });
     });
 
+    // Auto update (public plugins) handler
+    $('.mcu-action-auto-update').on('click', function(e) {
+        e.preventDefault();
+        
+        var $btn = $(this);
+        var nonce = $btn.data('nonce');
+        
+        if (!confirm('Sei sicuro di voler aggiornare tutti i plugin pubblici?')) {
+            return;
+        }
+        
+        $btn.prop('disabled', true).text('Aggiornamento in corso...');
+        MCU.showProgress('Aggiornamento plugin pubblici...');
+        MCU.updateProgress(10, 'Inizio aggiornamento...');
+        
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'marrison_auto_update',
+                nonce: nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    MCU.updateProgress(100, 'Aggiornamento completato!');
+                    MCU.toast('Plugin pubblici aggiornati con successo', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    MCU.updateProgress(100, 'Errore: ' + (response.data || 'Sconosciuto'));
+                    MCU.toast('Errore durante l\'aggiornamento', 'error');
+                }
+                $btn.prop('disabled', false).text('Aggiorna Tutti');
+            },
+            error: function() {
+                MCU.updateProgress(100, 'Errore di connessione');
+                MCU.toast('Errore di connessione', 'error');
+                $btn.prop('disabled', false).text('Aggiorna Tutti');
+            }
+        });
+    });
+
+    // Clear cache handler
+    $('.mcu-action-clear-cache').on('click', function(e) {
+        e.preventDefault();
+        
+        var $form = $(this).closest('form');
+        var $btn = $(this);
+        
+        $btn.prop('disabled', true).text('Pulizia in corso...');
+        
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: $form.serialize(),
+            success: function(response) {
+                $btn.prop('disabled', false).html('<span class="dashicons dashicons-update"></span> Pulisci Cache');
+                if (response.success) {
+                    MCU.toast('Cache pulita con successo', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    MCU.toast('Errore durante la pulizia della cache', 'error');
+                }
+            },
+            error: function() {
+                $btn.prop('disabled', false).html('<span class="dashicons dashicons-update"></span> Pulisci Cache');
+                MCU.toast('Errore di connessione', 'error');
+            }
+        });
+    });
+
+    // Install selected handler
+    $('#marrison-install-btn').on('click', function(e) {
+        e.preventDefault();
+        
+        var selected = $('input[name="plugins[]"]:checked');
+        if (selected.length === 0) {
+            MCU.toast('Seleziona almeno un plugin da installare', 'warning');
+            return;
+        }
+        
+        if (!confirm('Sei sicuro di voler installare i plugin selezionati?')) {
+            return;
+        }
+        
+        var $btn = $(this);
+        var plugins = [];
+        selected.each(function() {
+            plugins.push($(this).val());
+        });
+        
+        $btn.prop('disabled', true).text('Installazione in corso...');
+        MCU.showProgress('Installazione plugin...');
+        
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'marrison_install_plugins',
+                plugins: plugins,
+                nonce: $('#_wpnonce').val()
+            },
+            success: function(response) {
+                if (response.success) {
+                    MCU.updateProgress(100, 'Installazione completata!');
+                    MCU.toast('Plugin installati con successo', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    MCU.updateProgress(100, 'Errore: ' + (response.data || 'Sconosciuto'));
+                    MCU.toast('Errore durante l\'installazione', 'error');
+                }
+                $btn.prop('disabled', false).text('Installa selezionati');
+            },
+            error: function() {
+                MCU.updateProgress(100, 'Errore di connessione');
+                MCU.toast('Errore di connessione', 'error');
+                $btn.prop('disabled', false).text('Installa selezionati');
+            }
+        });
+    });
+
+    // Select all checkbox handler
+    $('#marrison-select-all').on('change', function() {
+        var checked = $(this).prop('checked');
+        $('input[name="plugins[]"]').prop('checked', checked);
+    });
+
+    // Test email functionality
+    $('#marrison_test_email_btn').on('click', function(e) {
+        e.preventDefault();
+        
+        var $btn = $(this);
+        var $result = $('#marrison_test_email_result');
+        var email = $('#marrison_auto_update_email').val();
+        
+        if (!email) {
+            $result.css('color', 'red').text('Inserisci un indirizzo email');
+            return;
+        }
+        
+        $btn.prop('disabled', true).text('Invio in corso...');
+        $result.css('color', '#666').text('');
+        
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'marrison_test_email',
+                nonce: $btn.data('nonce'),
+                email: email
+            },
+            success: function(response) {
+                $btn.prop('disabled', false).text('Invia mail di test');
+                
+                if (response.success) {
+                    $result.css('color', 'green').text('✓ ' + response.data);
+                    MCU.toast('Email di test inviata con successo', 'success');
+                } else {
+                    $result.css('color', 'red').text('✗ ' + response.data);
+                    MCU.toast('Errore nell\'invio dell\'email', 'error');
+                }
+            },
+            error: function() {
+                $btn.prop('disabled', false).text('Invia mail di test');
+                $result.css('color', 'red').text('✗ Errore di connessione');
+                MCU.toast('Errore di connessione', 'error');
+            }
+        });
+    });
+
 });

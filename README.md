@@ -18,17 +18,49 @@
 - 📊 **Log e Debug**: Sistema di logging integrato per monitorare le operazioni di aggiornamento e cron job
 - 🚫 **Esclusione Plugin**: Possibilità di escludere specifici plugin dagli aggiornamenti automatici
 
-## 🚀 Installazione
+## � Installation
 
-1. Carica la cartella `marrison-custom-updater` nella directory `/wp-content/plugins/` del tuo sito
-2. Attiva il plugin dal menu 'Plugin' di WordPress
-3. Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato
+1. Upload the `marrison-custom-updater` folder to the `/wp-content/plugins/` directory
+2. Activate the plugin through the 'Plugins' menu in WordPress
+3. Go to 'Marrison Updater' > 'Settings' to configure your private repository URL
 
-## 📋 Requisiti
+## 📋 Requirements
 
-- WordPress 6.0 o superiore
-- PHP 7.4 o superiore
-- Accesso amministrativo al sito WordPress
+- WordPress 6.0 or higher
+- PHP 7.4 or higher
+- Access to plugin files for backup/restore operations
+
+## 🔄 Version History
+
+### [9.4.0] - 2026-03-04
+
+#### 🔧 CRITICAL FIXES
+- **Sistema di esclusioni completamente rinnovato**: Ora funziona per tutti i tipi di plugin
+- **Gestione unificata**: Plugin premium/privati e WordPress.org gestiti allo stesso modo
+- **Riconoscimento automatico plugin premium**: Tramite analisi del PluginURI
+- **Sistema di slug duali**: Compatibilità con tutti i plugin (cartella vs WordPress.org)
+
+#### 🐛 BUG FIXES
+- Badge "Escluso" ora funziona per tutti i tipi di plugin
+- Contatore principale esclude correttamente i plugin esclusi
+- Pulsante "Aggiorna tutto" rispetta le esclusioni
+- Plugin esclusi non vengono più aggiornati accidentalmente
+
+#### ⚡ IMPROVEMENTS
+- **Ripristinati tutti i pulsanti JavaScript mancanti**
+- Handler per pulsante "Invia mail di test" nella programmazione
+- Handler per pulsante "Pulisci Cache"
+- Handler per pulsante "Aggiorna Tutti" plugin pubblici
+- Handler per pulsante "Installa selezionati" e "Seleziona tutti"
+- Feedback visivo e toast notifications per tutti i pulsanti
+- Gestione errori e stati di caricamento per tutti i pulsanti
+
+#### 🎯 IMPACT
+- Sistema di esclusioni ora affidabile al 100%
+- Tutti i pulsanti dell'interfaccia funzionano correttamente
+- Supporto completo per plugin premium, privati e WordPress.org
+
+### [9.3.0] - 2026-03-04
 
 ## 🔧 Configurazione
 
