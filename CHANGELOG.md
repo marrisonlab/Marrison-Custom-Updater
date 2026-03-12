@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.4.1] - 2026-03-12
+
+### 🔧 FIXES
+- **Pulsante "Pulisci Cache"**: Ora funziona correttamente
+- **Handler JavaScript**: Corretto per usare form submit invece di AJAX
+
+### ⚡ IMPROVEMENTS
+- **Pulizia cache completa**: Inclusa cache GitHub e WordPress
+- **Ricaricamento forzato**: Aggiornamenti ricaricati dal repository dopo pulizia
+- **Dialogo di conferma**: Aggiunto per sicurezza durante pulizia cache
+- **Feedback visivo**: Indicatore di stato durante pulizia cache
+
+### 🎯 IMPACT
+- Cache completamente pulita e ricaricata
+- Repository aggiornamenti sincronizzato correttamente
+- Esperienza utente migliorata con feedback appropriato
+
+---
+
 ## [9.4.0] - 2026-03-04
 
 ### CRITICAL FIXES

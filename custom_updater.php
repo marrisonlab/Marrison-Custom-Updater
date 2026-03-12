@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.4
+ * Version: 9.4.1
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  */
@@ -1093,14 +1093,30 @@ class MCU_Custom_Updater {
     public function clear_cache() {
         check_admin_referer('marrison_clear_cache');
         
+        // Pulisci cache interna
         $this->delete_internal_cache();
+        
+        // Pulisci cache GitHub
+        delete_transient('marrison_updater_github_version');
+        
+        // Pulisci cache WordPress
         delete_site_transient('update_plugins');
         delete_site_transient('update_themes');
         wp_clean_plugins_cache(true);
         wp_clean_themes_cache(true);
+        
+        // Forza ricaricamento dagli aggiornamenti
+        wp_update_plugins();
+        wp_update_themes();
+        
+        // Pulisci opzioni di cache interna
         delete_option('marrison_known_private_slugs');
-
-        $redirect = !empty($_REQUEST['redirect_to']) ? $_REQUEST['redirect_to'] : admin_url('admin.php?page=marrison-updater-settings&cache_cleared=1');
+        
+        // Pulisci anche cache delle traduzioni
+        wp_clean_update_cache();
+        
+        // Reindirizza con messaggio di successo
+        $redirect = !empty($_REQUEST['redirect_to']) ? $_REQUEST['redirect_to'] : admin_url('admin.php?page=marrison-updater&cache_cleared=1');
         wp_redirect($redirect);
         exit;
     }

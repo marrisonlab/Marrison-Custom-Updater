@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.4
+Stable tag: 9.4.1
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -32,6 +32,14 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 9.4.1 =
+* **Correzione**: Pulsante "Pulisci Cache" ora funziona correttamente
+* **Miglioramento**: Pulizia cache completa inclusa cache GitHub e WordPress
+* **Miglioramento**: Forza ricaricamento aggiornamenti dal repository dopo pulizia
+* **Correzione**: Handler JavaScript corretto per usare form submit invece di AJAX
+* **Miglioramento**: Aggiunto dialogo di conferma per pulizia cache
+* **Miglioramento**: Feedback visivo durante pulizia cache
 
 = 9.4 =
 * **Correzione critica**: Sistema di esclusioni completamente rinnovato

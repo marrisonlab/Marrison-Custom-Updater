@@ -511,26 +511,15 @@ jQuery(document).ready(function($) {
         var $form = $(this).closest('form');
         var $btn = $(this);
         
+        // Show confirmation dialog
+        if (!confirm('Sei sicuro di voler pulire la cache? Questo ricaricherà la lista degli aggiornamenti dal repository.')) {
+            return;
+        }
+        
         $btn.prop('disabled', true).text('Pulizia in corso...');
         
-        $.ajax({
-            url: ajaxurl,
-            type: 'POST',
-            data: $form.serialize(),
-            success: function(response) {
-                $btn.prop('disabled', false).html('<span class="dashicons dashicons-update"></span> Pulisci Cache');
-                if (response.success) {
-                    MCU.toast('Cache pulita con successo', 'success');
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    MCU.toast('Errore durante la pulizia della cache', 'error');
-                }
-            },
-            error: function() {
-                $btn.prop('disabled', false).html('<span class="dashicons dashicons-update"></span> Pulisci Cache');
-                MCU.toast('Errore di connessione', 'error');
-            }
-        });
+        // Submit the form normally (not AJAX)
+        $form.submit();
     });
 
     // Install selected handler
