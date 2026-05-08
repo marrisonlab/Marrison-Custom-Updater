@@ -145,11 +145,7 @@ trait MCU_Scheduling_Trait {
         }
         
         // --- Generazione Email (Stesso Template di run_scheduled_updates) ---
-        $domain = parse_url(get_site_url(), PHP_URL_HOST);
-        if (strpos($domain, 'www.') === 0) {
-            $domain = substr($domain, 4);
-        }
-        $from_email = 'no-reply@' . $domain;
+        $from_email = get_option('admin_email');
         $from_name = get_bloginfo('name');
         
         $subject = '[' . get_bloginfo('name') . '] Test Report Aggiornamento (Simulazione)';
@@ -887,11 +883,7 @@ trait MCU_Scheduling_Trait {
                 $message_html .= '</div>'; // Chiusura Container
                 $message_html .= '</body></html>';
                 
-                $domain = parse_url(get_site_url(), PHP_URL_HOST);
-                if (strpos($domain, 'www.') === 0) {
-                    $domain = substr($domain, 4);
-                }
-                $from_email = 'no-reply@' . $domain;
+                $from_email = get_option('admin_email');
                 $from_name = get_bloginfo('name');
                 
                 $headers = array(

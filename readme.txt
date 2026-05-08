@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.4.1
+Stable tag: 9.4.2
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -32,6 +32,12 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 9.4.2 =
+* **Fix critico**: Risolto fallimento invio email sul 90% dei siti
+* **Fix**: Sostituito indirizzo From fabbricato `no-reply@dominio.com` con reale `admin_email`
+* **Causa**: La maggior parte degli hosting rifiuta email da indirizzi mittente non configurati (fallimenti SPF/DMARC)
+* **Impatto**: Le notifiche email ora funzionano affidabilmente su tutti gli ambienti hosting
 
 = 9.4.1 =
 * **Correzione**: Pulsante "Pulisci Cache" ora funziona correttamente

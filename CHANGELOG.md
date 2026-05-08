@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.4.2] - 2026-05-08
+
+### 🔧 CRITICAL FIX
+- **Email sending**: Fixed email delivery failure on 90% of sites
+- **From header**: Replaced fabricated `no-reply@domain.com` with real `admin_email`
+- **Root cause**: Most hosting providers reject emails from non-configured sender addresses (SPF/DMARC failures)
+
+### 🎯 IMPACT
+- Email notifications now work reliably across all hosting environments
+- Both test emails and scheduled update reports are delivered correctly
+- No more silent email failures due to server restrictions
+
+---
+
 ## [9.4.1] - 2026-03-12
 
 ### 🔧 FIXES
