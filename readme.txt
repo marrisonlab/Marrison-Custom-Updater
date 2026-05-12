@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.4.2
+Stable tag: 9.4.3
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -32,6 +32,12 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 9.4.3 =
+* **Fix critico**: Le email arrivavano con l'HTML grezzo visibile invece del contenuto renderizzato
+* **Causa**: Plugin SMTP (WP Mail SMTP, FluentSMTP, ecc.) potevano resettare il content-type tramite `phpmailer_init`, forzando l'invio come `text/plain`
+* **Fix**: Aggiunto filtro `wp_mail_content_type` e forzato `isHTML(true)` tramite `phpmailer_init` a priorità 999 prima di ogni invio, rimossi subito dopo
+* **Impatto**: Le email HTML ora vengono renderizzate correttamente indipendentemente dal plugin SMTP attivo
 
 = 9.4.2 =
 * **Fix critico**: Risolto fallimento invio email sul 90% dei siti

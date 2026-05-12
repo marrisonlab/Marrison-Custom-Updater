@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.4.2
+ * Version: 9.4.3
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  */

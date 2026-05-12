@@ -347,7 +347,15 @@ trait MCU_Scheduling_Trait {
             'Reply-To: ' . get_option('admin_email')
         );
         
+        $set_html_content_type = function() { return 'text/html'; };
+        add_filter('wp_mail_content_type', $set_html_content_type);
+        $force_html_phpmailer = function($phpmailer) { $phpmailer->isHTML(true); };
+        add_action('phpmailer_init', $force_html_phpmailer, 999);
+        
         $sent = wp_mail($email, $subject, $message_html, $headers);
+        
+        remove_filter('wp_mail_content_type', $set_html_content_type);
+        remove_action('phpmailer_init', $force_html_phpmailer, 999);
         
         if ($sent) {
             wp_send_json_success(__('Mail di test (simulata) inviata correttamente!', 'marrison-custom-updater'));
@@ -892,7 +900,15 @@ trait MCU_Scheduling_Trait {
                     'Reply-To: ' . get_option('admin_email')
                 );
                 
+                $set_html_content_type = function() { return 'text/html'; };
+                add_filter('wp_mail_content_type', $set_html_content_type);
+                $force_html_phpmailer = function($phpmailer) { $phpmailer->isHTML(true); };
+                add_action('phpmailer_init', $force_html_phpmailer, 999);
+                
                 $sent = wp_mail($email, $subject, $message_html, $headers);
+                
+                remove_filter('wp_mail_content_type', $set_html_content_type);
+                remove_action('phpmailer_init', $force_html_phpmailer, 999);
                 
                 $log_entry['status'] = 'completed';
                 $log_entry['message'] = $sent ? 'Email inviata con successo.' : 'Errore invio email.';
