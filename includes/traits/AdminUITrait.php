@@ -427,6 +427,16 @@ trait MCU_Admin_UI_Trait {
                                     <p class="description">Inserisci l'indirizzo email dove inviare il report degli aggiornamenti (opzionale).</p>
                                 </td>
                             </tr>
+                            <tr>
+                                <th scope="row"><label for="marrison_db_backup_with_updates">Backup Database</label></th>
+                                <td>
+                                    <label class="mcu-switch">
+                                        <input type="checkbox" id="marrison_db_backup_with_updates" name="marrison_db_backup_with_updates" value="yes" <?php checked('yes', get_option('marrison_db_backup_with_updates')); ?>>
+                                        <span class="mcu-slider"></span>
+                                    </label>
+                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;">Esegui un backup del database prima di ogni aggiornamento automatico (mantiene gli ultimi 5).</p>
+                                </td>
+                            </tr>
                         </table>
                         <?php 
                         $next_run = wp_next_scheduled('marrison_scheduled_update_event');
@@ -828,11 +838,25 @@ trait MCU_Admin_UI_Trait {
             <?php 
             $backup_dir = WP_CONTENT_DIR . '/marrison-backups';
             $backups = [];
+            $db_backups = [];
             if (is_dir($backup_dir)) {
-                $files = glob($backup_dir . '/*-backup.zip');
-                usort($files, function($a, $b) { return filemtime($b) - filemtime($a); });
-                foreach ($files as $file) {
+                $all_files = array_merge(
+                    glob($backup_dir . '/*-backup.zip') ?: [],
+                    glob($backup_dir . '/db-backup-*.zip') ?: []
+                );
+                $all_files = array_unique($all_files);
+                usort($all_files, function($a, $b) { return filemtime($b) - filemtime($a); });
+                foreach ($all_files as $file) {
                     $filename = basename($file);
+                    if (strpos($filename, 'db-backup-') === 0) {
+                        $db_backups[] = [
+                            'file'     => $file,
+                            'filename' => $filename,
+                            'date'     => date('d/m/Y H:i', filemtime($file)),
+                            'size'     => size_format(filesize($file)),
+                        ];
+                        continue;
+                    }
                     $slug = '';
                     $backup_version = 'N/A';
                     $type_label = 'Plugin';
@@ -844,7 +868,7 @@ trait MCU_Admin_UI_Trait {
                         $type_label = 'Plugin';
                         $parse_name = substr($filename, 7);
                     }
-                    if (preg_match('/^(.*?)-v(.*?)-(\d{8})-(\d{6})-backup\.zip$/', $parse_name, $matches)) {
+                    if (preg_match('/^(.*?)-v(.*?)-(\/d{8})-(\/d{6})-backup\.zip$/', $parse_name, $matches)) {
                         $slug = $matches[1];
                         $backup_version = $matches[2];
                     } elseif (preg_match('/^(.*?)-v(.*)-backup\.zip$/', $parse_name, $matches)) {
@@ -853,7 +877,7 @@ trait MCU_Admin_UI_Trait {
                     } elseif (preg_match('/^(.*?)-backup\.zip$/', $parse_name, $matches)) {
                         $slug = $matches[1];
                     } else {
-                        if (preg_match('/^(.*)-v(.*)-(\d{8})-(\d{6})-backup\.zip$/', $filename, $matches)) {
+                        if (preg_match('/^(.*)-v(.*)-(\/d{8})-(\/d{6})-backup\.zip$/', $filename, $matches)) {
                             $slug = $matches[1];
                             $backup_version = $matches[2];
                         } elseif (preg_match('/^(.*)-v(.*)-backup\.zip$/', $filename, $matches)) {
@@ -875,6 +899,52 @@ trait MCU_Admin_UI_Trait {
                 }
             }
             ?>
+            <div class="mcu-card" style="margin-bottom: 30px;">
+                <div class="mcu-card-header">
+                    <h2 class="mcu-card-title"><span class="dashicons dashicons-database"></span> Backup Database</h2>
+                    <button type="button" id="marrison-db-backup-btn" class="mcu-button mcu-button-primary"
+                        data-nonce="<?php echo wp_create_nonce('marrison_db_backup'); ?>">
+                        <span class="dashicons dashicons-download"></span> Esegui Backup Database
+                    </button>
+                </div>
+                <span id="marrison-db-backup-result" style="padding: 0 20px; font-weight: 600;"></span>
+                <?php if (!empty($db_backups)): ?>
+                    <table class="mcu-table">
+                        <thead><tr>
+                            <th>File</th>
+                            <th>Data</th>
+                            <th>Dimensione</th>
+                            <th style="text-align:right;">Azione</th>
+                        </tr></thead>
+                        <tbody>
+                            <?php foreach ($db_backups as $db): ?>
+                                <tr>
+                                    <td><span class="dashicons dashicons-database" style="color:#874abd;"></span> <?php echo esc_html($db['filename']); ?></td>
+                                    <td><?php echo esc_html($db['date']); ?></td>
+                                    <td><?php echo esc_html($db['size']); ?></td>
+                                    <td style="text-align:right;">
+                                        <?php
+                                        $dl_url = wp_nonce_url(
+                                            admin_url('admin-post.php?action=marrison_download_db_backup&file=' . urlencode($db['filename'])),
+                                            'marrison_download_db_backup'
+                                        );
+                                        ?>
+                                        <a href="<?php echo esc_url($dl_url); ?>" class="mcu-button mcu-button-secondary mcu-button-sm">
+                                            <span class="dashicons dashicons-download"></span> Scarica
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <div class="mcu-empty-state">
+                        <span class="dashicons dashicons-database"></span>
+                        <p>Nessun backup database disponibile. Clicca il pulsante per crearne uno.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+
             <div class="mcu-card">
                 <div class="mcu-card-header">
                     <h2 class="mcu-card-title"><span class="dashicons dashicons-list-view"></span> Lista Backup</h2>

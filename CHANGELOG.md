@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.5.1] - 2026-05-18
+
+### 🔧 ENHANCEMENT
+- **Repository index.php**: i file `index.php` per plugin e temi ora scansionano ricorsivamente le sottocartelle per i file `.zip`
+- **Organizzazione flessibile**: è ora possibile organizzare i plugin/temi in sottocartelle (es. `repo/client-a/plugin.zip`, `repo/ecommerce/theme.zip`)
+- **Download URL corretto**: il percorso relativo delle sottocartelle viene preservato nel `download_url`
+
+### 🎯 IMPACT
+- Migliore organizzazione del repository privato
+- Possibilità di separare i file per cliente o categoria
+
+---
+
+## [9.5.0] - 2026-05-13
+
+### ✨ NEW FEATURE - Backup Database
+- **Backup manuale**: pulsante "Esegui Backup Database" nella pagina Backup per creare un dump SQL on-demand
+- **Backup schedulato**: nuova opzione in Impostazioni > Programmazione per eseguire automaticamente un backup del DB prima di ogni aggiornamento automatico
+- **Download**: ogni backup database è scaricabile direttamente dalla pagina Backup in formato `.zip`
+- **Rotazione automatica**: vengono mantenuti solo gli ultimi 5 backup del database, i precedenti vengono eliminati automaticamente
+- **Formato**: dump SQL completo con `DROP TABLE IF EXISTS` + `CREATE TABLE` + `INSERT INTO`, compresso in `.zip`
+- **Sicurezza**: i file sono salvati in `wp-content/marrison-backups/` con `.htaccess` `deny from all`
+
+### 🎯 IMPACT
+- Protezione database completa prima di ogni aggiornamento
+- Possibilità di ripristinare il DB in caso di problemi dopo un aggiornamento
+
+---
+
 ## [9.4.3] - 2026-05-12
 
 ### 🔧 CRITICAL FIX

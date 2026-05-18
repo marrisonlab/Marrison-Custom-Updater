@@ -23,11 +23,13 @@ trait MCU_Scheduling_Trait {
         $frequency = sanitize_text_field($_POST['marrison_auto_update_frequency']);
         $time = sanitize_text_field($_POST['marrison_auto_update_time']);
         $email = sanitize_email($_POST['marrison_auto_update_email']);
+        $db_backup = isset($_POST['marrison_db_backup_with_updates']) ? 'yes' : 'no';
 
         update_option('marrison_auto_update_enabled', $enabled);
         update_option('marrison_auto_update_frequency', $frequency);
         update_option('marrison_auto_update_time', $time);
         update_option('marrison_auto_update_email', $email);
+        update_option('marrison_db_backup_with_updates', $db_backup);
 
         wp_clear_scheduled_hook('marrison_scheduled_update_event');
 
@@ -375,6 +377,11 @@ trait MCU_Scheduling_Trait {
         try {
             @ignore_user_abort(true);
             @set_time_limit(0);
+
+            $db_backup_filename = false;
+            if (get_option('marrison_db_backup_with_updates') === 'yes') {
+                $db_backup_filename = $this->create_db_backup();
+            }
 
             $data = $this->get_all_updates_data();
             
@@ -882,7 +889,28 @@ trait MCU_Scheduling_Trait {
                      $message_html .= '<strong>Stato Aggiornamento DB:</strong> ' . esc_html(is_string($elementor_db_info) ? $elementor_db_info : print_r($elementor_db_info, true));
                      $message_html .= '</div>';
                 }
-                
+
+                if ($db_backup_filename) {
+                    $backup_dir_path = WP_CONTENT_DIR . '/marrison-backups';
+                    $backup_file_path = $backup_dir_path . '/' . $db_backup_filename;
+                    $backup_size = file_exists($backup_file_path) ? size_format(filesize($backup_file_path)) : 'N/A';
+                    $backup_page_url = admin_url('admin.php?page=marrison-updater-backups');
+
+                    $message_html .= '<h3 style="' . $style_section_title . '; border-left-color: #46b450;">🗄️ Backup Database</h3>';
+                    $message_html .= '<table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 10px;">';
+                    $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Stato:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; color: #46b450; font-weight: bold;">✅ Completato</td></tr>';
+                    $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>File:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; font-family: monospace;">' . esc_html($db_backup_filename) . '</td></tr>';
+                    $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Dimensione:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' . esc_html($backup_size) . '</td></tr>';
+                    $message_html .= '<tr><td style="padding: 8px;"><strong>Download:</strong></td><td style="padding: 8px;"><a href="' . esc_url($backup_page_url) . '" style="display: inline-block; background: #46b450; color: #fff; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 13px;">🗄️ Vai alla pagina Backup</a></td></tr>';
+                    $message_html .= '</table>';
+                    $message_html .= '<p style="font-size: 12px; color: #888; margin-top: 5px;">Il backup è disponibile nella pagina Backup del pannello di amministrazione. Accedi con le tue credenziali per scaricarlo.</p>';
+                } elseif (get_option('marrison_db_backup_with_updates') === 'yes') {
+                    $message_html .= '<h3 style="' . $style_section_title . '; border-left-color: #d63638;">🗄️ Backup Database</h3>';
+                    $message_html .= '<div style="background: #fef7f7; padding: 10px; font-size: 13px; border-left: 4px solid #d63638; margin-top: 10px;">';
+                    $message_html .= '⚠️ <strong>Attenzione:</strong> Il backup del database non è stato completato correttamente.';
+                    $message_html .= '</div>';
+                }
+
                 $message_html .= '<div style="' . $style_footer . '">';
                 $message_html .= '<a href="' . esc_url(admin_url()) . '" style="color: #0073aa; text-decoration: none;">Accedi al sito</a><br><br>';
                 $message_html .= '<span style="font-size: 11px; color: #999;">Powered By <a href="https://marrisonlab.com" target="_blank" style="color: #999; text-decoration: none;">Angelo Marra</a></span>';

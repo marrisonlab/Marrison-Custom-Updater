@@ -615,6 +615,186 @@ trait MCU_Update_Operations_Trait {
         return true;
     }
 
+    public function create_db_backup() {
+        global $wpdb;
+
+        $backup_dir   = $this->get_backup_dir();
+        $date         = date('Ymd');
+        $time         = date('His');
+        $sql_filename = 'db-backup-' . $date . '-' . $time . '.sql';
+        $zip_filename = 'db-backup-' . $date . '-' . $time . '.zip';
+        $sql_path     = $backup_dir . '/' . $sql_filename;
+        $zip_path     = $backup_dir . '/' . $zip_filename;
+
+        $tables = $wpdb->get_col('SHOW TABLES');
+        if (empty($tables)) return false;
+
+        $handle = fopen($sql_path, 'w');
+        if (!$handle) return false;
+
+        fwrite($handle, "-- WP Master Updater - Database Backup\n");
+        fwrite($handle, "-- Site:      " . get_site_url() . "\n");
+        fwrite($handle, "-- Date:      " . date('Y-m-d H:i:s') . "\n");
+        fwrite($handle, "-- WordPress: " . get_bloginfo('version') . "\n");
+        fwrite($handle, "-- MySQL:     " . $wpdb->db_version() . "\n");
+        fwrite($handle, "-- PHP:       " . phpversion() . "\n\n");
+        fwrite($handle, "/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;\n");
+        fwrite($handle, "/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;\n");
+        fwrite($handle, "/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;\n");
+        fwrite($handle, "/*!40101 SET NAMES utf8mb4 */;\n");
+        fwrite($handle, "/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;\n");
+        fwrite($handle, "/*!40103 SET TIME_ZONE='+00:00' */;\n");
+        fwrite($handle, "/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n");
+        fwrite($handle, "/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n");
+        fwrite($handle, "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;\n");
+        fwrite($handle, "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n\n");
+
+        foreach ($tables as $table) {
+            $create = $wpdb->get_row("SHOW CREATE TABLE `{$table}`", ARRAY_N);
+            if (!$create) continue;
+
+            fwrite($handle, "-- --------------------------------------------------------\n\n");
+            fwrite($handle, "--\n-- Table structure for table `{$table}`\n--\n\n");
+            fwrite($handle, "DROP TABLE IF EXISTS `{$table}`;\n");
+            fwrite($handle, "/*!40101 SET @saved_cs_client     = @@character_set_client */;\n");
+            fwrite($handle, "/*!40101 SET character_set_client = utf8mb4 */;\n");
+            fwrite($handle, $create[1] . ";\n");
+            fwrite($handle, "/*!40101 SET character_set_client = @saved_cs_client */;\n\n");
+
+            fwrite($handle, "--\n-- Dumping data for table `{$table}`\n--\n\n");
+            fwrite($handle, "LOCK TABLES `{$table}` WRITE;\n");
+            fwrite($handle, "/*!40000 ALTER TABLE `{$table}` DISABLE KEYS */;\n");
+
+            $columns = $wpdb->get_results("SHOW COLUMNS FROM `{$table}`", ARRAY_A);
+            $col_names    = [];
+            $numeric_cols = [];
+            foreach ($columns as $col) {
+                $col_names[] = '`' . $col['Field'] . '`';
+                $numeric_cols[$col['Field']] = (bool) preg_match(
+                    '/^(tinyint|smallint|mediumint|int|bigint|float|double|decimal|numeric|real|bit|year)/i',
+                    $col['Type']
+                );
+            }
+            $col_list = '(' . implode(', ', $col_names) . ')';
+
+            $offset = 0;
+            $batch  = 500;
+            $has_data = false;
+            while (true) {
+                $rows = $wpdb->get_results(
+                    $wpdb->prepare("SELECT * FROM `{$table}` LIMIT %d OFFSET %d", $batch, $offset),
+                    ARRAY_A
+                );
+                if (empty($rows)) break;
+
+                if (!$has_data) {
+                    fwrite($handle, "START TRANSACTION;\n");
+                    $has_data = true;
+                }
+
+                $value_rows = [];
+                foreach ($rows as $row) {
+                    $vals = [];
+                    foreach ($row as $field => $val) {
+                        if ($val === null) {
+                            $vals[] = 'NULL';
+                        } elseif (!empty($numeric_cols[$field]) && is_numeric($val)) {
+                            $vals[] = $val;
+                        } else {
+                            $vals[] = "'" . $this->escape_for_sql($wpdb, (string) $val) . "'";
+                        }
+                    }
+                    $value_rows[] = '(' . implode(', ', $vals) . ')';
+                }
+                fwrite($handle, "INSERT INTO `{$table}` {$col_list} VALUES\n" . implode(",\n", $value_rows) . ";\n");
+
+                $offset += $batch;
+                if (count($rows) < $batch) break;
+            }
+
+            if ($has_data) {
+                fwrite($handle, "COMMIT;\n");
+            }
+            fwrite($handle, "/*!40000 ALTER TABLE `{$table}` ENABLE KEYS */;\n");
+            fwrite($handle, "UNLOCK TABLES;\n\n");
+        }
+
+        fwrite($handle, "/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;\n");
+        fwrite($handle, "/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;\n");
+        fwrite($handle, "/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;\n");
+        fwrite($handle, "/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;\n");
+        fwrite($handle, "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n");
+        fwrite($handle, "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n");
+        fwrite($handle, "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n");
+        fwrite($handle, "/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;\n");
+        fclose($handle);
+
+        if (!class_exists('PclZip')) {
+            require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
+        }
+        $archive = new PclZip($zip_path);
+        $result  = $archive->create($sql_path, PCLZIP_OPT_REMOVE_PATH, $backup_dir);
+        @unlink($sql_path);
+
+        if ($result == 0) return false;
+
+        $db_backups = glob($backup_dir . '/db-backup-*.zip');
+        if (is_array($db_backups) && count($db_backups) > 5) {
+            usort($db_backups, function($a, $b) { return filemtime($a) - filemtime($b); });
+            foreach (array_slice($db_backups, 0, count($db_backups) - 5) as $f) @unlink($f);
+        }
+
+        return $zip_filename;
+    }
+
+    private function escape_for_sql($wpdb, $val) {
+        if (isset($wpdb->dbh) && ($wpdb->dbh instanceof mysqli)) {
+            return mysqli_real_escape_string($wpdb->dbh, $val);
+        }
+        return str_replace(
+            ["\\", "'", "\n", "\r", "\x00", "\x1a"],
+            ["\\\\", "\\'", "\\n", "\\r", "\\0", "\\Z"],
+            $val
+        );
+    }
+
+    public function ajax_db_backup() {
+        check_ajax_referer('marrison_db_backup', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permessi insufficienti.');
+        }
+        $filename = $this->create_db_backup();
+        if ($filename) {
+            wp_send_json_success(['message' => 'Backup database completato!', 'filename' => $filename]);
+        } else {
+            wp_send_json_error('Errore durante la creazione del backup database.');
+        }
+    }
+
+    public function download_db_backup() {
+        check_admin_referer('marrison_download_db_backup');
+        if (!current_user_can('manage_options')) wp_die('Permessi insufficienti.');
+
+        $filename = sanitize_file_name($_GET['file'] ?? '');
+        if (empty($filename) || strpos($filename, 'db-backup-') !== 0 || pathinfo($filename, PATHINFO_EXTENSION) !== 'zip') {
+            wp_die('File non valido.');
+        }
+
+        $backup_dir = $this->get_backup_dir();
+        $file_path  = $backup_dir . '/' . $filename;
+        if (!file_exists($file_path)) wp_die('File non trovato.');
+
+        if (ob_get_length()) ob_end_clean();
+        header('Content-Description: File Transfer');
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . filesize($file_path));
+        header('Cache-Control: must-revalidate');
+        header('Pragma: public');
+        readfile($file_path);
+        exit;
+    }
+
     public function trigger_elementor_db_update($upgrader_object, $options) {
 
 

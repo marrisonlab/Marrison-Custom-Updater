@@ -101,6 +101,36 @@ jQuery(document).ready(function($) {
 
     // Monitoring Sync removed
 
+    // --- DB Backup Handler ---
+    $(document).on('click', '#marrison-db-backup-btn', function(e) {
+        e.preventDefault();
+        var $btn = $(this);
+        var nonce = $btn.data('nonce');
+        var $result = $('#marrison-db-backup-result');
+
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update-alt dashicons-spin"></span> Backup in corso...');
+        $result.css('color', '#555').text('');
+
+        $.ajax({
+            url: marrisonUpdater.ajaxurl,
+            type: 'POST',
+            data: { action: 'marrison_db_backup', nonce: nonce },
+            success: function(response) {
+                if (response.success) {
+                    $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> Esegui Backup Database');
+                    $result.css('color', 'var(--mcu-success, #46b450)').text('✓ ' + response.data.message);
+                    setTimeout(function() { location.reload(); }, 1500);
+                } else {
+                    $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> Esegui Backup Database');
+                    $result.css('color', 'var(--mcu-danger, #d63638)').text('✗ ' + (response.data || 'Errore sconosciuto'));
+                }
+            },
+            error: function() {
+                $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> Esegui Backup Database');
+                $result.css('color', 'var(--mcu-danger, #d63638)').text('✗ Errore di connessione al server.');
+            }
+        });
+    });
 
     // --- Single Update Handler ---
     $('.mcu-action-update').on('click', function(e) {

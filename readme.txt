@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.4.3
+Stable tag: 9.5.1
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -32,6 +32,19 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 9.5.1 =
+* **Miglioramento**: i file index.php del repository privato ora scansionano ricorsivamente le sottocartelle
+* **Miglioramento**: è possibile organizzare plugin/temi in sottocartelle (es. per cliente o categoria)
+* **Fix**: il download_url preserva il percorso relativo delle sottocartelle
+
+= 9.5.0 =
+* **Nuovo**: Backup completo del database (dump SQL compresso in .zip)
+* **Nuovo**: Pulsante "Esegui Backup Database" nella pagina Backup per backup on-demand
+* **Nuovo**: Opzione in Impostazioni > Programmazione per backup automatico del DB prima degli aggiornamenti
+* **Nuovo**: Download diretto dei backup database dalla pagina Backup
+* **Nuovo**: Rotazione automatica, mantiene gli ultimi 5 backup del database
+* **Sicurezza**: backup salvati in wp-content/marrison-backups/ con protezione .htaccess
 
 = 9.4.3 =
 * **Fix critico**: Le email arrivavano con l'HTML grezzo visibile invece del contenuto renderizzato

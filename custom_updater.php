@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.4.3
+ * Version: 9.5.1
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  */
@@ -63,6 +63,7 @@ class MCU_Custom_Updater {
         add_action('admin_post_marrison_download_repo_file', [$this, 'download_repo_file']);
         add_action('admin_post_marrison_download_theme_repo_file', [$this, 'download_theme_repo_file']);
         add_action('admin_post_marrison_save_scheduling', [$this, 'save_scheduling_settings']);
+        add_action('admin_post_marrison_download_db_backup', [$this, 'download_db_backup']);
         
         // Cron
         add_filter('cron_schedules', [$this, 'add_custom_cron_intervals']);
@@ -82,6 +83,7 @@ class MCU_Custom_Updater {
         add_action('wp_ajax_marrison_get_all_updates_ajax', [$this, 'get_all_updates_ajax']);
         add_action('wp_ajax_marrison_test_email', [$this, 'send_test_email_ajax']);
         add_action('wp_ajax_marrison_toggle_exclusion', [$this, 'toggle_exclusion_ajax']);
+        add_action('wp_ajax_marrison_db_backup', [$this, 'ajax_db_backup']);
         
         // Aggiungi script e stili per la pagina admin
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
