@@ -629,36 +629,48 @@ trait MCU_Update_Operations_Trait {
         $tables = $wpdb->get_col('SHOW TABLES');
         if (empty($tables)) return false;
 
+        sort($tables);
+
         $handle = fopen($sql_path, 'w');
         if (!$handle) return false;
 
-        fwrite($handle, "-- WP Master Updater - Database Backup\n");
-        fwrite($handle, "-- Site:      " . get_site_url() . "\n");
-        fwrite($handle, "-- Date:      " . date('Y-m-d H:i:s') . "\n");
-        fwrite($handle, "-- WordPress: " . get_bloginfo('version') . "\n");
-        fwrite($handle, "-- MySQL:     " . $wpdb->db_version() . "\n");
-        fwrite($handle, "-- PHP:       " . phpversion() . "\n\n");
+        fwrite($handle, "-- phpMyAdmin SQL Dump\n");
+        fwrite($handle, "-- version 5.2.1\n");
+        fwrite($handle, "-- https://www.phpmyadmin.net/\n");
+        fwrite($handle, "--\n");
+        fwrite($handle, "-- Host: " . $wpdb->dbhost . "\n");
+        fwrite($handle, "-- Generation Time: " . date('r') . "\n");
+        fwrite($handle, "-- Server version: " . $wpdb->db_version() . "\n");
+        fwrite($handle, "-- PHP Version: " . phpversion() . "\n");
+        fwrite($handle, "--\n");
+        fwrite($handle, "-- Database: `" . DB_NAME . "`\n");
+        fwrite($handle, "--\n\n");
+
+        fwrite($handle, "SET SQL_MODE = \"NO_AUTO_VALUE_ON_ZERO\";\n");
+        fwrite($handle, "START TRANSACTION;\n");
+        fwrite($handle, "SET time_zone = \"+00:00\";\n\n");
+
         fwrite($handle, "/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;\n");
         fwrite($handle, "/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;\n");
         fwrite($handle, "/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;\n");
-        fwrite($handle, "/*!40101 SET NAMES utf8mb4 */;\n");
-        fwrite($handle, "/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;\n");
-        fwrite($handle, "/*!40103 SET TIME_ZONE='+00:00' */;\n");
-        fwrite($handle, "/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n");
-        fwrite($handle, "/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n");
-        fwrite($handle, "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;\n");
-        fwrite($handle, "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n\n");
+        fwrite($handle, "/*!40101 SET NAMES utf8mb4 */;\n\n");
 
         foreach ($tables as $table) {
             $create = $wpdb->get_row("SHOW CREATE TABLE `{$table}`", ARRAY_N);
             if (!$create) continue;
 
-            fwrite($handle, "-- --------------------------------------------------------\n\n");
+            $create_sql = $create[1];
+            $create_sql = preg_replace('/ AUTO_INCREMENT/', '', $create_sql);
+            $create_sql = preg_replace('/=\d+ DEFAULT/', '= DEFAULT', $create_sql);
+            $create_sql = preg_replace('/=\d+ COLLATE/', '= COLLATE', $create_sql);
+            $create_sql = preg_replace('/= DEFAULT/', ' DEFAULT', $create_sql);
+            $create_sql = preg_replace('/= COLLATE/', ' COLLATE', $create_sql);
+
             fwrite($handle, "--\n-- Table structure for table `{$table}`\n--\n\n");
             fwrite($handle, "DROP TABLE IF EXISTS `{$table}`;\n");
             fwrite($handle, "/*!40101 SET @saved_cs_client     = @@character_set_client */;\n");
             fwrite($handle, "/*!40101 SET character_set_client = utf8mb4 */;\n");
-            fwrite($handle, $create[1] . ";\n");
+            fwrite($handle, $create_sql . ";\n");
             fwrite($handle, "/*!40101 SET character_set_client = @saved_cs_client */;\n\n");
 
             fwrite($handle, "--\n-- Dumping data for table `{$table}`\n--\n\n");
@@ -666,16 +678,13 @@ trait MCU_Update_Operations_Trait {
             fwrite($handle, "/*!40000 ALTER TABLE `{$table}` DISABLE KEYS */;\n");
 
             $columns = $wpdb->get_results("SHOW COLUMNS FROM `{$table}`", ARRAY_A);
-            $col_names    = [];
             $numeric_cols = [];
             foreach ($columns as $col) {
-                $col_names[] = '`' . $col['Field'] . '`';
                 $numeric_cols[$col['Field']] = (bool) preg_match(
                     '/^(tinyint|smallint|mediumint|int|bigint|float|double|decimal|numeric|real|bit|year)/i',
                     $col['Type']
                 );
             }
-            $col_list = '(' . implode(', ', $col_names) . ')';
 
             $offset = 0;
             $batch  = 500;
@@ -687,11 +696,7 @@ trait MCU_Update_Operations_Trait {
                 );
                 if (empty($rows)) break;
 
-                if (!$has_data) {
-                    fwrite($handle, "START TRANSACTION;\n");
-                    $has_data = true;
-                }
-
+                $has_data = true;
                 $value_rows = [];
                 foreach ($rows as $row) {
                     $vals = [];
@@ -706,17 +711,16 @@ trait MCU_Update_Operations_Trait {
                     }
                     $value_rows[] = '(' . implode(', ', $vals) . ')';
                 }
-                fwrite($handle, "INSERT INTO `{$table}` {$col_list} VALUES\n" . implode(",\n", $value_rows) . ";\n");
+                fwrite($handle, "INSERT INTO `{$table}` VALUES\n" . implode(",\n", $value_rows) . ";\n");
 
                 $offset += $batch;
                 if (count($rows) < $batch) break;
             }
 
-            if ($has_data) {
-                fwrite($handle, "COMMIT;\n");
-            }
             fwrite($handle, "/*!40000 ALTER TABLE `{$table}` ENABLE KEYS */;\n");
             fwrite($handle, "UNLOCK TABLES;\n\n");
+
+            fwrite($handle, "-- --------------------------------------------------------\n\n");
         }
 
         fwrite($handle, "/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;\n");
@@ -763,11 +767,21 @@ trait MCU_Update_Operations_Trait {
         if (!current_user_can('manage_options')) {
             wp_send_json_error('Permessi insufficienti.');
         }
-        $filename = $this->create_db_backup();
-        if ($filename) {
-            wp_send_json_success(['message' => 'Backup database completato!', 'filename' => $filename]);
-        } else {
-            wp_send_json_error('Errore durante la creazione del backup database.');
+
+        @set_time_limit(300);
+        @ini_set('memory_limit', '512M');
+
+        try {
+            $filename = $this->create_db_backup();
+            if ($filename) {
+                wp_send_json_success(['message' => 'Backup database completato!', 'filename' => $filename]);
+            } else {
+                wp_send_json_error('Errore durante la creazione del backup database.');
+            }
+        } catch (Exception $e) {
+            wp_send_json_error('Errore: ' . $e->getMessage());
+        } catch (Error $e) {
+            wp_send_json_error('Errore fatale: ' . $e->getMessage());
         }
     }
 

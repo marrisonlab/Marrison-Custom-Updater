@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.5.2] - 2026-05-18
+
+### � FIX
+- **Backup DB formato phpMyAdmin**: il dump SQL generato è ora identico all'export di phpMyAdmin
+- **Backup DB compatibilità**: rimozione completa di AUTO_INCREMENT (colonna e tabella), INSERT senza nomi colonna, SET SQL_MODE/START TRANSACTION globali
+- **Backup DB**: fixato `$wpdb->dbhost()` (proprietà, non metodo)
+- **Backup DB**: fixato segno `=` residuo dopo rimozione AUTO_INCREMENT
+
+### 🎯 IMPACT
+- Backup database completamente compatibile con phpMyAdmin per restore affidabile
+
+---
+
 ## [9.5.1] - 2026-05-18
 
 ### 🔧 ENHANCEMENT
