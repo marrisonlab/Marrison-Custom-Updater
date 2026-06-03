@@ -1,6 +1,6 @@
 # Marrison Custom Updater
 
-[![Latest Version](https://img.shields.io/badge/version-9.3-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
+[![Latest Version](https://img.shields.io/badge/version-9.5.5-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
 [![WordPress Version](https://img.shields.io/badge/WordPress-6.0%2B-green.svg)](https://wordpress.org)
 [![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-green.svg)](https://php.net)
 [![License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -31,6 +31,20 @@
 - Access to plugin files for backup/restore operations
 
 ## 🔄 Version History
+
+### [9.5.5] - 2026-06-03
+
+#### 🔧 CRITICAL PERFORMANCE FIX
+- **Cache invalidation aggressiva rimossa**: `delete_internal_cache` non è più agganciato a `delete_site_transient_update_plugins`
+- **GitHub cache cleanup**: `force_clear_github_cache` rimosso da `delete_site_transient_update_plugins`
+- **Failure caching**: Aggiunto sistema di "failure cache" di 5 minuti per evitare retry ripetuti su server irraggiungibili
+- **Timeout ridotti**: Da 15s/10s a 5s per tutte le chiamate HTTP al repository
+- **Guard is_admin()**: Aggiunto in `check_for_updates` e `check_for_theme_updates` come protezione extra
+
+#### 🎯 IMPACT
+- **Risolto rallentamento critico**: Siti con repository lento/irraggiungibile non si bloccano più per 15 secondi su ogni pagina admin
+- Cache del repository mantenuta correttamente tra i caricamenti pagina
+- Fallback intelligente quando il repository non è accessibile
 
 ### [9.4.1] - 2026-03-12
 

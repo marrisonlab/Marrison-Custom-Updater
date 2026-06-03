@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.5.2
+Stable tag: 9.5.4
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -32,6 +32,14 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 9.5.4 =
+* **Fix**: frontend rallentato - aggiunto controllo is_admin() ai filtri aggiornamento
+* **Miglioramento**: filtri update eseguiti solo in admin, non su frontend
+
+= 9.5.3 =
+* **Fix**: dashboard bloccata dopo migrazione - rimosso hook admin_init che causava timeout
+* **Miglioramento**: controllo aggiornamenti già eseguito via filtri site_transient
 
 = 9.5.2 =
 * **Fix**: backup database formato identico a phpMyAdmin per restore affidabile

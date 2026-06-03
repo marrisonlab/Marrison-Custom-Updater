@@ -15,10 +15,19 @@ trait MCU_Update_Operations_Trait {
             }
             if ($is_clean) return $cached;
         }
-        $response = wp_remote_get($repo_url . 'index.php', ['timeout' => 15]);
-        if (is_wp_error($response)) return [];
+        if (get_transient('marrison_updates_fetch_failed') !== false) {
+            return [];
+        }
+        $response = wp_remote_get($repo_url . 'index.php', ['timeout' => 5]);
+        if (is_wp_error($response)) {
+            set_transient('marrison_updates_fetch_failed', 1, 5 * MINUTE_IN_SECONDS);
+            return [];
+        }
         $updates = json_decode(wp_remote_retrieve_body($response), true);
-        if (!is_array($updates)) return [];
+        if (!is_array($updates)) {
+            set_transient('marrison_updates_fetch_failed', 1, 5 * MINUTE_IN_SECONDS);
+            return [];
+        }
         $cleaned_updates = [];
         foreach ($updates as $u) {
             if (!isset($u['slug'])) continue;
@@ -42,10 +51,19 @@ trait MCU_Update_Operations_Trait {
         if ($cached !== false && is_array($cached)) {
             return $cached;
         }
-        $response = wp_remote_get($repo_url . 'index.php', ['timeout' => 15]);
-        if (is_wp_error($response)) return [];
+        if (get_transient('marrison_theme_updates_fetch_failed') !== false) {
+            return [];
+        }
+        $response = wp_remote_get($repo_url . 'index.php', ['timeout' => 5]);
+        if (is_wp_error($response)) {
+            set_transient('marrison_theme_updates_fetch_failed', 1, 5 * MINUTE_IN_SECONDS);
+            return [];
+        }
         $updates = json_decode(wp_remote_retrieve_body($response), true);
-        if (!is_array($updates)) return [];
+        if (!is_array($updates)) {
+            set_transient('marrison_theme_updates_fetch_failed', 1, 5 * MINUTE_IN_SECONDS);
+            return [];
+        }
         $cleaned_updates = [];
         foreach ($updates as $u) {
             if (!isset($u['slug'])) continue;

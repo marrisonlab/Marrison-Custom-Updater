@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.5.5] - 2026-06-03
+
+### 🔧 CRITICAL PERFORMANCE FIX
+- **Cache invalidation aggressiva rimossa**: `delete_internal_cache` non è più agganciato a `delete_site_transient_update_plugins` — WP cancella questo transient su quasi ogni pagina admin, il che svuotava il cache del repo ad ogni richiesta
+- **GitHub cache cleanup**: `force_clear_github_cache` rimosso da `delete_site_transient_update_plugins` per evitare fetch ripetuti
+- **Failure caching**: Aggiunto sistema di "failure cache" di 5 minuti (`marrison_updates_fetch_failed`, `marrison_theme_updates_fetch_failed`, `marrison_github_fetch_failed`) per evitare retry ripetuti su server irraggiungibili
+- **Timeout ridotti**: Da 15s/10s a 5s per tutte le chiamate HTTP al repository (`get_available_updates`, `get_available_theme_updates`, `get_github_version`)
+- **Guard is_admin()**: Aggiunto in `check_for_updates` e `check_for_theme_updates` come protezione extra per quando i filtri verranno riabilitati
+- **Pulizia failure transients**: `delete_internal_cache` ora pulisce anche i transient di fallimento per permettere retry dopo pulizia cache manuale
+
+### 🎯 IMPACT
+- **Risolto rallentamento critico**: Siti con repository lento/irraggiungibile non si bloccano più per 15 secondi su ogni pagina admin
+- Cache del repository mantenuto correttamente tra i caricamenti pagina
+- Fallback intelligente quando il repository non è accessibile (5 min di attesa prima di retry)
+
+---
+
+## [9.5.4] - 2026-05-29
+
+### 🐛 FIX
+- **Frontend rallentato**: aggiunto controllo `is_admin()` ai filtri di aggiornamento per evitare chiamate HTTP sul frontend
+- **Performance**: i filtri `site_transient_update_plugins` e `site_transient_update_themes` vengono eseguiti solo nell'area admin
+
+### 🎯 IMPACT
+- Il frontend non viene più rallentato dalle chiamate al repository privato
+- Migliore performance complessiva del sito
+
+---
+
+## [9.5.3] - 2026-05-29
+
+### 🐛 FIX
+- **Dashboard bloccata dopo migrazione**: rimosso hook `admin_init` per `check_for_available_updates()` che causava timeout HTTP al repository privato
+- **Miglioramento**: il controllo aggiornamenti viene già eseguito tramite filtri `site_transient_update_plugins` e `site_transient_update_themes`
+
+### 🎯 IMPACT
+- Dashboard non si blocca più dopo migrazioni o se il repository privato non è accessibile
+- Caricamento admin più veloce
+
+---
+
 ## [9.5.2] - 2026-05-18
 
 ### � FIX

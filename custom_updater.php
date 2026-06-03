@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.5.2
+ * Version: 9.5.5
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  */
@@ -30,18 +30,21 @@ class MCU_Custom_Updater {
         $this->cache_duration = defined('HOUR_IN_SECONDS') ? 6 * constant('HOUR_IN_SECONDS') : 21600;
 
         add_action('plugins_loaded', [$this, 'load_textdomain']);
-        
-
 
         // Usa site_transient_update_plugins invece di pre_set_site_transient_update_plugins
         // per iniettare gli aggiornamenti in tempo reale quando WP controlla la cache
-        add_filter('site_transient_update_plugins', [$this, 'check_for_updates'], 999);
-        add_filter('site_transient_update_themes', [$this, 'check_for_theme_updates'], 999);
-        add_filter('plugins_api', [$this, 'plugin_info'], 20, 3);
+        // Solo nell'area admin per non rallentare il frontend
+        // TEMPORANEAMENTE DISABILITATO PER DEBUG
+        // add_action('admin_init', function() {
+        //     add_filter('site_transient_update_plugins', [$this, 'check_for_updates'], 999);
+        //     add_filter('site_transient_update_themes', [$this, 'check_for_theme_updates'], 999);
+        //     add_filter('plugins_api', [$this, 'plugin_info'], 20, 3);
+        // });
 
-        // Sincronizza la pulizia della cache
-        add_action('delete_site_transient_update_plugins', [$this, 'delete_internal_cache']);
-        add_action('delete_site_transient_update_themes', [$this, 'delete_internal_cache']);
+        // Sincronizza la pulizia della cache solo dopo aggiornamenti completati
+        // NON agganciare a delete_site_transient_update_plugins: WP la cancella su quasi ogni
+        // pagina admin, il che svuoterebbe il cache del repo ad ogni richiesta costringendo
+        // una chiamata HTTP sincrona di 15s al prossimo caricamento.
         add_action('upgrader_process_complete', [$this, 'delete_internal_cache'], 10, 2);
         // Hook per triggerare l'update del DB di Elementor
         add_action('upgrader_process_complete', [$this, 'trigger_elementor_db_update'], 20, 2);
@@ -95,14 +98,13 @@ class MCU_Custom_Updater {
         // Hook per aggiungere notifiche al menu
         add_action('admin_menu', [$this, 'add_menu_notification_badge'], 999);
         add_action('admin_head', [$this, 'add_menu_badge_styles']);
-        add_action('admin_init', [$this, 'check_for_available_updates']);
         add_action('admin_init', [$this, 'flush_rules_on_upgrade']);
         
         // Filtro per abilitare auto-update per questo plugin
         // add_filter('auto_update_plugin', [$this, 'auto_update_specific_plugins'], 10, 2);
         
-        // Hook per pulire la cache GitHub quando si forza il controllo aggiornamenti WP
-        add_action('delete_site_transient_update_plugins', [$this, 'force_clear_github_cache']);
+        // La cache GitHub viene pulita esplicitamente da clear_cache() e force_check_mcu()
+        // Non agganciare a delete_site_transient_update_plugins per evitare fetch ripetuti
     }
 
     public function load_textdomain() {
@@ -111,6 +113,7 @@ class MCU_Custom_Updater {
 
     public function force_clear_github_cache() {
         delete_transient('marrison_updater_github_version');
+        delete_transient('marrison_github_fetch_failed');
     }
 
     public function auto_update_specific_plugins($update, $item) {
@@ -521,6 +524,7 @@ class MCU_Custom_Updater {
     /* ===================== WP UPDATE HOOK ===================== */
 
     public function check_for_updates($transient) {
+        if (!is_admin()) return $transient;
         if (!is_object($transient)) $transient = new stdClass();
         
         // Assicurati che le proprietà esistano
@@ -645,6 +649,7 @@ class MCU_Custom_Updater {
     /* ===================== THEME UPDATES ===================== */
 
     public function check_for_theme_updates($transient) {
+        if (!is_admin()) return $transient;
         if (!is_object($transient)) $transient = new stdClass();
         
         if (!isset($transient->response)) $transient->response = [];
@@ -754,15 +759,22 @@ class MCU_Custom_Updater {
         $cached = get_transient('marrison_updater_github_version');
         if ($cached !== false) return $cached;
 
+        if (get_transient('marrison_github_fetch_failed') !== false) {
+            return false;
+        }
+
         $response = wp_remote_get('https://api.github.com/repos/marrisonlab/marrison-custom-updater/releases/latest', [
-            'timeout' => 10,
+            'timeout' => 5,
             'headers' => [
                 'Accept' => 'application/vnd.github.v3+json',
                 'User-Agent' => 'WordPress/MarrisonCustomUpdater'
             ]
         ]);
 
-        if (is_wp_error($response)) return false;
+        if (is_wp_error($response)) {
+            set_transient('marrison_github_fetch_failed', 1, 5 * MINUTE_IN_SECONDS);
+            return false;
+        }
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
         if (empty($body['tag_name'])) return false;
@@ -1090,6 +1102,8 @@ class MCU_Custom_Updater {
         delete_transient('marrison_available_updates');
         delete_transient('marrison_available_updates_v2');
         delete_transient('marrison_available_theme_updates');
+        delete_transient('marrison_updates_fetch_failed');
+        delete_transient('marrison_theme_updates_fetch_failed');
     }
 
     public function clear_cache() {
