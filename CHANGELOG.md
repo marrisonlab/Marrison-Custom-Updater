@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.5.8] - 2026-07-01
+
+### 🐛 BUG FIX — Badge "aggiornamenti disponibili" bloccato su un valore stale
+
+#### Causa
+- `marrison_available_updates_count` (l'opzione che controlla il pallino rosso nel menu) veniva ricalcolata da `check_for_available_updates()` **solo** dopo il completamento riuscito di un aggiornamento manuale (AJAX).
+- Non essendo mai ricalcolata al caricamento delle pagine admin, se il valore veniva impostato >0 in un momento precedente (es. un aggiornamento tentato, o durante i test con i filtri disabilitati in 9.5.5-9.5.6) e non si verificava più nessun altro aggiornamento completato, il badge restava bloccato su quel numero anche quando in realtà non c'erano più aggiornamenti disponibili.
+
+#### Fix
+- Aggiunto hook `admin_init` → `check_for_available_updates()` per ricalcolare il conteggio ad ogni richiesta admin. `get_available_updates()`/`get_available_theme_updates()` sono già cachate con transient da 6h, quindi non introduce chiamate HTTP ripetute né impatti sulle performance.
+
+---
+
+## [9.5.7] - 2026-07-01
+
+### 🐛 CRITICAL BUG FIX — Nessun aggiornamento rilevato (plugin/temi/self-update)
+
+#### Causa
+- I filtri `site_transient_update_plugins`, `site_transient_update_themes` e `plugins_api` erano stati **disabilitati per debug** nella versione 9.5.5 (commento "TEMPORANEAMENTE DISABILITATO PER DEBUG") e **mai riattivati**.
+- Di conseguenza `check_for_updates` e `check_for_theme_updates` non venivano mai eseguiti: nessun aggiornamento (privato, pubblico o del plugin stesso) veniva iniettato nel transient `update_plugins`/`update_themes`.
+- Questo causava due sintomi distinti riportati dagli utenti:
+  1. Gli aggiornamenti pubblicati sul repository (incluse nuove release su GitHub) non apparivano nella lista plugin di WordPress, anche dopo il refresh.
+  2. Il self-update del plugin (`update_plugin_ajax`) falliva sempre con errore, perché la logica si basa su `get_site_transient('update_plugins')->response[...]`, mai popolato.
+
+#### Fix
+- Riattivati i filtri in `admin_init` come previsto, con i guard `is_admin()` interni (introdotti in 9.5.5) mantenuti come protezione extra.
+
+### 🎯 IMPACT
+- Gli aggiornamenti di plugin, temi e del plugin stesso vengono correttamente rilevati e mostrati in WordPress
+- Il self-update funziona nuovamente
+
+---
+
 ## [9.5.6] - 2026-06-04
 
 ### 🐛 CRITICAL BUG FIX — WooCommerce (e plugin correlati) venivano disattivati dopo un aggiornamento

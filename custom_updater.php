@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.5.6
+ * Version: 9.5.8
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  */
@@ -33,13 +33,13 @@ class MCU_Custom_Updater {
 
         // Usa site_transient_update_plugins invece di pre_set_site_transient_update_plugins
         // per iniettare gli aggiornamenti in tempo reale quando WP controlla la cache
-        // Solo nell'area admin per non rallentare il frontend
-        // TEMPORANEAMENTE DISABILITATO PER DEBUG
-        // add_action('admin_init', function() {
-        //     add_filter('site_transient_update_plugins', [$this, 'check_for_updates'], 999);
-        //     add_filter('site_transient_update_themes', [$this, 'check_for_theme_updates'], 999);
-        //     add_filter('plugins_api', [$this, 'plugin_info'], 20, 3);
-        // });
+        // Solo nell'area admin per non rallentare il frontend (guard is_admin() anche
+        // dentro le funzioni stesse come protezione extra)
+        add_action('admin_init', function() {
+            add_filter('site_transient_update_plugins', [$this, 'check_for_updates'], 999);
+            add_filter('site_transient_update_themes', [$this, 'check_for_theme_updates'], 999);
+            add_filter('plugins_api', [$this, 'plugin_info'], 20, 3);
+        });
 
         // Sincronizza la pulizia della cache solo dopo aggiornamenti completati
         // NON agganciare a delete_site_transient_update_plugins: WP la cancella su quasi ogni
@@ -99,6 +99,13 @@ class MCU_Custom_Updater {
         add_action('admin_menu', [$this, 'add_menu_notification_badge'], 999);
         add_action('admin_head', [$this, 'add_menu_badge_styles']);
         add_action('admin_init', [$this, 'flush_rules_on_upgrade']);
+
+        // Ricalcola il conteggio badge ad ogni richiesta admin: senza questo hook
+        // il valore restava bloccato all'ultimo conteggio calcolato dopo un update
+        // manuale, anche quando non c'erano più aggiornamenti reali disponibili.
+        // get_available_updates()/get_available_theme_updates() sono già cachate
+        // con transient da 6h, quindi non introduce chiamate HTTP ripetute.
+        add_action('admin_init', [$this, 'check_for_available_updates']);
         
         // Filtro per abilitare auto-update per questo plugin
         // add_filter('auto_update_plugin', [$this, 'auto_update_specific_plugins'], 10, 2);
