@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.5.5
+ * Version: 9.5.6
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  */
@@ -426,7 +426,8 @@ class MCU_Custom_Updater {
             wp_send_json_error(__('Update failed', 'marrison-custom-updater'));
         } else {
             if ($was_active && !is_plugin_active($file)) {
-                activate_plugin($file, '', false, false);
+                // Reactivate silently: do not fire activation hooks in an update context
+                activate_plugin($file, '', false, true);
             }
 
             wp_send_json_success(__('Plugin updated', 'marrison-custom-updater'));
@@ -1332,15 +1333,11 @@ echo json_encode($data);
             wp_clean_plugins_cache(true);
 
             if ($was_active && $plugin_file_after) {
-                // Force reactivation
-                $activate = activate_plugin($plugin_file_after, '', $was_network_active, false);
-                if (is_wp_error($activate)) {
-                    error_log('Marrison Updater: Failed to reactivate plugin ' . $slug . ': ' . $activate->get_error_message());
-                } else {
-                     // Double check if it is really active
-                    if ( ! is_plugin_active( $plugin_file_after ) ) {
-                         // Try one more time
-                         activate_plugin($plugin_file_after, '', $was_network_active, false);
+                if (!is_plugin_active($plugin_file_after)) {
+                    // Reactivate silently: do not fire activation hooks in an update context
+                    $activate = activate_plugin($plugin_file_after, '', $was_network_active, true);
+                    if (is_wp_error($activate)) {
+                        error_log('Marrison Updater: Failed to reactivate plugin ' . $slug . ': ' . $activate->get_error_message());
                     }
                 }
             }
@@ -1527,13 +1524,11 @@ echo json_encode($data);
                 if ($was_active) {
                     $plugin_file_after = $this->find_plugin_file($slug, $name);
                     if ($plugin_file_after) {
-                        $activate = activate_plugin($plugin_file_after, '', $was_network_active, false);
-                        if (is_wp_error($activate)) {
-                            error_log('Marrison Updater Bulk: Failed to reactivate plugin ' . $slug . ': ' . $activate->get_error_message());
-                        } else {
-                             // Double check
-                            if ( ! is_plugin_active( $plugin_file_after ) ) {
-                                 activate_plugin($plugin_file_after, '', $was_network_active, false);
+                        if (!is_plugin_active($plugin_file_after)) {
+                            // Reactivate silently: do not fire activation hooks in an update context
+                            $activate = activate_plugin($plugin_file_after, '', $was_network_active, true);
+                            if (is_wp_error($activate)) {
+                                error_log('Marrison Updater Bulk: Failed to reactivate plugin ' . $slug . ': ' . $activate->get_error_message());
                             }
                         }
                     }

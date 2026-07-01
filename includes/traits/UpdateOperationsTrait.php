@@ -299,15 +299,40 @@ trait MCU_Update_Operations_Trait {
                     $dest_folder = $installed_dir;
                 }
             }
-            $dest = trailingslashit(WP_PLUGIN_DIR . '/' . $dest_folder);
-            if ($wp_filesystem->is_dir($dest)) {
-                $wp_filesystem->delete($dest, true);
-            }
-            $result = copy_dir($source, $dest);
+            $dest      = trailingslashit(WP_PLUGIN_DIR . '/' . $dest_folder);
+            $dest_temp = WP_PLUGIN_DIR . '/' . $dest_folder . '-marrison-new-' . time();
+            $dest_old  = WP_PLUGIN_DIR . '/' . $dest_folder . '-marrison-old-' . time();
+
+            // 1. Copy new files to a temporary directory first (no destructive action yet)
+            $result = copy_dir($source, $dest_temp);
             $wp_filesystem->delete($upgrade_dir, true);
-            
+
             if (is_wp_error($result)) {
+                $wp_filesystem->delete($dest_temp, true);
                 return $result;
+            }
+
+            // 2. Atomic swap: rename old → backup, new → final
+            $old_exists = $wp_filesystem->is_dir($dest);
+            if ($old_exists) {
+                if (!rename(untrailingslashit($dest), $dest_old)) {
+                    $wp_filesystem->delete($dest_temp, true);
+                    return new WP_Error('rename_old_failed', __('Impossibile rinominare la directory del plugin esistente.', 'marrison-custom-updater'));
+                }
+            }
+
+            if (!rename($dest_temp, untrailingslashit($dest))) {
+                // Restore old directory before returning error
+                if ($old_exists && is_dir($dest_old)) {
+                    rename($dest_old, untrailingslashit($dest));
+                }
+                $wp_filesystem->delete($dest_temp, true);
+                return new WP_Error('rename_new_failed', __('Impossibile spostare la nuova versione del plugin.', 'marrison-custom-updater'));
+            }
+
+            // 3. Delete the old backup directory
+            if ($old_exists && is_dir($dest_old)) {
+                $wp_filesystem->delete($dest_old, true);
             }
             
             delete_site_transient('update_plugins');

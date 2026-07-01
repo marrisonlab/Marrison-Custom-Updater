@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.5.6] - 2026-06-04
+
+### 🐛 CRITICAL BUG FIX — WooCommerce (e plugin correlati) venivano disattivati dopo un aggiornamento
+
+#### Causa 1 — `perform_update`: rimpiazzo non atomico della directory (BUG PRINCIPALE)
+- **Problema**: `perform_update` cancellava la directory del plugin (`$wp_filesystem->delete($dest, true)`) PRIMA di copiare i nuovi file. Se `copy_dir` falliva per qualsiasi motivo (permessi, errore filesystem), il plugin rimaneva senza file su disco. Alla richiesta successiva, WordPress tentava di caricare il plugin da `active_plugins` ma non trovava il file → **Fatal Error Protection di WP 5.2+** auto-deattivava il plugin. WP 6.5+ Plugin Dependencies poi rimuoveva automaticamente tutti i plugin con `Requires Plugins: woocommerce` (Stripe, PayPal, Subscriptions, ecc.).
+- **Fix**: Rimpiazzo atomico (copy-then-swap):
+  1. Copia i nuovi file su una directory temporanea (`plugin-marrison-new-{ts}`) — nessuna azione distruttiva ancora
+  2. Rinomina la vecchia directory in backup (`plugin-marrison-old-{ts}`)
+  3. Rinomina la temp nella destinazione finale
+  4. Se step 2/3 fallisce, ripristina il backup automaticamente
+  5. Se tutto ok, elimina il backup
+
+#### Causa 2 — `activate_plugin` con `$silent = false` in contesti di update (BUG SECONDARIO)
+- **Problema**: In `update_plugin_ajax`, `bulk_update_ajax`, e `update_official_plugin_ajax`, `activate_plugin` veniva chiamato con `$silent = false` (4° parametro). Se il plugin finiva per qualche ragione fuori da `active_plugins`, venivano eseguiti gli activation hook in un contesto anomalo. Alcuni plugin WooCommerce nei propri activation hook chiamano `deactivate_plugins()` in caso di incompatibilità, con effetti collaterali imprevedibili.
+- **Fix**: Tutte le chiamate `activate_plugin` nei flussi di aggiornamento usano ora `$silent = true` e vengono eseguite solo se `!is_plugin_active()` (guard aggiunto).
+
+### 🎯 IMPACT
+- I plugin privati (incluso WooCommerce se presente nel repo) non vengono mai lasciati in uno stato "vuoto" su disco durante un aggiornamento
+- Gli activation hook non vengono più eseguiti in contesti di re-attivazione post-update
+
+---
+
 ## [9.5.5] - 2026-06-03
 
 ### 🔧 CRITICAL PERFORMANCE FIX
