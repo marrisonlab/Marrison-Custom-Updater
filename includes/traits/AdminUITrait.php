@@ -144,6 +144,30 @@ trait MCU_Admin_UI_Trait {
         <?php
     }
 
+    private function render_license_required_page($title = null, $with_wrap = true) {
+        $title = $title ?: __('WP Master Updater', 'marrison-custom-updater');
+        ?>
+        <?php if ($with_wrap): ?>
+            <div class="mcu-wrap">
+                <?php $this->render_header($title); ?>
+        <?php endif; ?>
+            <div class="mcu-card">
+                <div class="mcu-card-header">
+                    <h2 class="mcu-card-title"><span class="dashicons dashicons-lock"></span> <?php esc_html_e('Licenza richiesta', 'marrison-custom-updater'); ?></h2>
+                </div>
+                <p><?php echo esc_html($this->license_required_message()); ?></p>
+                <p>
+                    <a class="mcu-button mcu-button-primary" href="<?php echo esc_url(admin_url('admin.php?page=marrison-updater-settings')); ?>">
+                        <?php esc_html_e('Vai alle impostazioni licenza', 'marrison-custom-updater'); ?>
+                    </a>
+                </p>
+            </div>
+        <?php if ($with_wrap): ?>
+            </div>
+        <?php endif; ?>
+        <?php
+    }
+
     public function enqueue_admin_scripts($hook) {
         if (strpos($hook, 'marrison-updater') === false) {
             return;
@@ -155,6 +179,119 @@ trait MCU_Admin_UI_Trait {
             'nonce'   => wp_create_nonce('marrison_ajax_nonce'),
             'toggle_exclusion_nonce' => wp_create_nonce('marrison_toggle_exclusion')
         ]);
+
+        $locale = function_exists('determine_locale') ? determine_locale() : get_locale();
+        if (strpos($locale, 'en_') === 0) {
+            wp_add_inline_script('mcu-admin-script', 'window.mcuAdminTranslations = ' . wp_json_encode($this->get_english_admin_fallback_translations()) . ';', 'before');
+            wp_add_inline_script('mcu-admin-script', <<<'JS'
+(function () {
+    function translateTextNodes(root) {
+        var dictionary = window.mcuAdminTranslations || {};
+        var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode: function (node) {
+                if (!node.nodeValue || !node.nodeValue.trim()) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                if (node.parentNode && /^(script|style|textarea|code)$/i.test(node.parentNode.nodeName)) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+        var nodes = [];
+        while (walker.nextNode()) {
+            nodes.push(walker.currentNode);
+        }
+        nodes.forEach(function (node) {
+            var original = node.nodeValue;
+            var trimmed = original.trim();
+            if (dictionary[trimmed]) {
+                node.nodeValue = original.replace(trimmed, dictionary[trimmed]);
+            }
+        });
+    }
+
+    function translateAttributes(root) {
+        var dictionary = window.mcuAdminTranslations || {};
+        root.querySelectorAll('[value],[title],[placeholder],[data-confirm]').forEach(function (el) {
+            ['value', 'title', 'placeholder', 'data-confirm'].forEach(function (attr) {
+                var value = el.getAttribute(attr);
+                if (value && dictionary[value.trim()]) {
+                    el.setAttribute(attr, dictionary[value.trim()]);
+                }
+            });
+        });
+    }
+
+    function run() {
+        var root = document.querySelector('.mcu-wrap') || document.body;
+        translateTextNodes(root);
+        translateAttributes(root);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', run);
+    } else {
+        run();
+    }
+})();
+JS
+            );
+        }
+    }
+
+    private function get_english_admin_fallback_translations() {
+        return [
+            'Aggiornamenti' => 'Updates',
+            'Impostazioni' => 'Settings',
+            'Generale' => 'General',
+            'Programmazione' => 'Scheduling',
+            'Esclusioni' => 'Exclusions',
+            'Guida & Download' => 'Guide & Download',
+            'Aggiorna' => 'Update',
+            'Aggiorna tutto' => 'Update all',
+            'Aggiorna Tutti' => 'Update All',
+            'Aggiorna Selezionati' => 'Update Selected',
+            'Aggiornato' => 'Updated',
+            'In attesa' => 'Pending',
+            'Escluso' => 'Excluded',
+            'Backup Disponibili' => 'Available Backups',
+            'Ripristino in corso...' => 'Restoring...',
+            'Inizializzazione...' => 'Initializing...',
+            'Backup Database' => 'Database Backup',
+            'Esegui Backup Database' => 'Run Database Backup',
+            'Lista Backup' => 'Backup List',
+            'Versione Backup' => 'Backup Version',
+            'Data Backup' => 'Backup Date',
+            'Dimensione' => 'Size',
+            'Azioni' => 'Actions',
+            'Scarica' => 'Download',
+            'Ripristina' => 'Restore',
+            'Stato:' => 'Status:',
+            'Messaggio:' => 'Message:',
+            'Programmazione Aggiornamenti' => 'Update Scheduling',
+            'Abilita Aggiornamenti Automatici' => 'Enable Automatic Updates',
+            'Salva Programmazione' => 'Save Schedule',
+            'Aggiornamenti Trovati:' => 'Updates Found:',
+            'Sì' => 'Yes',
+            'No' => 'No',
+            'Esclusioni Plugin' => 'Plugin Exclusions',
+            'Esclusioni Temi' => 'Theme Exclusions',
+            'Plugin' => 'Plugin',
+            'Tema' => 'Theme',
+            'Versione' => 'Version',
+            'Escludi' => 'Exclude',
+            'Guida all\'uso' => 'How to Use',
+            'Strumenti Aggiuntivi' => 'Additional Tools',
+            'Aggiorna tutti i temi' => 'Update all themes',
+            'Aggiorna tutte le traduzioni' => 'Update all translations',
+            'Plugin con Aggiornamenti' => 'Plugins with Updates',
+            'Aggiornamento in corso...' => 'Update in progress...',
+            'Impostazioni salvate correttamente.' => 'Settings saved successfully.',
+            'Licenza richiesta' => 'License required',
+            'Vai alle impostazioni licenza' => 'Go to license settings',
+            'Licenza MCU non attiva. Inserisci una chiave valida nelle impostazioni per usare questo plugin.' => 'MCU license is not active. Enter a valid key in settings to use this plugin.',
+        ];
     }
 
     public function add_admin_menu() {
@@ -169,24 +306,24 @@ trait MCU_Admin_UI_Trait {
         );
         add_submenu_page(
             'marrison-updater',
-            'Aggiornamenti',
-            'Aggiornamenti',
+            __('Aggiornamenti', 'marrison-custom-updater'),
+            __('Aggiornamenti', 'marrison-custom-updater'),
             'manage_options',
             'marrison-updater',
             [$this, 'admin_page']
         );
         add_submenu_page(
             'marrison-updater',
-            'Backup',
-            'Backup',
+            __('Backup', 'marrison-custom-updater'),
+            __('Backup', 'marrison-custom-updater'),
             'manage_options',
             'marrison-updater-backups',
             [$this, 'backup_page']
         );
         add_submenu_page(
             'marrison-updater',
-            'Impostazioni',
-            'Impostazioni',
+            __('Impostazioni', 'marrison-custom-updater'),
+            __('Impostazioni', 'marrison-custom-updater'),
             'manage_options',
             'marrison-updater-settings',
             [$this, 'settings_page']
@@ -195,56 +332,97 @@ trait MCU_Admin_UI_Trait {
 
     public function settings_page() {
         $settingsUpdated = $_GET['settings-updated'] ?? '';
+        $licenseUpdated = $_GET['license-updated'] ?? '';
         $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'general';
+        $license_active = method_exists($this, 'is_license_active') ? $this->is_license_active() : false;
+        $license_status = class_exists('MCU_License') ? MCU_License::get_status() : [];
+        $license_label = class_exists('MCU_License') ? MCU_License::status_label() : ['label' => 'Non disponibile', 'badge' => 'mcu-badge-warning'];
+        $license_checked = !empty($license_status['checked_at']) ? date_i18n('d/m/Y H:i', (int) $license_status['checked_at']) : __('Mai', 'marrison-custom-updater');
         ?>
         <div class="mcu-wrap">
-            <?php $this->render_header('Impostazioni'); ?>
+            <?php $this->render_header(__('Impostazioni', 'marrison-custom-updater')); ?>
             <h2 class="nav-tab-wrapper" style="margin-bottom: 20px;">
-                <a href="?page=marrison-updater-settings&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">Generale</a>
-                <a href="?page=marrison-updater-settings&tab=scheduling" class="nav-tab <?php echo $active_tab == 'scheduling' ? 'nav-tab-active' : ''; ?>">Programmazione</a>
-                <a href="?page=marrison-updater-settings&tab=exclusions" class="nav-tab <?php echo $active_tab == 'exclusions' ? 'nav-tab-active' : ''; ?>">Esclusioni</a>
+                <a href="?page=marrison-updater-settings&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Generale', 'marrison-custom-updater'); ?></a>
+                <a href="?page=marrison-updater-settings&tab=scheduling" class="nav-tab <?php echo $active_tab == 'scheduling' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Programmazione', 'marrison-custom-updater'); ?></a>
+                <a href="?page=marrison-updater-settings&tab=exclusions" class="nav-tab <?php echo $active_tab == 'exclusions' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Esclusioni', 'marrison-custom-updater'); ?></a>
                 <!-- Monitoring tab removed -->
 
-                <a href="?page=marrison-updater-settings&tab=howto" class="nav-tab <?php echo $active_tab == 'howto' ? 'nav-tab-active' : ''; ?>">Guida & Download</a>
+                <a href="?page=marrison-updater-settings&tab=howto" class="nav-tab <?php echo $active_tab == 'howto' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Guida & Download', 'marrison-custom-updater'); ?></a>
             </h2>
             <?php if ($settingsUpdated === 'saved'): ?>
-                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Impostazioni salvate correttamente.</div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Impostazioni salvate correttamente.', 'marrison-custom-updater'); ?></div>
             <?php elseif ($settingsUpdated === 'removed'): ?>
-                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> URL del repository rimosso.</div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('URL del repository rimosso.', 'marrison-custom-updater'); ?></div>
+            <?php endif; ?>
+            <?php if ($licenseUpdated === 'activated'): ?>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Licenza attivata correttamente.', 'marrison-custom-updater'); ?></div>
+            <?php elseif ($licenseUpdated === 'failed'): ?>
+                <div class="mcu-notice mcu-notice-error"><span class="dashicons dashicons-warning"></span> <?php esc_html_e('Licenza non valida o Commander non raggiungibile.', 'marrison-custom-updater'); ?></div>
             <?php endif; ?>
             <?php if (isset($_GET['cache_cleared'])): ?>
-                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Cache pulita.</div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Cache pulita.', 'marrison-custom-updater'); ?></div>
             <?php endif; ?>
             <?php if (isset($_GET['mcu_checked'])): ?>
-                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Controllo aggiornamenti MCU forzato con successo.</div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Controllo aggiornamenti MCU forzato con successo.', 'marrison-custom-updater'); ?></div>
+            <?php endif; ?>
+            <?php if (!$license_active && $active_tab !== 'general'): ?>
+                <?php $this->render_license_required_page(__('Impostazioni', 'marrison-custom-updater'), false); ?>
+                <?php return; ?>
             <?php endif; ?>
             <?php if ($active_tab == 'general'): ?>
                 <div class="mcu-card">
                     <div class="mcu-card-header">
-                        <h2 class="mcu-card-title"><span class="dashicons dashicons-database"></span> Impostazioni Repository</h2>
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-admin-network"></span> <?php esc_html_e('Licenza Commander', 'marrison-custom-updater'); ?></h2>
                     </div>
                     <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
                         <?php wp_nonce_field('mcu_save_repo_url'); ?>
                         <input type="hidden" name="action" value="mcu_save_repo_url">
                         <table class="form-table">
                             <tr>
-                                <th scope="row"><label for="marrison_repo_url">Indirizzo Repository Plugin</label></th>
+                                <th scope="row"><?php esc_html_e('Stato licenza', 'marrison-custom-updater'); ?></th>
                                 <td>
-                                    <input type="password" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo get_option('marrison_repo_url') ? '********************' : ''; ?>" class="regular-text" style="width: 100%; max-width: 500px;">
-                                    <p class="description">Inserisci l'URL del repository personalizzato per i PLUGIN.</p>
+                                    <span class="mcu-badge <?php echo esc_attr($license_label['badge']); ?>"><?php echo esc_html($license_label['label']); ?></span>
+                                    <p class="description">
+                                        <?php esc_html_e('Ultima verifica:', 'marrison-custom-updater'); ?> <strong><?php echo esc_html($license_checked); ?></strong>
+                                        <?php if (!empty($license_status['message'])): ?>
+                                            <br><?php echo esc_html($license_status['message']); ?>
+                                        <?php endif; ?>
+                                    </p>
                                 </td>
                             </tr>
                             <tr>
-                                <th scope="row"><label for="marrison_themes_repo_url">Indirizzo Repository Temi</label></th>
+                                <th scope="row"><label for="mcu_license_key"><?php esc_html_e('Chiave di licenza', 'marrison-custom-updater'); ?></label></th>
+                                <td>
+                                    <input type="text" id="mcu_license_key" name="mcu_license_key" value="<?php echo class_exists('MCU_License') ? esc_attr(MCU_License::get_key()) : ''; ?>" class="regular-text" style="width: 100%; max-width: 500px;" placeholder="MC-XXXX-XXXX-XXXX-XXXX" autocomplete="off">
+                                    <p class="description"><?php esc_html_e('La chiave deve risultare valida su Marrison Commander per abilitare gli aggiornamenti privati.', 'marrison-custom-updater'); ?></p>
+                                </td>
+                            </tr>
+                        </table>
+                        <div style="margin-top: 20px; display: flex; gap: 10px; margin-bottom: 30px;">
+                            <button class="mcu-button mcu-button-primary" type="submit"><?php esc_html_e('Salva e verifica licenza', 'marrison-custom-updater'); ?></button>
+                        </div>
+                        <div class="mcu-card-header" style="margin-top: 10px;">
+                            <h2 class="mcu-card-title"><span class="dashicons dashicons-database"></span> <?php esc_html_e('Impostazioni Repository', 'marrison-custom-updater'); ?></h2>
+                        </div>
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row"><label for="marrison_repo_url"><?php esc_html_e('Indirizzo Repository Plugin', 'marrison-custom-updater'); ?></label></th>
+                                <td>
+                                    <input type="password" id="marrison_repo_url" name="marrison_repo_url" value="<?php echo get_option('marrison_repo_url') ? '********************' : ''; ?>" class="regular-text" style="width: 100%; max-width: 500px;">
+                                    <p class="description"><?php esc_html_e('Inserisci l\'URL del repository personalizzato per i PLUGIN.', 'marrison-custom-updater'); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="marrison_themes_repo_url"><?php esc_html_e('Indirizzo Repository Temi', 'marrison-custom-updater'); ?></label></th>
                                 <td>
                                     <input type="password" id="marrison_themes_repo_url" name="marrison_themes_repo_url" value="<?php echo get_option('marrison_themes_repo_url') ? '********************' : ''; ?>" class="regular-text" style="width: 100%; max-width: 500px;">
-                                    <p class="description">Inserisci l'URL del repository personalizzato per i TEMI.</p>
+                                    <p class="description"><?php esc_html_e('Inserisci l\'URL del repository personalizzato per i TEMI.', 'marrison-custom-updater'); ?></p>
                                 </td>
                             </tr>
                         </table>
                         <div style="margin-top: 20px; display: flex; gap: 10px;">
-                            <button class="mcu-button mcu-button-primary" type="submit">Salva Impostazioni</button>
-                            <button class="mcu-button mcu-button-secondary" type="submit" name="marrison_remove_repo_url" value="1" onclick="return confirm('Sei sicuro di voler rimuovere gli URL?');">Rimuovi URL</button>
+                            <button class="mcu-button mcu-button-primary" type="submit"><?php esc_html_e('Salva Impostazioni', 'marrison-custom-updater'); ?></button>
+                            <button class="mcu-button mcu-button-secondary" type="submit" name="marrison_remove_repo_url" value="1" onclick="return confirm('<?php echo esc_js(__('Sei sicuro di voler rimuovere gli URL?', 'marrison-custom-updater')); ?>');"><?php esc_html_e('Rimuovi URL', 'marrison-custom-updater'); ?></button>
                         </div>
                     </form>
                 </div>
@@ -275,24 +453,24 @@ trait MCU_Admin_UI_Trait {
                 <div class="mcu-dashboard-grid" style="margin-top: 30px;">
                     <div class="mcu-card mcu-stat-card">
                         <div class="mcu-stat-number"><?php echo !empty($updates) ? '<span class="dashicons dashicons-yes" style="color:var(--mcu-success); font-size: 36px; height: 36px; width: 36px;"></span>' : '<span class="dashicons dashicons-no" style="color:var(--mcu-danger); font-size: 36px; height: 36px; width: 36px;"></span>'; ?></div>
-                        <div class="mcu-stat-label">Stato Plugin</div>
+                        <div class="mcu-stat-label"><?php esc_html_e('Stato Plugin', 'marrison-custom-updater'); ?></div>
                     </div>
                     <div class="mcu-card mcu-stat-card">
                         <div class="mcu-stat-number"><?php echo $installed_count; ?></div>
-                        <div class="mcu-stat-label">Plugin Monitorati</div>
+                        <div class="mcu-stat-label"><?php esc_html_e('Plugin Monitorati', 'marrison-custom-updater'); ?></div>
                     </div>
                 </div>
                 <?php if ($installed_count > 0): ?>
                     <div class="mcu-card">
                         <div class="mcu-card-header">
-                            <h2 class="mcu-card-title">Plugin Monitorati su questo sito</h2>
+                            <h2 class="mcu-card-title"><?php esc_html_e('Plugin Monitorati su questo sito', 'marrison-custom-updater'); ?></h2>
                         </div>
                         <table class="mcu-table">
                             <thead>
                                 <tr>
-                                    <th>Plugin Installato</th>
-                                    <th>Versione Installata</th>
-                                    <th>Versione Repository</th>
+                                    <th><?php esc_html_e('Plugin Installato', 'marrison-custom-updater'); ?></th>
+                                    <th><?php esc_html_e('Versione Installata', 'marrison-custom-updater'); ?></th>
+                                    <th><?php esc_html_e('Versione Repository', 'marrison-custom-updater'); ?></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -346,25 +524,25 @@ trait MCU_Admin_UI_Trait {
                 <div class="mcu-dashboard-grid" style="margin-top: 30px;">
                     <div class="mcu-card mcu-stat-card">
                         <div class="mcu-stat-number"><?php echo !empty($theme_updates) ? '<span class="dashicons dashicons-yes" style="color:var(--mcu-success); font-size: 36px; height: 36px; width: 36px;"></span>' : '<span class="dashicons dashicons-no" style="color:var(--mcu-danger); font-size: 36px; height: 36px; width: 36px;"></span>'; ?></div>
-                        <div class="mcu-stat-label">Stato Temi</div>
+                        <div class="mcu-stat-label"><?php esc_html_e('Stato Temi', 'marrison-custom-updater'); ?></div>
                     </div>
 
                     <div class="mcu-card mcu-stat-card">
                         <div class="mcu-stat-number"><?php echo $theme_installed_count; ?></div>
-                        <div class="mcu-stat-label">Temi Monitorati</div>
+                        <div class="mcu-stat-label"><?php esc_html_e('Temi Monitorati', 'marrison-custom-updater'); ?></div>
                     </div>
                 </div>
                 <?php if (!empty($theme_installed_list)): ?>
                     <div class="mcu-card">
                         <div class="mcu-card-header">
-                            <h2 class="mcu-card-title">Temi Installati Monitorati</h2>
+                            <h2 class="mcu-card-title"><?php esc_html_e('Temi Installati Monitorati', 'marrison-custom-updater'); ?></h2>
                         </div>
                         <table class="mcu-table">
                             <thead>
                                 <tr>
-                                    <th>Tema</th>
-                                    <th>Versione Installata</th>
-                                    <th>Versione Repository</th>
+                                    <th><?php esc_html_e('Tema', 'marrison-custom-updater'); ?></th>
+                                    <th><?php esc_html_e('Versione Installata', 'marrison-custom-updater'); ?></th>
+                                    <th><?php esc_html_e('Versione Repository', 'marrison-custom-updater'); ?></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -382,59 +560,59 @@ trait MCU_Admin_UI_Trait {
             <?php elseif ($active_tab == 'scheduling'): ?>
                 <div class="mcu-card">
                     <div class="mcu-card-header">
-                        <h2 class="mcu-card-title"><span class="dashicons dashicons-calendar-alt"></span> Programmazione Aggiornamenti</h2>
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-calendar-alt"></span> <?php esc_html_e('Programmazione Aggiornamenti', 'marrison-custom-updater'); ?></h2>
                     </div>
                     <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
                         <?php wp_nonce_field('marrison_save_scheduling'); ?>
                         <input type="hidden" name="action" value="marrison_save_scheduling">
                         <table class="form-table">
                             <tr>
-                                <th scope="row"><label for="marrison_auto_update_enabled">Abilita Aggiornamenti Automatici</label></th>
+                                <th scope="row"><label for="marrison_auto_update_enabled"><?php esc_html_e('Abilita Aggiornamenti Automatici', 'marrison-custom-updater'); ?></label></th>
                                 <td>
                                     <label class="mcu-switch">
                                         <input type="checkbox" id="marrison_auto_update_enabled" name="marrison_auto_update_enabled" value="yes" <?php checked('yes', get_option('marrison_auto_update_enabled')); ?>>
                                         <span class="mcu-slider"></span>
                                     </label>
-                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;">Attiva aggiornamento automatico periodico</p>
+                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;"><?php esc_html_e('Attiva aggiornamento automatico periodico', 'marrison-custom-updater'); ?></p>
                                 </td>
                             </tr>
                             <tr>
-                                <th scope="row"><label for="marrison_auto_update_frequency">Frequenza</label></th>
+                                <th scope="row"><label for="marrison_auto_update_frequency"><?php esc_html_e('Frequenza', 'marrison-custom-updater'); ?></label></th>
                                 <td>
                                     <select id="marrison_auto_update_frequency" name="marrison_auto_update_frequency">
-                                        <option value="daily" <?php selected('daily', get_option('marrison_auto_update_frequency')); ?>>Giornaliera</option>
-                                        <option value="weekly" <?php selected('weekly', get_option('marrison_auto_update_frequency')); ?>>Settimanale</option>
-                                        <option value="monthly" <?php selected('monthly', get_option('marrison_auto_update_frequency')); ?>>Mensile</option>
-                                        <option value="biannual" <?php selected('biannual', get_option('marrison_auto_update_frequency')); ?>>Semestrale</option>
+                                        <option value="daily" <?php selected('daily', get_option('marrison_auto_update_frequency')); ?>><?php esc_html_e('Giornaliera', 'marrison-custom-updater'); ?></option>
+                                        <option value="weekly" <?php selected('weekly', get_option('marrison_auto_update_frequency')); ?>><?php esc_html_e('Settimanale', 'marrison-custom-updater'); ?></option>
+                                        <option value="monthly" <?php selected('monthly', get_option('marrison_auto_update_frequency')); ?>><?php esc_html_e('Mensile', 'marrison-custom-updater'); ?></option>
+                                        <option value="biannual" <?php selected('biannual', get_option('marrison_auto_update_frequency')); ?>><?php esc_html_e('Semestrale', 'marrison-custom-updater'); ?></option>
                                     </select>
                                 </td>
                             </tr>
                             <tr>
-                                <th scope="row"><label for="marrison_auto_update_time">Orario (Fuso Orario Italiano)</label></th>
+                                <th scope="row"><label for="marrison_auto_update_time"><?php esc_html_e('Orario (Fuso Orario Italiano)', 'marrison-custom-updater'); ?></label></th>
                                 <td>
                                     <input type="time" id="marrison_auto_update_time" name="marrison_auto_update_time" value="<?php echo esc_attr(get_option('marrison_auto_update_time', '00:00')); ?>">
-                                    <p class="description">Seleziona l'orario di esecuzione (Europe/Rome).</p>
+                                    <p class="description"><?php esc_html_e('Seleziona l\'orario di esecuzione (Europe/Rome).', 'marrison-custom-updater'); ?></p>
                                 </td>
                             </tr>
                             <tr>
-                                <th scope="row"><label for="marrison_auto_update_email">Email per Report</label></th>
+                                <th scope="row"><label for="marrison_auto_update_email"><?php esc_html_e('Email per Report', 'marrison-custom-updater'); ?></label></th>
                                 <td>
                                     <div style="display: flex; align-items: center; gap: 10px;">
                                         <input type="email" id="marrison_auto_update_email" name="marrison_auto_update_email" value="<?php echo esc_attr(get_option('marrison_auto_update_email', get_option('admin_email'))); ?>" class="regular-text">
-                                        <button type="button" id="marrison_test_email_btn" class="mcu-button mcu-button-secondary" data-nonce="<?php echo wp_create_nonce('marrison_test_email'); ?>">Invia mail di test</button>
+                                        <button type="button" id="marrison_test_email_btn" class="mcu-button mcu-button-secondary" data-nonce="<?php echo wp_create_nonce('marrison_test_email'); ?>"><?php esc_html_e('Invia mail di test', 'marrison-custom-updater'); ?></button>
                                         <span id="marrison_test_email_result" style="font-weight: 600;"></span>
                                     </div>
-                                    <p class="description">Inserisci l'indirizzo email dove inviare il report degli aggiornamenti (opzionale).</p>
+                                    <p class="description"><?php esc_html_e('Inserisci l\'indirizzo email dove inviare il report degli aggiornamenti (opzionale).', 'marrison-custom-updater'); ?></p>
                                 </td>
                             </tr>
                             <tr>
-                                <th scope="row"><label for="marrison_db_backup_with_updates">Backup Database</label></th>
+                                <th scope="row"><label for="marrison_db_backup_with_updates"><?php esc_html_e('Backup Database', 'marrison-custom-updater'); ?></label></th>
                                 <td>
                                     <label class="mcu-switch">
                                         <input type="checkbox" id="marrison_db_backup_with_updates" name="marrison_db_backup_with_updates" value="yes" <?php checked('yes', get_option('marrison_db_backup_with_updates')); ?>>
                                         <span class="mcu-slider"></span>
                                     </label>
-                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;">Esegui un backup del database prima di ogni aggiornamento automatico (mantiene gli ultimi 5).</p>
+                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;"><?php esc_html_e('Esegui un backup del database prima di ogni aggiornamento automatico (mantiene gli ultimi 5).', 'marrison-custom-updater'); ?></p>
                                 </td>
                             </tr>
                         </table>
@@ -447,15 +625,15 @@ trait MCU_Admin_UI_Trait {
                             
                             $freq_slug = get_option('marrison_auto_update_frequency', 'daily');
                             $freq_labels = [
-                                'daily' => 'Giornaliera',
-                                'weekly' => 'Settimanale',
-                                'monthly' => 'Mensile',
-                                'biannual' => 'Semestrale'
+                                'daily' => __('Giornaliera', 'marrison-custom-updater'),
+                                'weekly' => __('Settimanale', 'marrison-custom-updater'),
+                                'monthly' => __('Mensile', 'marrison-custom-updater'),
+                                'biannual' => __('Semestrale', 'marrison-custom-updater')
                             ];
                             $freq_label = isset($freq_labels[$freq_slug]) ? $freq_labels[$freq_slug] : $freq_slug;
                         ?>
                             <div class="mcu-notice mcu-notice-info" style="margin-top: 20px;">
-                                <span class="dashicons dashicons-clock"></span> Prossima esecuzione programmata: <strong><?php echo $date->format('d/m/Y H:i'); ?></strong> <small>(Frequenza: <?php echo esc_html($freq_label); ?>)</small>
+                                <span class="dashicons dashicons-clock"></span> <?php esc_html_e('Prossima esecuzione programmata:', 'marrison-custom-updater'); ?> <strong><?php echo $date->format('d/m/Y H:i'); ?></strong> <small>(<?php esc_html_e('Frequenza:', 'marrison-custom-updater'); ?> <?php echo esc_html($freq_label); ?>)</small>
                             </div>
                         <?php endif; ?>
                         <?php 
@@ -463,32 +641,32 @@ trait MCU_Admin_UI_Trait {
                         if ($last_log && is_array($last_log)): 
                         ?>
                             <div class="mcu-card" style="margin-top: 20px; border-left: 4px solid <?php echo ($last_log['status'] === 'completed' && (!isset($last_log['email_sent']) || $last_log['email_sent'])) ? 'var(--mcu-success)' : 'var(--mcu-danger)'; ?>;">
-                                <h3 style="margin-top: 0;">Ultima Esecuzione</h3>
-                                <p><strong>Data:</strong> <?php echo esc_html($last_log['time']); ?></p>
-                                <p><strong>Stato:</strong> <?php echo esc_html($last_log['status']); ?></p>
-                                <p><strong>Messaggio:</strong> <?php echo esc_html($last_log['message']); ?></p>
+                                <h3 style="margin-top: 0;"><?php esc_html_e('Ultima Esecuzione', 'marrison-custom-updater'); ?></h3>
+                                <p><strong><?php esc_html_e('Data:', 'marrison-custom-updater'); ?></strong> <?php echo esc_html($last_log['time']); ?></p>
+                                <p><strong><?php esc_html_e('Stato:', 'marrison-custom-updater'); ?></strong> <?php echo esc_html($last_log['status']); ?></p>
+                                <p><strong><?php esc_html_e('Messaggio:', 'marrison-custom-updater'); ?></strong> <?php echo esc_html($last_log['message']); ?></p>
                                 <?php if (isset($last_log['updates_found'])): ?>
-                                    <p><strong>Aggiornamenti Trovati:</strong> <?php echo $last_log['updates_found'] ? 'Sì' : 'No'; ?></p>
+                                    <p><strong><?php esc_html_e('Aggiornamenti Trovati:', 'marrison-custom-updater'); ?></strong> <?php echo $last_log['updates_found'] ? esc_html__('Sì', 'marrison-custom-updater') : esc_html__('No', 'marrison-custom-updater'); ?></p>
                                 <?php endif; ?>
                             </div>
                         <?php endif; ?>
                         <div style="margin-top: 20px;">
-                            <button class="mcu-button mcu-button-primary" type="submit">Salva Programmazione</button>
+                            <button class="mcu-button mcu-button-primary" type="submit"><?php esc_html_e('Salva Programmazione', 'marrison-custom-updater'); ?></button>
                         </div>
                     </form>
                 </div>
             <?php elseif ($active_tab == 'exclusions'): ?>
                 <div class="mcu-card">
                     <div class="mcu-card-header">
-                        <h2 class="mcu-card-title"><span class="dashicons dashicons-hidden"></span> Esclusioni Plugin</h2>
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-hidden"></span> <?php esc_html_e('Esclusioni Plugin', 'marrison-custom-updater'); ?></h2>
                     </div>
-                    <p class="description" style="margin-bottom: 15px;">Seleziona i plugin che vuoi escludere dagli aggiornamenti automatici e dalle notifiche (sia privati che ufficiali).</p>
+                    <p class="description" style="margin-bottom: 15px;"><?php esc_html_e('Seleziona i plugin che vuoi escludere dagli aggiornamenti automatici e dalle notifiche (sia privati che ufficiali).', 'marrison-custom-updater'); ?></p>
                     <table class="mcu-table">
                         <thead>
                             <tr>
-                                <th>Plugin</th>
-                                <th>Versione</th>
-                                <th style="width: 80px; text-align: center;">Escludi</th>
+                                <th><?php esc_html_e('Plugin', 'marrison-custom-updater'); ?></th>
+                                <th><?php esc_html_e('Versione', 'marrison-custom-updater'); ?></th>
+                                <th style="width: 80px; text-align: center;"><?php esc_html_e('Escludi', 'marrison-custom-updater'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -516,15 +694,15 @@ trait MCU_Admin_UI_Trait {
 
                 <div class="mcu-card" style="margin-top: 30px;">
                     <div class="mcu-card-header">
-                        <h2 class="mcu-card-title"><span class="dashicons dashicons-hidden"></span> Esclusioni Temi</h2>
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-hidden"></span> <?php esc_html_e('Esclusioni Temi', 'marrison-custom-updater'); ?></h2>
                     </div>
-                    <p class="description" style="margin-bottom: 15px;">Seleziona i temi che vuoi escludere dagli aggiornamenti automatici e dalle notifiche.</p>
+                    <p class="description" style="margin-bottom: 15px;"><?php esc_html_e('Seleziona i temi che vuoi escludere dagli aggiornamenti automatici e dalle notifiche.', 'marrison-custom-updater'); ?></p>
                     <table class="mcu-table">
                         <thead>
                             <tr>
-                                <th>Tema</th>
-                                <th>Versione</th>
-                                <th style="width: 80px; text-align: center;">Escludi</th>
+                                <th><?php esc_html_e('Tema', 'marrison-custom-updater'); ?></th>
+                                <th><?php esc_html_e('Versione', 'marrison-custom-updater'); ?></th>
+                                <th style="width: 80px; text-align: center;"><?php esc_html_e('Escludi', 'marrison-custom-updater'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -551,53 +729,39 @@ trait MCU_Admin_UI_Trait {
             <?php elseif ($active_tab == 'howto'): ?>
                 <div class="mcu-card">
                     <div class="mcu-card-header">
-                        <h2 class="mcu-card-title"><span class="dashicons dashicons-book"></span> Guida all'uso</h2>
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-book"></span> <?php esc_html_e('Guida all\'uso', 'marrison-custom-updater'); ?></h2>
                     </div>
                     <div style="padding: 10px 0;">
-                        <p>Per trasformare una cartella del tuo server in un Repository Privato compatibile con WP Master Updater, segui questi passaggi:</p>
-                        <h3 style="margin-top: 20px;">1. Repository Plugin</h3>
+                        <p><?php esc_html_e('Per trasformare una cartella del tuo server in un Repository Privato compatibile con WP Master Updater, segui questi passaggi:', 'marrison-custom-updater'); ?></p>
+                        <h3 style="margin-top: 20px;"><?php esc_html_e('1. Repository Plugin', 'marrison-custom-updater'); ?></h3>
                         <ol style="margin-left: 20px; list-style: decimal;">
-                            <li>Crea una cartella pubblica sul tuo server (es. <code>https://tuosito.com/my-repo/plugins/</code>).</li>
-                            <li>Scarica il file <code>index.php</code> qui sotto.</li>
-                            <li>Carica il file nella cartella appena creata.</li>
-                            <li>Carica i file <code>.zip</code> dei tuoi plugin nella stessa cartella.</li>
-                            <li>Inserisci l'URL della cartella (es. <code>https://tuosito.com/my-repo/plugins/</code>) nelle Impostazioni di questo plugin.</li>
+                            <li><?php echo wp_kses_post(__('Crea una cartella pubblica sul tuo server (es. <code>https://tuosito.com/my-repo/plugins/</code>).', 'marrison-custom-updater')); ?></li>
+                            <li><?php echo wp_kses_post(__('Scarica il file <code>index.php</code> qui sotto.', 'marrison-custom-updater')); ?></li>
+                            <li><?php esc_html_e('Carica il file nella cartella appena creata.', 'marrison-custom-updater'); ?></li>
+                            <li><?php echo wp_kses_post(__('Carica i file <code>.zip</code> dei tuoi plugin nella stessa cartella.', 'marrison-custom-updater')); ?></li>
+                            <li><?php echo wp_kses_post(__('Inserisci l\'URL della cartella (es. <code>https://tuosito.com/my-repo/plugins/</code>) nelle Impostazioni di questo plugin.', 'marrison-custom-updater')); ?></li>
                         </ol>
                         <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin-top: 15px;">
                             <?php wp_nonce_field('marrison_download_repo_file'); ?>
                             <input type="hidden" name="action" value="marrison_download_repo_file">
                             <input type="hidden" name="file_type" value="plugin">
-                            <button type="submit" class="mcu-button mcu-button-primary"><span class="dashicons dashicons-download"></span> Scarica index.php per Plugin</button>
+                            <button type="submit" class="mcu-button mcu-button-primary"><span class="dashicons dashicons-download"></span> <?php esc_html_e('Scarica index.php per Plugin', 'marrison-custom-updater'); ?></button>
                         </form>
                         <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
-                        <h3>2. Repository Temi</h3>
+                        <h3><?php esc_html_e('2. Repository Temi', 'marrison-custom-updater'); ?></h3>
                         <ol style="margin-left: 20px; list-style: decimal;">
-                            <li>Crea una cartella pubblica sul tuo server (es. <code>https://tuosito.com/my-repo/themes/</code>).</li>
-                            <li>Scarica il file <code>index.php</code> qui sotto (specifico per i temi).</li>
-                            <li>Carica il file nella cartella appena creata.</li>
-                            <li>Carica i file <code>.zip</code> dei tuoi temi nella stessa cartella.</li>
-                            <li>Inserisci l'URL della cartella (es. <code>https://tuosito.com/my-repo/themes/</code>) nelle Impostazioni di questo plugin.</li>
+                            <li><?php echo wp_kses_post(__('Crea una cartella pubblica sul tuo server (es. <code>https://tuosito.com/my-repo/themes/</code>).', 'marrison-custom-updater')); ?></li>
+                            <li><?php echo wp_kses_post(__('Scarica il file <code>index.php</code> qui sotto (specifico per i temi).', 'marrison-custom-updater')); ?></li>
+                            <li><?php esc_html_e('Carica il file nella cartella appena creata.', 'marrison-custom-updater'); ?></li>
+                            <li><?php echo wp_kses_post(__('Carica i file <code>.zip</code> dei tuoi temi nella stessa cartella.', 'marrison-custom-updater')); ?></li>
+                            <li><?php echo wp_kses_post(__('Inserisci l\'URL della cartella (es. <code>https://tuosito.com/my-repo/themes/</code>) nelle Impostazioni di questo plugin.', 'marrison-custom-updater')); ?></li>
                         </ol>
                         <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin-top: 15px;">
                             <?php wp_nonce_field('marrison_download_theme_repo_file'); ?>
                             <input type="hidden" name="action" value="marrison_download_theme_repo_file">
-                            <button type="submit" class="mcu-button mcu-button-primary"><span class="dashicons dashicons-download"></span> Scarica index.php per Temi</button>
+                            <button type="submit" class="mcu-button mcu-button-primary"><span class="dashicons dashicons-download"></span> <?php esc_html_e('Scarica index.php per Temi', 'marrison-custom-updater'); ?></button>
                         </form>
                     </div>
-                </div>
-                <div class="mcu-card" style="margin-top: 30px;">
-                    <div class="mcu-card-header">
-                        <h2 class="mcu-card-title"><span class="dashicons dashicons-admin-tools"></span> Strumenti Avanzati</h2>
-                    </div>
-                    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="padding: 10px 0;">
-                        <?php wp_nonce_field('marrison_force_check_mcu'); ?>
-                        <input type="hidden" name="action" value="marrison_force_check_mcu">
-                        <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater-settings&mcu_checked=1&tab=howto')); ?>">
-                        <div style="display: flex; align-items: center; gap: 15px;">
-                            <button class="mcu-button mcu-button-secondary">Forza controllo aggiornamenti MCU</button>
-                            <span class="description">Usa questo pulsante se hai appena rilasciato una nuova versione su GitHub e non viene rilevata.</span>
-                        </div>
-                    </form>
                 </div>
             <?php endif; ?>
         </div>
@@ -607,7 +771,10 @@ trait MCU_Admin_UI_Trait {
     public function download_repo_file() {
         check_admin_referer('marrison_download_repo_file');
         if (!current_user_can('manage_options')) {
-            wp_die('Permessi insufficienti');
+            wp_die(esc_html__('Permessi insufficienti', 'marrison-custom-updater'));
+        }
+        if (method_exists($this, 'enforce_active_license_admin')) {
+            $this->enforce_active_license_admin();
         }
 
         // Use MCU_PLUGIN_DIR if defined, otherwise fallback to dirname logic
@@ -637,7 +804,10 @@ trait MCU_Admin_UI_Trait {
     public function download_theme_repo_file() {
         check_admin_referer('marrison_download_theme_repo_file');
         if (!current_user_can('manage_options')) {
-            wp_die('Permessi insufficienti');
+            wp_die(esc_html__('Permessi insufficienti', 'marrison-custom-updater'));
+        }
+        if (method_exists($this, 'enforce_active_license_admin')) {
+            $this->enforce_active_license_admin();
         }
 
         // Use MCU_PLUGIN_DIR if defined, otherwise fallback to dirname logic
@@ -813,6 +983,11 @@ trait MCU_Admin_UI_Trait {
     }
 
     public function backup_page() {
+        if (method_exists($this, 'is_license_active') && !$this->is_license_active()) {
+            $this->render_license_required_page(__('Backup Disponibili', 'marrison-custom-updater'));
+            return;
+        }
+
         $restored = $_GET['restored'] ?? '';
         $this->cleanup_orphan_plugin_backups();
         if (!function_exists('get_plugins')) {
@@ -821,19 +996,19 @@ trait MCU_Admin_UI_Trait {
         $plugins = get_plugins();
         ?>
         <div class="mcu-wrap">
-            <?php $this->render_header('Backup Disponibili'); ?>
+            <?php $this->render_header(__('Backup Disponibili', 'marrison-custom-updater')); ?>
             <div class="mcu-progress-container">
                 <div class="mcu-progress-header">
-                    <span id="mcu-progress-title">Ripristino in corso...</span>
+                    <span id="mcu-progress-title"><?php esc_html_e('Ripristino in corso...', 'marrison-custom-updater'); ?></span>
                     <span id="mcu-progress-percentage"></span>
                 </div>
                 <div class="mcu-progress-track">
                     <div class="mcu-progress-bar"></div>
                 </div>
-                <div class="mcu-progress-status" id="mcu-progress-status-text">Inizializzazione...</div>
+                <div class="mcu-progress-status" id="mcu-progress-status-text"><?php esc_html_e('Inizializzazione...', 'marrison-custom-updater'); ?></div>
             </div>
             <?php if ($restored): ?>
-                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Plugin <?php echo esc_html($restored); ?> ripristinato con successo.</div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php printf(esc_html__('Plugin %s ripristinato con successo.', 'marrison-custom-updater'), esc_html($restored)); ?></div>
             <?php endif; ?>
             <?php 
             $backup_dir = WP_CONTENT_DIR . '/marrison-backups';
@@ -859,13 +1034,13 @@ trait MCU_Admin_UI_Trait {
                     }
                     $slug = '';
                     $backup_version = 'N/A';
-                    $type_label = 'Plugin';
+                    $type_label = __('Plugin', 'marrison-custom-updater');
                     $parse_name = $filename;
                     if (strpos($filename, 'theme-') === 0) {
-                        $type_label = 'Tema';
+                        $type_label = __('Tema', 'marrison-custom-updater');
                         $parse_name = substr($filename, 6);
                     } elseif (strpos($filename, 'plugin-') === 0) {
-                        $type_label = 'Plugin';
+                        $type_label = __('Plugin', 'marrison-custom-updater');
                         $parse_name = substr($filename, 7);
                     }
                     if (preg_match('/^(.*?)-v(.*?)-(\/d{8})-(\/d{6})-backup\.zip$/', $parse_name, $matches)) {
@@ -901,20 +1076,20 @@ trait MCU_Admin_UI_Trait {
             ?>
             <div class="mcu-card" style="margin-bottom: 30px;">
                 <div class="mcu-card-header">
-                    <h2 class="mcu-card-title"><span class="dashicons dashicons-database"></span> Backup Database</h2>
+                    <h2 class="mcu-card-title"><span class="dashicons dashicons-database"></span> <?php esc_html_e('Backup Database', 'marrison-custom-updater'); ?></h2>
                     <button type="button" id="marrison-db-backup-btn" class="mcu-button mcu-button-primary"
                         data-nonce="<?php echo wp_create_nonce('marrison_db_backup'); ?>">
-                        <span class="dashicons dashicons-download"></span> Esegui Backup Database
+                        <span class="dashicons dashicons-download"></span> <?php esc_html_e('Esegui Backup Database', 'marrison-custom-updater'); ?>
                     </button>
                 </div>
                 <span id="marrison-db-backup-result" style="padding: 0 20px; font-weight: 600;"></span>
                 <?php if (!empty($db_backups)): ?>
                     <table class="mcu-table">
                         <thead><tr>
-                            <th>File</th>
-                            <th>Data</th>
-                            <th>Dimensione</th>
-                            <th style="text-align:right;">Azione</th>
+                            <th><?php esc_html_e('File', 'marrison-custom-updater'); ?></th>
+                            <th><?php esc_html_e('Data', 'marrison-custom-updater'); ?></th>
+                            <th><?php esc_html_e('Dimensione', 'marrison-custom-updater'); ?></th>
+                            <th style="text-align:right;"><?php esc_html_e('Azione', 'marrison-custom-updater'); ?></th>
                         </tr></thead>
                         <tbody>
                             <?php foreach ($db_backups as $db): ?>
@@ -930,7 +1105,7 @@ trait MCU_Admin_UI_Trait {
                                         );
                                         ?>
                                         <a href="<?php echo esc_url($dl_url); ?>" class="mcu-button mcu-button-secondary mcu-button-sm">
-                                            <span class="dashicons dashicons-download"></span> Scarica
+                                            <span class="dashicons dashicons-download"></span> <?php esc_html_e('Scarica', 'marrison-custom-updater'); ?>
                                         </a>
                                     </td>
                                 </tr>
@@ -940,32 +1115,32 @@ trait MCU_Admin_UI_Trait {
                 <?php else: ?>
                     <div class="mcu-empty-state">
                         <span class="dashicons dashicons-database"></span>
-                        <p>Nessun backup database disponibile. Clicca il pulsante per crearne uno.</p>
+                        <p><?php esc_html_e('Nessun backup database disponibile. Clicca il pulsante per crearne uno.', 'marrison-custom-updater'); ?></p>
                     </div>
                 <?php endif; ?>
             </div>
 
             <div class="mcu-card">
                 <div class="mcu-card-header">
-                    <h2 class="mcu-card-title"><span class="dashicons dashicons-list-view"></span> Lista Backup</h2>
-                    <span class="mcu-badge mcu-badge-primary"><?php echo count($backups); ?> Backup</span>
+                    <h2 class="mcu-card-title"><span class="dashicons dashicons-list-view"></span> <?php esc_html_e('Lista Backup', 'marrison-custom-updater'); ?></h2>
+                    <span class="mcu-badge mcu-badge-primary"><?php printf(esc_html__('%d Backup', 'marrison-custom-updater'), count($backups)); ?></span>
                 </div>
                 <?php if (!empty($backups)): ?>
                     <table class="mcu-table">
                         <thead>
                             <tr>
-                                <th>Elemento</th>
-                                <th>Versione Backup</th>
-                                <th>Versione Attuale</th>
-                                <th>Data Backup</th>
-                                <th>Dimensione</th>
-                                <th style="text-align:right;">Azione</th>
+                                <th><?php esc_html_e('Elemento', 'marrison-custom-updater'); ?></th>
+                                <th><?php esc_html_e('Versione Backup', 'marrison-custom-updater'); ?></th>
+                                <th><?php esc_html_e('Versione Attuale', 'marrison-custom-updater'); ?></th>
+                                <th><?php esc_html_e('Data Backup', 'marrison-custom-updater'); ?></th>
+                                <th><?php esc_html_e('Dimensione', 'marrison-custom-updater'); ?></th>
+                                <th style="text-align:right;"><?php esc_html_e('Azione', 'marrison-custom-updater'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($backups as $info): 
                                 $plugin_name = $info['slug'];
-                                $current_version = 'Non installato';
+                                $current_version = __('Non installato', 'marrison-custom-updater');
                                 $version_class = '';
                                 if (isset($info['type_label']) && $info['type_label'] === 'Tema') {
                                     $theme = wp_get_theme($info['slug']);
@@ -1012,14 +1187,14 @@ trait MCU_Admin_UI_Trait {
                                                     class="mcu-button mcu-button-secondary mcu-button-sm mcu-action-restore updated" 
                                                     disabled
                                                     style="opacity: 0.7; cursor: not-allowed;">
-                                                <span class="dashicons dashicons-yes"></span> Ripristinato
+                                                <span class="dashicons dashicons-yes"></span> <?php esc_html_e('Ripristinato', 'marrison-custom-updater'); ?>
                                             </button>
                                         <?php else: ?>
                                             <button type="button" 
                                                     class="mcu-button mcu-button-secondary mcu-button-sm mcu-action-restore" 
                                                     data-filename="<?php echo esc_attr($info['filename']); ?>"
                                                     data-nonce="<?php echo esc_attr($restore_nonce); ?>">
-                                                <span class="dashicons dashicons-undo"></span> Ripristina
+                                                <span class="dashicons dashicons-undo"></span> <?php esc_html_e('Ripristina', 'marrison-custom-updater'); ?>
                                             </button>
                                         <?php endif; ?>
                                     </td>
@@ -1030,7 +1205,7 @@ trait MCU_Admin_UI_Trait {
                 <?php else: ?>
                     <div class="mcu-empty-state">
                         <span class="dashicons dashicons-backup"></span>
-                        <p>Nessun backup disponibile.</p>
+                        <p><?php esc_html_e('Nessun backup disponibile.', 'marrison-custom-updater'); ?></p>
                     </div>
                 <?php endif; ?>
             </div>
@@ -1039,6 +1214,11 @@ trait MCU_Admin_UI_Trait {
     }
 
     public function admin_page() {
+        if (method_exists($this, 'is_license_active') && !$this->is_license_active()) {
+            $this->render_license_required_page(__('Aggiornamenti', 'marrison-custom-updater'));
+            return;
+        }
+
         $updates     = $this->get_available_updates();
         $theme_updates = $this->get_available_theme_updates();
         $plugins     = get_plugins();
@@ -1278,9 +1458,9 @@ trait MCU_Admin_UI_Trait {
                             <thead>
                                 <tr>
                                     <th style="width: 30px;"><input type="checkbox" id="cb-select-all-1"></th>
-                                    <th>Plugin</th>
-                                    <th>Versione</th>
-                                    <th style="text-align:right;">Azione</th>
+                                    <th><?php esc_html_e('Plugin', 'marrison-custom-updater'); ?></th>
+                                    <th><?php esc_html_e('Versione', 'marrison-custom-updater'); ?></th>
+                                    <th style="text-align:right;"><?php esc_html_e('Azione', 'marrison-custom-updater'); ?></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1304,7 +1484,7 @@ trait MCU_Admin_UI_Trait {
                                             ?>
                                             <input type="checkbox" name="plugins[]" value="<?php echo esc_attr($slug); ?>" data-nonce="<?php echo esc_attr($nonce); ?>">
                                         <?php elseif($is_excluded): ?>
-                                            <span class="dashicons dashicons-hidden" style="color:var(--mcu-warning);" title="Escluso dagli aggiornamenti"></span>
+                                            <span class="dashicons dashicons-hidden" style="color:var(--mcu-warning);" title="<?php esc_attr_e('Escluso dagli aggiornamenti', 'marrison-custom-updater'); ?>"></span>
                                         <?php else: ?>
                                             <span class="dashicons dashicons-yes" style="color:var(--mcu-success);"></span>
                                         <?php endif; ?>
@@ -1314,7 +1494,7 @@ trait MCU_Admin_UI_Trait {
                                         <div style="font-size:11px; color:#888;"><?php echo esc_html($slug); ?></div>
                                         <?php if($is_excluded): ?>
                                             <div style="margin-top: 4px;">
-                                                <span class="mcu-badge mcu-badge-warning" style="font-size:10px;">Escluso</span>
+                                                <span class="mcu-badge mcu-badge-warning" style="font-size:10px;"><?php esc_html_e('Escluso', 'marrison-custom-updater'); ?></span>
                                             </div>
                                         <?php endif; ?>
                                     </td>
@@ -1337,12 +1517,12 @@ trait MCU_Admin_UI_Trait {
                                                     data-slug="<?php echo esc_attr($slug); ?>"
                                                     data-version="<?php echo esc_attr($u['version']); ?>"
                                                     data-nonce="<?php echo esc_attr($nonce); ?>">
-                                                Aggiorna
+                                                <?php esc_html_e('Aggiorna', 'marrison-custom-updater'); ?>
                                             </button>
                                         <?php elseif($is_excluded): ?>
-                                            <span style="color:var(--mcu-warning); font-size:12px; font-weight:500;">Escluso</span>
+                                            <span style="color:var(--mcu-warning); font-size:12px; font-weight:500;"><?php esc_html_e('Escluso', 'marrison-custom-updater'); ?></span>
                                         <?php else: ?>
-                                            <span style="color:var(--mcu-success); font-size:12px; font-weight:500;">Aggiornato</span>
+                                            <span style="color:var(--mcu-success); font-size:12px; font-weight:500;"><?php esc_html_e('Aggiornato', 'marrison-custom-updater'); ?></span>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -1351,7 +1531,7 @@ trait MCU_Admin_UI_Trait {
                             endforeach; 
                             ?>
                             <?php if (!$has_repo_updates && !empty($updates)): ?>
-                                <tr><td colspan="4" style="text-align:center; padding: 20px;">Tutti i plugin monitorati sono aggiornati.</td></tr>
+                                <tr><td colspan="4" style="text-align:center; padding: 20px;"><?php esc_html_e('Tutti i plugin monitorati sono aggiornati.', 'marrison-custom-updater'); ?></td></tr>
                             <?php endif; ?>
                             </tbody>
                         </table>
@@ -1375,9 +1555,9 @@ trait MCU_Admin_UI_Trait {
                         <thead>
                             <tr>
                                 <th style="width: 30px;"><input type="checkbox" id="cb-select-all-themes"></th>
-                                <th>Tema</th>
-                                <th>Versione</th>
-                                <th style="text-align:right;">Azione</th>
+                                <th><?php esc_html_e('Tema', 'marrison-custom-updater'); ?></th>
+                                <th><?php esc_html_e('Versione', 'marrison-custom-updater'); ?></th>
+                                <th style="text-align:right;"><?php esc_html_e('Azione', 'marrison-custom-updater'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1552,11 +1732,11 @@ trait MCU_Admin_UI_Trait {
                     <table class="mcu-table">
                         <thead>
                             <tr>
-                                <th>Plugin</th>
-                                <th>Versione Attuale</th>
-                                <th>Nuova Versione</th>
-                                <th>Tipo</th>
-                                <th>Stato</th>
+                                <th><?php esc_html_e('Plugin', 'marrison-custom-updater'); ?></th>
+                                <th><?php esc_html_e('Versione Attuale', 'marrison-custom-updater'); ?></th>
+                                <th><?php esc_html_e('Nuova Versione', 'marrison-custom-updater'); ?></th>
+                                <th><?php esc_html_e('Tipo', 'marrison-custom-updater'); ?></th>
+                                <th><?php esc_html_e('Stato', 'marrison-custom-updater'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1626,6 +1806,9 @@ trait MCU_Admin_UI_Trait {
         if (!current_user_can('update_themes')) {
             wp_send_json_error('Insufficient permissions');
         }
+        if (method_exists($this, 'enforce_active_license_ajax')) {
+            $this->enforce_active_license_ajax();
+        }
         include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
         include_once ABSPATH . 'wp-admin/includes/theme.php';
         wp_update_themes();
@@ -1673,6 +1856,9 @@ trait MCU_Admin_UI_Trait {
         check_ajax_referer('marrison_auto_update', 'nonce');
         if (!current_user_can('update_core')) {
             wp_send_json_error('Insufficient permissions');
+        }
+        if (method_exists($this, 'enforce_active_license_ajax')) {
+            $this->enforce_active_license_ajax();
         }
 
         // Increase execution time to avoid timeouts during multiple remote checks
@@ -1824,6 +2010,9 @@ trait MCU_Admin_UI_Trait {
         check_ajax_referer('marrison_update_all', 'nonce');
         if (!current_user_can('manage_options')) {
             wp_send_json_error('Insufficient permissions');
+        }
+        if (method_exists($this, 'enforce_active_license_ajax')) {
+            $this->enforce_active_license_ajax();
         }
         $data = $this->get_all_updates_data();
         wp_send_json_success($data);

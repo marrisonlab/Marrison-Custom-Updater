@@ -1,6 +1,10 @@
 <?php
 trait MCU_Update_Operations_Trait {
     private function get_available_updates() {
+        if (class_exists('MCU_License') && !MCU_License::is_active()) {
+            return [];
+        }
+
         $custom_repo_url = get_option('marrison_repo_url');
         $repo_url = !empty($custom_repo_url) ? trailingslashit($custom_repo_url) : $this->updates_url;
         if (empty($repo_url)) return [];
@@ -44,6 +48,10 @@ trait MCU_Update_Operations_Trait {
     }
 
     private function get_available_theme_updates() {
+        if (class_exists('MCU_License') && !MCU_License::is_active()) {
+            return [];
+        }
+
         $repo_url = get_option('marrison_themes_repo_url');
         if (empty($repo_url)) return [];
         $repo_url = trailingslashit($repo_url);
@@ -258,6 +266,10 @@ trait MCU_Update_Operations_Trait {
 
 
     private function perform_update($slug) {
+        if (method_exists($this, 'is_license_active') && !$this->is_license_active()) {
+            return new WP_Error('license_required', $this->license_required_message());
+        }
+
         global $wp_filesystem;
         require_once ABSPATH . 'wp-admin/includes/file.php';
         WP_Filesystem();
@@ -631,6 +643,10 @@ trait MCU_Update_Operations_Trait {
     }
 
     private function perform_theme_update($slug, $download_url) {
+        if (method_exists($this, 'is_license_active') && !$this->is_license_active()) {
+            return new WP_Error('license_required', $this->license_required_message());
+        }
+
         global $wp_filesystem;
         require_once ABSPATH . 'wp-admin/includes/file.php';
         WP_Filesystem();
@@ -808,7 +824,10 @@ trait MCU_Update_Operations_Trait {
     public function ajax_db_backup() {
         check_ajax_referer('marrison_db_backup', 'nonce');
         if (!current_user_can('manage_options')) {
-            wp_send_json_error('Permessi insufficienti.');
+            wp_send_json_error(__('Permessi insufficienti.', 'marrison-custom-updater'));
+        }
+        if (method_exists($this, 'enforce_active_license_ajax')) {
+            $this->enforce_active_license_ajax();
         }
 
         @set_time_limit(300);
@@ -830,7 +849,10 @@ trait MCU_Update_Operations_Trait {
 
     public function download_db_backup() {
         check_admin_referer('marrison_download_db_backup');
-        if (!current_user_can('manage_options')) wp_die('Permessi insufficienti.');
+        if (!current_user_can('manage_options')) wp_die(esc_html__('Permessi insufficienti.', 'marrison-custom-updater'));
+        if (method_exists($this, 'enforce_active_license_admin')) {
+            $this->enforce_active_license_admin();
+        }
 
         $filename = sanitize_file_name($_GET['file'] ?? '');
         if (empty($filename) || strpos($filename, 'db-backup-') !== 0 || pathinfo($filename, PATHINFO_EXTENSION) !== 'zip') {

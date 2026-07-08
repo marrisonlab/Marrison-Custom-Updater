@@ -2,121 +2,191 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Marrison Custom Updater\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-01-28 11:55+0000\n"
+"POT-Creation-Date: 2026-07-06 10:22+0000\n"
 "PO-Revision-Date: \n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: TraeAI\n"
+"X-Generator: \n"
 "X-Domain: marrison-custom-updater\n"
 
-#: custom_updater.php:531
+#: custom_updater.php:281
 msgid "%d plugin aggiornati con successo"
 msgstr ""
 
-#: custom_updater.php:2643
+#: includes/traits/AdminUITrait.php:729
 msgid "%d plugin installati con successo."
 msgstr ""
 
-#: custom_updater.php:153
-msgid "Ciao,"
+#: includes/traits/SchedulingTrait.php:479
+msgid "Richiede PHP %s (Attuale: %s)"
 msgstr ""
 
-#: custom_updater.php:138
-msgid "Indirizzo email non valido."
+#: includes/traits/SchedulingTrait.php:106
+msgid "Impossibile contattare Commander: %s"
 msgstr ""
 
-#: custom_updater.php:2620 custom_updater.php:2639
-msgid "Installer - Repository Privato"
+#: includes/traits/UpdateOperationsTrait.php:272
+msgid "Impossibile inizializzare il filesystem."
 msgstr ""
 
-#: custom_updater.php:437 custom_updater.php:551 custom_updater.php:625
-msgid "Insufficient permissions"
+#: includes/traits/UpdateOperationsTrait.php:300
+msgid "Archivio vuoto o non valido."
 msgstr ""
 
-#: custom_updater.php:156
-msgid "Inviato dal sito: %s"
+#: includes/traits/UpdateOperationsTrait.php:328
+msgid "Impossibile rinominare la directory del plugin esistente."
 msgstr ""
 
-#: custom_updater.php:170
-msgid "Invio fallito. Verifica i log del server o la configurazione SMTP."
+#: includes/traits/UpdateOperationsTrait.php:338
+msgid "Impossibile spostare la nuova versione del plugin."
 msgstr ""
 
-#: custom_updater.php:168
-msgid "Mail inviata correttamente!"
+#: includes/traits/UpdateOperationsTrait.php:351
+msgid "Aggiornamento non trovato."
 msgstr ""
 
-#: custom_updater.php:629
-msgid "Missing file parameter"
-msgstr ""
-
-#: custom_updater.php:448
-msgid "Nessun aggiornamento disponibile"
-msgstr ""
-
-#: custom_updater.php:493
-msgid "Nessun plugin \"normale\" ha aggiornamenti disponibili"
-msgstr ""
-
-#: custom_updater.php:540
-msgid "Nessun plugin è stato aggiornato"
-msgstr ""
-
-#: custom_updater.php:2621
-msgid "Non sei autorizzato a visualizzare questa pagina."
-msgstr ""
-
-#: custom_updater.php:90
-msgid "Ogni 6 mesi"
-msgstr ""
-
-#: custom_updater.php:677
-msgid "Plugin updated"
-msgstr ""
-
-#: custom_updater.php:154
-msgid "Questa è una mail di test inviata da <strong>Marrison Custom Updater</strong> per verificare la configurazione dell'invio email."
-msgstr ""
-
-#: custom_updater.php:155
-msgid "Se leggi questo messaggio, l'invio funziona correttamente."
-msgstr ""
-
-#: custom_updater.php:432 custom_updater.php:547 custom_updater.php:621
-msgid "Security check failed"
-msgstr ""
-
-#: custom_updater.php:82
+#: includes/traits/SchedulingTrait.php:6
 msgid "Settimanale"
 msgstr ""
 
-#: custom_updater.php:1326
-msgid "Setting"
+#: includes/traits/SchedulingTrait.php:10
+msgid "Mensile"
 msgstr ""
 
-#: custom_updater.php:152
-msgid "Test Configurazione Email"
+#: includes/traits/SchedulingTrait.php:14
+msgid "Semestrale"
 msgstr ""
 
-#: custom_updater.php:149
-msgid "Test Invio Email - Marrison Custom Updater"
+#: includes/traits/SchedulingTrait.php:78
+msgid "Indirizzo email non valido."
 msgstr ""
 
-#: custom_updater.php:86
-msgid "Una volta al mese"
+#: includes/traits/SchedulingTrait.php:363
+msgid "Mail di test (simulata) inviata correttamente!"
 msgstr ""
 
-#: custom_updater.php:671
-msgid "Update failed"
+#: includes/traits/SchedulingTrait.php:365
+msgid "Invio fallito. Verifica i log del server o la configurazione SMTP."
 msgstr ""
 
-#: custom_updater.php:2626
+#: includes/traits/SchedulingTrait.php:428
+#: includes/traits/SchedulingTrait.php:510
+msgid "Errore sconosciuto"
+msgstr ""
+
+#: includes/traits/SchedulingTrait.php:514
+msgid "Aggiornamento fallito"
+msgstr ""
+
+#: includes/traits/SchedulingTrait.php:572
+msgid "Errore aggiornamento tema"
+msgstr ""
+
+#: includes/traits/AdminUITrait.php:202
+msgid "Mai"
+msgstr ""
+
+#: includes/traits/AdminUITrait.php:709
+msgid "Non sei autorizzato a visualizzare questa pagina."
+msgstr ""
+
+#: includes/traits/AdminUITrait.php:714
 msgid "Verifica permessi"
 msgstr ""
 
-#: custom_updater.php:1335
+#: includes/class-mcu-license.php:63
+msgid "Nessuna licenza inserita"
+msgstr ""
+
+#: includes/class-mcu-license.php:71
+msgid "Licenza attiva"
+msgstr ""
+
+#: includes/class-mcu-license.php:73
+msgid "Licenza scaduta"
+msgstr ""
+
+#: includes/class-mcu-license.php:75
+msgid "Licenza non valida"
+msgstr ""
+
+#: includes/class-mcu-license.php:77
+msgid "Commander non raggiungibile"
+msgstr ""
+
+#: includes/class-mcu-license.php:79
+msgid "Da verificare"
+msgstr ""
+
+#: includes/class-mcu-license.php:87
+msgid "Inserisci una chiave di licenza."
+msgstr ""
+
+#: includes/class-mcu-license.php:109
+msgid "Impossibile contattare il server delle licenze. Riprova piu tardi."
+msgstr ""
+
+#: includes/class-mcu-license.php:123
+#: includes/class-mcu-license.php:126
+msgid "Licenza attivata con successo."
+msgstr ""
+
+#: includes/class-mcu-license.php:129
+msgid "Chiave di licenza non valida o scaduta."
+msgstr ""
+
+#: includes/class-mcu-license.php:180
+msgid "Licenza non piu valida."
+msgstr ""
+
+#: custom_updater.php:182
+#: custom_updater.php:297
+#: custom_updater.php:374
+msgid "Security check failed"
+msgstr ""
+
+#: custom_updater.php:187
+#: custom_updater.php:301
+#: custom_updater.php:378
+msgid "Insufficient permissions"
+msgstr ""
+
+#: custom_updater.php:198
+msgid "Nessun aggiornamento disponibile"
+msgstr ""
+
+#: custom_updater.php:243
+msgid "Nessun plugin \"normale\" ha aggiornamenti disponibili"
+msgstr ""
+
+#: custom_updater.php:290
+msgid "Nessun plugin è stato aggiornato"
+msgstr ""
+
+#: custom_updater.php:382
+msgid "Missing file parameter"
+msgstr ""
+
+#: custom_updater.php:436
+msgid "Update failed"
+msgstr ""
+
+#: custom_updater.php:443
+msgid "Plugin updated"
+msgstr ""
+
+#: custom_updater.php:974
+msgid "Setting"
+msgstr ""
+
+#: custom_updater.php:983
 msgid "Visita il sito del plugin"
+msgstr ""
+
+#: custom_updater.php:1251
+msgid "Permessi insufficienti"
 msgstr ""
 

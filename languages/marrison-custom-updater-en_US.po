@@ -5,8 +5,8 @@ msgstr ""
 "POT-Creation-Date: 2026-07-06 10:22+0000\n"
 "PO-Revision-Date: 2026-07-06 12:26+0200\n"
 "Last-Translator: \n"
-"Language-Team: Italian\n"
-"Language: it_IT\n"
+"Language-Team: English\n"
+"Language: en_US\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -15,536 +15,536 @@ msgstr ""
 
 #: custom_updater.php:281
 msgid "%d plugin aggiornati con successo"
-msgstr "%d plugin aggiornati con successo"
+msgstr "%d plugins updated successfully"
 
 #: includes/traits/AdminUITrait.php:729
 msgid "%d plugin installati con successo."
-msgstr "%d plugin installati con successo."
+msgstr "%d plugins installed successfully."
 
 #: includes/traits/SchedulingTrait.php:479
 msgid "Richiede PHP %s (Attuale: %s)"
-msgstr "Richiede PHP %s (Attuale: %s)"
+msgstr "Requires PHP %s (Current: %s)"
 
 #: includes/traits/SchedulingTrait.php:106
 msgid "Impossibile contattare Commander: %s"
-msgstr "Impossibile contattare Commander: %s"
+msgstr "Unable to contact Commander: %s"
 
 #: includes/traits/UpdateOperationsTrait.php:272
 msgid "Impossibile inizializzare il filesystem."
-msgstr "Impossibile inizializzare il filesystem."
+msgstr "Unable to initialize filesystem."
 
 #: includes/traits/UpdateOperationsTrait.php:300
 msgid "Archivio vuoto o non valido."
-msgstr "Archivio vuoto o non valido."
+msgstr "Empty or invalid archive."
 
 #: includes/traits/UpdateOperationsTrait.php:328
 msgid "Impossibile rinominare la directory del plugin esistente."
-msgstr "Impossibile rinominare la directory del plugin esistente."
+msgstr "Unable to rename existing plugin directory."
 
 #: includes/traits/UpdateOperationsTrait.php:338
 msgid "Impossibile spostare la nuova versione del plugin."
-msgstr "Impossibile spostare la nuova versione del plugin."
+msgstr "Unable to move new plugin version."
 
 #: includes/traits/UpdateOperationsTrait.php:351
 msgid "Aggiornamento non trovato."
-msgstr "Aggiornamento non trovato."
+msgstr "Update not found."
 
 #: includes/traits/SchedulingTrait.php:6
 msgid "Settimanale"
-msgstr "Settimanale"
+msgstr "Weekly"
 
 #: includes/traits/SchedulingTrait.php:10
 msgid "Mensile"
-msgstr "Mensile"
+msgstr "Monthly"
 
 #: includes/traits/SchedulingTrait.php:14
 msgid "Semestrale"
-msgstr "Semestrale"
+msgstr "Semi-annual"
 
 #: includes/traits/SchedulingTrait.php:78
 msgid "Indirizzo email non valido."
-msgstr "Indirizzo email non valido."
+msgstr "Invalid email address."
 
 #: includes/traits/SchedulingTrait.php:363
 msgid "Mail di test (simulata) inviata correttamente!"
-msgstr "Mail di test (simulata) inviata correttamente!"
+msgstr "Test email (simulated) sent successfully!"
 
 #: includes/traits/SchedulingTrait.php:365
 msgid "Invio fallito. Verifica i log del server o la configurazione SMTP."
-msgstr "Invio fallito. Verifica i log del server o la configurazione SMTP."
+msgstr "Sending failed. Check server logs or SMTP configuration."
 
 #: includes/traits/SchedulingTrait.php:428
 #: includes/traits/SchedulingTrait.php:510
 msgid "Errore sconosciuto"
-msgstr "Errore sconosciuto"
+msgstr "Unknown error"
 
 #: includes/traits/SchedulingTrait.php:514
 msgid "Aggiornamento fallito"
-msgstr "Aggiornamento fallito"
+msgstr "Update failed"
 
 #: includes/traits/SchedulingTrait.php:572
 msgid "Errore aggiornamento tema"
-msgstr "Errore aggiornamento tema"
+msgstr "Theme update error"
 
 #: includes/traits/AdminUITrait.php:202
 msgid "Mai"
-msgstr "Mai"
+msgstr "Never"
 
 #: includes/traits/AdminUITrait.php:709
 msgid "Non sei autorizzato a visualizzare questa pagina."
-msgstr "Non sei autorizzato a visualizzare questa pagina."
+msgstr "You are not authorized to view this page."
 
 #: includes/traits/AdminUITrait.php:714
 msgid "Verifica permessi"
-msgstr "Verifica permessi"
+msgstr "Check permissions"
 
 #: includes/class-mcu-license.php:63
 msgid "Nessuna licenza inserita"
-msgstr "Nessuna licenza inserita"
+msgstr "No license entered"
 
 #: includes/class-mcu-license.php:71
 msgid "Licenza attiva"
-msgstr "Licenza attiva"
+msgstr "Active license"
 
 #: includes/class-mcu-license.php:73
 msgid "Licenza scaduta"
-msgstr "Licenza scaduta"
+msgstr "Expired license"
 
 #: includes/class-mcu-license.php:75
 msgid "Licenza non valida"
-msgstr "Licenza non valida"
+msgstr "Invalid license"
 
 #: includes/class-mcu-license.php:77
 msgid "Commander non raggiungibile"
-msgstr "Commander non raggiungibile"
+msgstr "Commander unreachable"
 
 #: includes/class-mcu-license.php:79
 msgid "Da verificare"
-msgstr "Da verificare"
+msgstr "To verify"
 
 #: includes/class-mcu-license.php:87
 msgid "Inserisci una chiave di licenza."
-msgstr "Inserisci una chiave di licenza."
+msgstr "Enter a license key."
 
 #: includes/class-mcu-license.php:109
 msgid "Impossibile contattare il server delle licenze. Riprova piu tardi."
-msgstr "Impossibile contattare il server delle licenze. Riprova più tardi."
+msgstr "Unable to contact license server. Try again later."
 
 #: includes/class-mcu-license.php:123 includes/class-mcu-license.php:126
 msgid "Licenza attivata con successo."
-msgstr "Licenza attivata con successo."
+msgstr "License activated successfully."
 
 msgid "Impostazioni"
-msgstr "Impostazioni"
+msgstr "Settings"
 
 msgid "Generale"
-msgstr "Generale"
+msgstr "General"
 
 msgid "Programmazione"
-msgstr "Programmazione"
+msgstr "Scheduling"
 
 msgid "Esclusioni"
-msgstr "Esclusioni"
+msgstr "Exclusions"
 
 msgid "Guida & Download"
-msgstr "Guida & Download"
+msgstr "Guide & Download"
 
 msgid "Impostazioni salvate correttamente."
-msgstr "Impostazioni salvate correttamente."
+msgstr "Settings saved successfully."
 
 msgid "URL del repository rimosso."
-msgstr "URL del repository rimosso."
+msgstr "Repository URL removed."
 
 msgid "Licenza attivata correttamente."
-msgstr "Licenza attivata correttamente."
+msgstr "License activated successfully."
 
 msgid "Licenza non valida o Commander non raggiungibile."
-msgstr "Licenza non valida o Commander non raggiungibile."
+msgstr "Invalid license or Commander unreachable."
 
 msgid "Cache pulita."
-msgstr "Cache pulita."
+msgstr "Cache cleared."
 
 msgid "Controllo aggiornamenti MCU forzato con successo."
-msgstr "Controllo aggiornamenti MCU forzato con successo."
+msgstr "MCU update check forced successfully."
 
 msgid "Licenza Commander"
-msgstr "Licenza Commander"
+msgstr "Commander License"
 
 msgid "Stato licenza"
-msgstr "Stato licenza"
+msgstr "License status"
 
 msgid "Ultima verifica:"
-msgstr "Ultima verifica:"
+msgstr "Last check:"
 
 msgid "Chiave di licenza"
-msgstr "Chiave di licenza"
+msgstr "License key"
 
 msgid "La chiave deve risultare valida su Marrison Commander per abilitare gli aggiornamenti privati."
-msgstr "La chiave deve risultare valida su Marrison Commander per abilitare gli aggiornamenti privati."
+msgstr "The key must be valid on Marrison Commander to enable private updates."
 
 msgid "Salva e verifica licenza"
-msgstr "Salva e verifica licenza"
+msgstr "Save and verify license"
 
 msgid "Impostazioni Repository"
-msgstr "Impostazioni Repository"
+msgstr "Repository Settings"
 
 msgid "Indirizzo Repository Plugin"
-msgstr "Indirizzo Repository Plugin"
+msgstr "Plugin Repository Address"
 
 msgid "Inserisci l'URL del repository personalizzato per i PLUGIN."
-msgstr "Inserisci l'URL del repository personalizzato per i PLUGIN."
+msgstr "Enter the custom repository URL for PLUGINS."
 
 msgid "Indirizzo Repository Temi"
-msgstr "Indirizzo Repository Temi"
+msgstr "Theme Repository Address"
 
 msgid "Inserisci l'URL del repository personalizzato per i TEMI."
-msgstr "Inserisci l'URL del repository personalizzato per i TEMI."
+msgstr "Enter the custom repository URL for THEMES."
 
 msgid "Salva Impostazioni"
-msgstr "Salva Impostazioni"
+msgstr "Save Settings"
 
 msgid "Sei sicuro di voler rimuovere gli URL?"
-msgstr "Sei sicuro di voler rimuovere gli URL?"
+msgstr "Are you sure you want to remove the URLs?"
 
 msgid "Rimuovi URL"
-msgstr "Rimuovi URL"
+msgstr "Remove URL"
 
 #: includes/class-mcu-license.php:129
 msgid "Chiave di licenza non valida o scaduta."
-msgstr "Chiave di licenza non valida o scaduta."
+msgstr "Invalid or expired license key."
 
 #: includes/class-mcu-license.php:180
 msgid "Licenza non piu valida."
-msgstr "Licenza non più valida."
+msgstr "License no longer valid."
 
 #: custom_updater.php:182 custom_updater.php:297 custom_updater.php:374
 msgid "Security check failed"
-msgstr "Controllo di sicurezza fallito"
+msgstr "Security check failed"
 
 #: custom_updater.php:187 custom_updater.php:301 custom_updater.php:378
 msgid "Insufficient permissions"
-msgstr "Permessi insufficienti"
+msgstr "Insufficient permissions"
 
 #: custom_updater.php:198
 msgid "Nessun aggiornamento disponibile"
-msgstr "Nessun aggiornamento disponibile"
+msgstr "No updates available"
 
 #: custom_updater.php:243
 msgid "Nessun plugin \"normale\" ha aggiornamenti disponibili"
-msgstr "Nessun plugin \"normale\" ha aggiornamenti disponibili"
+msgstr "No \"normal\" plugins have updates available"
 
 #: custom_updater.php:290
 msgid "Nessun plugin è stato aggiornato"
-msgstr "Nessun plugin è stato aggiornato"
+msgstr "No plugins were updated"
 
 #: custom_updater.php:382
 msgid "Missing file parameter"
-msgstr "Parametro file mancante"
+msgstr "Missing file parameter"
 
 #: custom_updater.php:436
 msgid "Update failed"
-msgstr "Aggiornamento fallito"
+msgstr "Update failed"
 
 #: custom_updater.php:443
 msgid "Plugin updated"
-msgstr "Plugin aggiornato"
+msgstr "Plugin updated"
 
 #: custom_updater.php:974
 msgid "Setting"
-msgstr "Impostazioni"
+msgstr "Settings"
 
 #: custom_updater.php:983
 msgid "Visita il sito del plugin"
-msgstr "Visita il sito del plugin"
+msgstr "Visit plugin website"
 
 #: custom_updater.php:1251
 msgid "Permessi insufficienti"
-msgstr "Permessi insufficienti"
+msgstr "Insufficient permissions"
 
 msgid "Licenza MCU non attiva. Inserisci una chiave valida nelle impostazioni per usare questo plugin."
-msgstr "Licenza MCU non attiva. Inserisci una chiave valida nelle impostazioni per usare questo plugin."
+msgstr "MCU license is not active. Enter a valid key in settings to use this plugin."
 
 msgid "WP Master Updater"
 msgstr "WP Master Updater"
 
 msgid "Licenza richiesta"
-msgstr "Licenza richiesta"
+msgstr "License required"
 
 msgid "Vai alle impostazioni licenza"
-msgstr "Vai alle impostazioni licenza"
+msgstr "Go to license settings"
 
 msgid "Aggiornamenti"
-msgstr "Aggiornamenti"
+msgstr "Updates"
 
 msgid "Backup"
 msgstr "Backup"
 
 msgid "Backup Disponibili"
-msgstr "Backup Disponibili"
+msgstr "Available Backups"
 
 msgid "Permessi insufficienti."
-msgstr "Permessi insufficienti."
+msgstr "Insufficient permissions."
 
 msgid "Licenza MCU non attiva. Aggiornamento programmato saltato."
-msgstr "Licenza MCU non attiva. Aggiornamento programmato saltato."
+msgstr "MCU license is not active. Scheduled update skipped."
 
 msgid "Stato Plugin"
-msgstr "Stato Plugin"
+msgstr "Plugin Status"
 
 msgid "Plugin Monitorati"
-msgstr "Plugin Monitorati"
+msgstr "Monitored Plugins"
 
 msgid "Plugin Monitorati su questo sito"
-msgstr "Plugin Monitorati su questo sito"
+msgstr "Plugins Monitored on This Site"
 
 msgid "Plugin Installato"
-msgstr "Plugin Installato"
+msgstr "Installed Plugin"
 
 msgid "Versione Installata"
-msgstr "Versione Installata"
+msgstr "Installed Version"
 
 msgid "Versione Repository"
-msgstr "Versione Repository"
+msgstr "Repository Version"
 
 msgid "Stato Temi"
-msgstr "Stato Temi"
+msgstr "Theme Status"
 
 msgid "Temi Monitorati"
-msgstr "Temi Monitorati"
+msgstr "Monitored Themes"
 
 msgid "Temi Installati Monitorati"
-msgstr "Temi Installati Monitorati"
+msgstr "Monitored Installed Themes"
 
 msgid "Programmazione Aggiornamenti"
-msgstr "Programmazione Aggiornamenti"
+msgstr "Update Scheduling"
 
 msgid "Abilita Aggiornamenti Automatici"
-msgstr "Abilita Aggiornamenti Automatici"
+msgstr "Enable Automatic Updates"
 
 msgid "Attiva aggiornamento automatico periodico"
-msgstr "Attiva aggiornamento automatico periodico"
+msgstr "Enable periodic automatic updates"
 
 msgid "Frequenza"
-msgstr "Frequenza"
+msgstr "Frequency"
 
 msgid "Giornaliera"
-msgstr "Giornaliera"
+msgstr "Daily"
 
 msgid "Settimanale"
-msgstr "Settimanale"
+msgstr "Weekly"
 
 msgid "Mensile"
-msgstr "Mensile"
+msgstr "Monthly"
 
 msgid "Semestrale"
-msgstr "Semestrale"
+msgstr "Every six months"
 
 msgid "Orario (Fuso Orario Italiano)"
-msgstr "Orario (Fuso Orario Italiano)"
+msgstr "Time (Italian Time Zone)"
 
 msgid "Seleziona l'orario di esecuzione (Europe/Rome)."
-msgstr "Seleziona l'orario di esecuzione (Europe/Rome)."
+msgstr "Select the execution time (Europe/Rome)."
 
 msgid "Email per Report"
-msgstr "Email per Report"
+msgstr "Report Email"
 
 msgid "Invia mail di test"
-msgstr "Invia mail di test"
+msgstr "Send test email"
 
 msgid "Inserisci l'indirizzo email dove inviare il report degli aggiornamenti (opzionale)."
-msgstr "Inserisci l'indirizzo email dove inviare il report degli aggiornamenti (opzionale)."
+msgstr "Enter the email address that will receive the update report (optional)."
 
 msgid "Esegui un backup del database prima di ogni aggiornamento automatico (mantiene gli ultimi 5)."
-msgstr "Esegui un backup del database prima di ogni aggiornamento automatico (mantiene gli ultimi 5)."
+msgstr "Run a database backup before each automatic update (keeps the last 5)."
 
 msgid "Prossima esecuzione programmata:"
-msgstr "Prossima esecuzione programmata:"
+msgstr "Next scheduled run:"
 
 msgid "Frequenza:"
-msgstr "Frequenza:"
+msgstr "Frequency:"
 
 msgid "Ultima Esecuzione"
-msgstr "Ultima Esecuzione"
+msgstr "Last Run"
 
 msgid "Data:"
-msgstr "Data:"
+msgstr "Date:"
 
 msgid "Stato:"
-msgstr "Stato:"
+msgstr "Status:"
 
 msgid "Messaggio:"
-msgstr "Messaggio:"
+msgstr "Message:"
 
 msgid "Aggiornamenti Trovati:"
-msgstr "Aggiornamenti Trovati:"
+msgstr "Updates Found:"
 
 msgid "Sì"
-msgstr "Sì"
+msgstr "Yes"
 
 msgid "No"
 msgstr "No"
 
 msgid "Salva Programmazione"
-msgstr "Salva Programmazione"
+msgstr "Save Schedule"
 
 msgid "Esclusioni Plugin"
-msgstr "Esclusioni Plugin"
+msgstr "Plugin Exclusions"
 
 msgid "Seleziona i plugin che vuoi escludere dagli aggiornamenti automatici e dalle notifiche (sia privati che ufficiali)."
-msgstr "Seleziona i plugin che vuoi escludere dagli aggiornamenti automatici e dalle notifiche (sia privati che ufficiali)."
+msgstr "Select the plugins you want to exclude from automatic updates and notifications (both private and official)."
 
 msgid "Plugin"
 msgstr "Plugin"
 
 msgid "Versione"
-msgstr "Versione"
+msgstr "Version"
 
 msgid "Escludi"
-msgstr "Escludi"
+msgstr "Exclude"
 
 msgid "Esclusioni Temi"
-msgstr "Esclusioni Temi"
+msgstr "Theme Exclusions"
 
 msgid "Seleziona i temi che vuoi escludere dagli aggiornamenti automatici e dalle notifiche."
-msgstr "Seleziona i temi che vuoi escludere dagli aggiornamenti automatici e dalle notifiche."
+msgstr "Select the themes you want to exclude from automatic updates and notifications."
 
 msgid "Tema"
-msgstr "Tema"
+msgstr "Theme"
 
 msgid "Guida all'uso"
-msgstr "Guida all'uso"
+msgstr "How to Use"
 
 msgid "Per trasformare una cartella del tuo server in un Repository Privato compatibile con WP Master Updater, segui questi passaggi:"
-msgstr "Per trasformare una cartella del tuo server in un Repository Privato compatibile con WP Master Updater, segui questi passaggi:"
+msgstr "To turn a folder on your server into a Private Repository compatible with WP Master Updater, follow these steps:"
 
 msgid "1. Repository Plugin"
-msgstr "1. Repository Plugin"
+msgstr "1. Plugin Repository"
 
 msgid "Crea una cartella pubblica sul tuo server (es. <code>https://tuosito.com/my-repo/plugins/</code>)."
-msgstr "Crea una cartella pubblica sul tuo server (es. <code>https://tuosito.com/my-repo/plugins/</code>)."
+msgstr "Create a public folder on your server (e.g. <code>https://your-site.com/my-repo/plugins/</code>)."
 
 msgid "Scarica il file <code>index.php</code> qui sotto."
-msgstr "Scarica il file <code>index.php</code> qui sotto."
+msgstr "Download the <code>index.php</code> file below."
 
 msgid "Carica il file nella cartella appena creata."
-msgstr "Carica il file nella cartella appena creata."
+msgstr "Upload the file to the folder you just created."
 
 msgid "Carica i file <code>.zip</code> dei tuoi plugin nella stessa cartella."
-msgstr "Carica i file <code>.zip</code> dei tuoi plugin nella stessa cartella."
+msgstr "Upload your plugin <code>.zip</code> files to the same folder."
 
 msgid "Inserisci l'URL della cartella (es. <code>https://tuosito.com/my-repo/plugins/</code>) nelle Impostazioni di questo plugin."
-msgstr "Inserisci l'URL della cartella (es. <code>https://tuosito.com/my-repo/plugins/</code>) nelle Impostazioni di questo plugin."
+msgstr "Enter the folder URL (e.g. <code>https://your-site.com/my-repo/plugins/</code>) in this plugin's Settings."
 
 msgid "Scarica index.php per Plugin"
-msgstr "Scarica index.php per Plugin"
+msgstr "Download index.php for Plugins"
 
 msgid "2. Repository Temi"
-msgstr "2. Repository Temi"
+msgstr "2. Theme Repository"
 
 msgid "Crea una cartella pubblica sul tuo server (es. <code>https://tuosito.com/my-repo/themes/</code>)."
-msgstr "Crea una cartella pubblica sul tuo server (es. <code>https://tuosito.com/my-repo/themes/</code>)."
+msgstr "Create a public folder on your server (e.g. <code>https://your-site.com/my-repo/themes/</code>)."
 
 msgid "Scarica il file <code>index.php</code> qui sotto (specifico per i temi)."
-msgstr "Scarica il file <code>index.php</code> qui sotto (specifico per i temi)."
+msgstr "Download the <code>index.php</code> file below (theme-specific)."
 
 msgid "Carica i file <code>.zip</code> dei tuoi temi nella stessa cartella."
-msgstr "Carica i file <code>.zip</code> dei tuoi temi nella stessa cartella."
+msgstr "Upload your theme <code>.zip</code> files to the same folder."
 
 msgid "Inserisci l'URL della cartella (es. <code>https://tuosito.com/my-repo/themes/</code>) nelle Impostazioni di questo plugin."
-msgstr "Inserisci l'URL della cartella (es. <code>https://tuosito.com/my-repo/themes/</code>) nelle Impostazioni di questo plugin."
+msgstr "Enter the folder URL (e.g. <code>https://your-site.com/my-repo/themes/</code>) in this plugin's Settings."
 
 msgid "Scarica index.php per Temi"
-msgstr "Scarica index.php per Temi"
+msgstr "Download index.php for Themes"
 
 msgid "Strumenti Avanzati"
-msgstr "Strumenti Avanzati"
+msgstr "Advanced Tools"
 
 msgid "Forza controllo aggiornamenti MCU"
-msgstr "Forza controllo aggiornamenti MCU"
+msgstr "Force MCU update check"
 
 msgid "Usa questo pulsante se hai appena rilasciato una nuova versione su GitHub e non viene rilevata."
-msgstr "Usa questo pulsante se hai appena rilasciato una nuova versione su GitHub e non viene rilevata."
+msgstr "Use this button if you have just released a new version on GitHub and it is not detected."
 
 msgid "Ripristino in corso..."
-msgstr "Ripristino in corso..."
+msgstr "Restore in progress..."
 
 msgid "Inizializzazione..."
-msgstr "Inizializzazione..."
+msgstr "Initializing..."
 
 msgid "Plugin %s ripristinato con successo."
-msgstr "Plugin %s ripristinato con successo."
+msgstr "Plugin %s restored successfully."
 
 msgid "Esegui Backup Database"
-msgstr "Esegui Backup Database"
+msgstr "Run Database Backup"
 
 msgid "File"
 msgstr "File"
 
 msgid "Data"
-msgstr "Data"
+msgstr "Date"
 
 msgid "Dimensione"
-msgstr "Dimensione"
+msgstr "Size"
 
 msgid "Azione"
-msgstr "Azione"
+msgstr "Action"
 
 msgid "Scarica"
-msgstr "Scarica"
+msgstr "Download"
 
 msgid "Nessun backup database disponibile. Clicca il pulsante per crearne uno."
-msgstr "Nessun backup database disponibile. Clicca il pulsante per crearne uno."
+msgstr "No database backups available. Click the button to create one."
 
 msgid "Lista Backup"
-msgstr "Lista Backup"
+msgstr "Backup List"
 
 msgid "%d Backup"
 msgstr "%d Backup"
 
 msgid "Elemento"
-msgstr "Elemento"
+msgstr "Item"
 
 msgid "Versione Backup"
-msgstr "Versione Backup"
+msgstr "Backup Version"
 
 msgid "Versione Attuale"
-msgstr "Versione Attuale"
+msgstr "Current Version"
 
 msgid "Data Backup"
-msgstr "Data Backup"
+msgstr "Backup Date"
 
 msgid "Non installato"
-msgstr "Non installato"
+msgstr "Not installed"
 
 msgid "Ripristinato"
-msgstr "Ripristinato"
+msgstr "Restored"
 
 msgid "Ripristina"
-msgstr "Ripristina"
+msgstr "Restore"
 
 msgid "Nessun backup disponibile."
-msgstr "Nessun backup disponibile."
+msgstr "No backups available."
 
 msgid "Escluso dagli aggiornamenti"
-msgstr "Escluso dagli aggiornamenti"
+msgstr "Excluded from updates"
 
 msgid "Escluso"
-msgstr "Escluso"
+msgstr "Excluded"
 
 msgid "Aggiorna"
-msgstr "Aggiorna"
+msgstr "Update"
 
 msgid "Aggiornato"
-msgstr "Aggiornato"
+msgstr "Updated"
 
 msgid "Tutti i plugin monitorati sono aggiornati."
-msgstr "Tutti i plugin monitorati sono aggiornati."
+msgstr "All monitored plugins are up to date."
 
 msgid "Nuova Versione"
-msgstr "Nuova Versione"
+msgstr "New Version"
 
 msgid "Tipo"
-msgstr "Tipo"
+msgstr "Type"
 
 msgid "Stato"
-msgstr "Stato"
+msgstr "Status"

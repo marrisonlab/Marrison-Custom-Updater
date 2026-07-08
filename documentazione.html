@@ -1,105 +1,28 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Documentazione WP Master Updater</title>
+    <title>WP Master Updater Technical Documentation</title>
     <style>
-        :root {
-            --primary-color: #874abd;
-            --secondary-color: #fd5ec0;
-            --text-color: #333;
-            --bg-color: #f9f9f9;
-            --header-bg: #11111e;
-            --sidebar-width: 280px;
-        }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
             line-height: 1.6;
-            color: var(--text-color);
-            background-color: var(--bg-color);
+            color: #333;
+            background-color: #f9f9f9;
             margin: 0;
-            display: flex;
-        }
-        /* Sidebar Navigation */
-        .sidebar {
-            width: var(--sidebar-width);
-            background-color: #fff;
-            height: 100vh;
-            position: fixed;
-            top: 0;
-            left: 0;
-            overflow-y: auto;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .sidebar h2 {
-            color: var(--primary-color);
-            font-size: 1.2em;
-            margin-top: 0;
-            border-bottom: 2px solid var(--secondary-color);
-            padding-bottom: 10px;
-        }
-        .sidebar ul {
-            list-style: none;
-            padding: 0;
-        }
-        .sidebar li {
-            margin-bottom: 10px;
-        }
-        .sidebar a {
-            text-decoration: none;
-            color: #555;
-            display: block;
-            padding: 5px 10px;
-            border-radius: 4px;
-            transition: all 0.2s;
-        }
-        .sidebar a:hover, .sidebar a.active {
-            background-color: #f0f0f1;
-            color: var(--primary-color);
-            padding-left: 15px;
-        }
-        
-        /* Main Content */
-        .main-content {
-            margin-left: var(--sidebar-width);
             padding: 40px;
             max-width: 900px;
-            width: 100%;
         }
-        h1, h2, h3 {
+        h4 {
             color: #2c3338;
+            font-size: 1.2em;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-weight: 600;
         }
-        h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            color: var(--primary-color);
-        }
-        .version-badge {
-            background: var(--secondary-color);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.5em;
-            vertical-align: middle;
-        }
-        section {
-            background: #fff;
-            padding: 30px;
-            margin-bottom: 30px;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            scroll-margin-top: 20px;
-        }
-        .screenshot {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 5px;
-            max-width: 100%;
-            margin: 15px 0;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        p {
+            margin-bottom: 15px;
         }
         code {
             background: #f0f0f1;
@@ -108,190 +31,48 @@
             font-family: monospace;
             color: #d63638;
         }
-        .note {
-            background-color: #fff8e5;
-            border-left: 4px solid #ffba00;
-            padding: 15px;
-            margin: 15px 0;
-        }
-        .button-desc {
-            display: inline-block;
-            background: var(--primary-color);
-            color: white;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-weight: bold;
-        }
-        .button-desc.secondary {
-            background: #f0f0f1;
-            color: var(--primary-color);
-            border: 1px solid var(--primary-color);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-        }
-        th, td {
-            text-align: left;
-            padding: 12px;
-            border-bottom: 1px solid #eee;
-        }
-        th {
-            background-color: #f9f9f9;
-            font-weight: 600;
-        }
     </style>
 </head>
 <body>
 
-<div class="sidebar">
-    <h2>Indice</h2>
-    <ul>
-        <li><a href="#intro">Introduzione</a></li>
-        <li><a href="#installazione">Installazione</a></li>
-        <li><a href="#configurazione">Configurazione</a></li>
-        <li><a href="#dashboard">Dashboard Aggiornamenti</a></li>
-        <li><a href="#impostazioni">Impostazioni</a></li>
-        <li><a href="#backup">Gestione Backup</a></li>
-        <li><a href="#guida-download">Guida & Download</a></li>
-        <li><a href="#automazione">Automazione e Cron</a></li>
-    </ul>
-</div>
+    <h4>1. Plugin Architecture</h4>
+    <p>The plugin is structured as a singleton class that uses Traits to organize functionality. The main MCU_Custom_Updater class extends native WordPress functionality to manage updates from custom repositories. The traits used are: AdminUITrait for the admin interface, UpdateOperationsTrait for update operations, SchedulingTrait for cron job management, and BackupTrait for the backup and restore system.</p>
 
-<div class="main-content">
-    <section id="intro">
-        <h1>WP Master Updater <span class="version-badge">v9.2</span></h1>
-        <p><strong>WP Master Updater</strong> è una soluzione avanzata per la gestione degli aggiornamenti di plugin e temi privati in WordPress. Permette di collegare il tuo sito WordPress a un repository personalizzato (ospitato su un tuo server), consentendo di distribuire aggiornamenti per i tuoi prodotti proprietari con la stessa facilità di quelli ufficiali di WordPress.org.</p>
-        <h3>Funzionalità Chiave:</h3>
-        <ul>
-            <li>Collegamento a Repository Privati (Plugin e Temi).</li>
-            <li>Dashboard unificata per aggiornamenti pubblici e privati.</li>
-            <li>Sistema di Backup automatico pre-aggiornamento con Rollback one-click.</li>
-            <li>Aggiornamenti automatici programmati (Giornalieri, Settimanali, Mensili).</li>
-            <li>Gestione centralizzata delle traduzioni.</li>
-        </ul>
-    </section>
+    <h4>2. Repository Configuration</h4>
+    <p>The plugin connects to external repositories via index.php files that return a JSON array. For plugins, the file must contain an array of objects with the following required fields: slug (unique plugin identifier), version (current version), name (plugin name), and download_url (URL of the ZIP file to download). Example JSON structure: [{"slug":"my-plugin","version":"1.0.0","name":"My Plugin","download_url":"https://example.com/repo/my-plugin.zip"}]. The repository URL is saved in WordPress options as marrison_repo_url for plugins and marrison_themes_repo_url for themes.</p>
 
-    <section id="installazione">
-        <h2>Installazione</h2>
-        <ol>
-            <li>Carica la cartella <code>marrison-custom-updater</code> nella directory <code>/wp-content/plugins/</code> del tuo sito WordPress.</li>
-            <li>Accedi al pannello di amministrazione di WordPress.</li>
-            <li>Vai su <strong>Plugin</strong> e attiva <strong>WP Master Updater</strong>.</li>
-            <li>Dopo l'attivazione, vedrai la voce <strong>WP Master Updater</strong> (o <em>WPMU</em>) nel menu laterale.</li>
-        </ol>
-    </section>
+    <h4>3. Cache System</h4>
+    <p>The plugin uses WordPress transients to store update information and reduce HTTP calls. The marrison_available_updates_v2 transient stores the list of available plugins from the private repository with a duration of 6 hours (21600 seconds). The marrison_available_theme_updates transient does the same for themes. The marrison_updater_github_version transient stores the plugin version from the official repository. Failure transients (marrison_updates_fetch_failed, marrison_theme_updates_fetch_failed, marrison_github_fetch_failed) are used to avoid repeated calls when the repository is unreachable.</p>
 
-    <section id="dashboard">
-        <h2>Dashboard Aggiornamenti</h2>
-        <p>Accessibile dal menu <strong>WP Master Updater > Aggiornamenti</strong>.</p>
-        <p>Questa è la schermata principale dove puoi monitorare lo stato di tutti i plugin e temi installati.</p>
-        
-        <h3>Schede Statistiche</h3>
-        <p>In alto trovi delle card riassuntive:</p>
-        <ul>
-            <li><strong>Plugin Privati:</strong> Numero di aggiornamenti disponibili dal tuo repo privato.</li>
-            <li><strong>Plugin Pubblici:</strong> Numero di aggiornamenti dal repo ufficiale WordPress.</li>
-            <li><strong>Temi Privati:</strong> Aggiornamenti disponibili per i temi proprietari.</li>
-            <li><strong>Temi Pubblici:</strong> Aggiornamenti per temi standard.</li>
-            <li><strong>Traduzioni:</strong> Aggiornamenti delle lingue disponibili.</li>
-        </ul>
+    <h4>4. WordPress Hooks and Filters</h4>
+    <p>The plugin integrates with the native update system via the site_transient_update_plugins and site_transient_update_themes filters with priority 999. These filters are hooked via admin_init to avoid running checks on the frontend. The plugins_api filter with priority 20 is used to provide plugin information when the user clicks "View details" in the plugin list. The plugin also uses the upgrader_process_complete hook to update the last update timestamp and trigger Elementor DB update if necessary.</p>
 
-        <h3>Tabelle di Aggiornamento</h3>
-        <p>Il plugin separa chiaramente gli aggiornamenti in diverse sezioni:</p>
-        <ol>
-            <li><strong>Plugin Repository Privato:</strong> Lista dei tuoi plugin custom che necessitano aggiornamento.</li>
-            <li><strong>Temi Repository Privato:</strong> Lista dei tuoi temi custom da aggiornare.</li>
-            <li><strong>Repository Ufficiale WordPress:</strong> Lista standard dei plugin pubblici.</li>
-        </ol>
+    <h4>5. Update Operations</h4>
+    <p>The perform_update method in UpdateOperationsTrait manages the update process. It uses WP_Filesystem for file operations. The process implements an atomic copy-then-swap system: first copies new files to a temporary directory, then renames the old directory to backup and the new directory to the final position. This avoids leaving the plugin in an inconsistent state if the copy fails. After success, the backup directory is deleted. The method handles both folder-based plugins and single-file plugins.</p>
 
-        <h3>Azioni Disponibili</h3>
-        <ul>
-            <li><span class="button-desc">Aggiorna</span>: Esegue l'aggiornamento del singolo elemento. Prima dell'aggiornamento viene creato automaticamente un backup.</li>
-            <li><span class="button-desc">Aggiorna Selezionati</span>: (Pulsante in alto a destra nelle tabelle) Esegue l'aggiornamento massivo di tutti gli elementi selezionati tramite checkbox.</li>
-            <li><span class="button-desc">Aggiorna Tutti</span>: Per i plugin ufficiali, aggiorna l'intera lista in un colpo solo.</li>
-        </ul>
-    </section>
+    <h4>6. Backup System</h4>
+    <p>Backups are created automatically before every update operation. Files are compressed in ZIP format and saved in the /wp-content/marrison-backups/ directory. The ZIP filename follows the format {slug}-{version}-{timestamp}.zip. The plugin includes an automatic cleanup function that removes backups of uninstalled plugins when accessing the Backup section. Restore occurs by extracting the ZIP to the plugin position and, if necessary, reactivating the plugin via activate_plugin with the silent=true parameter.</p>
 
-    <section id="impostazioni">
-        <h2>Impostazioni</h2>
-        <p>Accessibile dal menu <strong>WP Master Updater > Impostazioni</strong>. L'area è divisa in tre tab principali.</p>
+    <h4>7. Exclusion Management</h4>
+    <p>Plugins can be excluded from automatic updates via the marrison_excluded_plugins option, which stores an array of excluded plugin slugs. The exclusion status is checked before every update operation, both manual and scheduled. Excluded plugins are displayed with a badge in the dashboard and can be re-enabled for updates by removing them from the exclusion list.</p>
 
-        <h3>1. Tab Generale</h3>
-        <p>Qui configuri il collegamento con il tuo server remoto.</p>
-        <ul>
-            <li><strong>Indirizzo Repository Plugin:</strong> Inserisci l'URL della cartella sul tuo server dove sono ospitati i plugin (es. <code>https://tuosito.com/repo/plugins/</code>).</li>
-            <li><strong>Indirizzo Repository Temi:</strong> Inserisci l'URL per i temi (es. <code>https://tuosito.com/repo/themes/</code>).</li>
-            <li><span class="button-desc">Salva Impostazioni</span>: Memorizza gli URL inseriti.</li>
-            <li><span class="button-desc secondary">Rimuovi URL</span>: Cancella le configurazioni e scollega il sito dal repository.</li>
-        </ul>
-        <p>In questa pagina sono visibili anche le tabelle riassuntive dei <strong>Plugin Monitorati</strong> e <strong>Temi Monitorati</strong>, che mostrano la versione installata confrontata con quella remota.</p>
+    <h4>8. Scheduling and Cron</h4>
+    <p>The plugin uses WP-Cron to execute automatic updates. The cron job is registered with the configured frequency (daily, weekly, monthly, semi-annual). The run_scheduled_updates method in SchedulingTrait performs update checks, installs new versions, creates backups, and sends an email report. The email includes the list of updated plugins with versions, any errors, skipped plugins with reasons, and the status of Elementor database update if present.</p>
 
-        <h3>2. Tab Programmazione</h3>
-        <p>Gestisce l'automazione degli aggiornamenti.</p>
-        <ul>
-            <li><strong>Abilita Aggiornamenti Automatici:</strong> Attiva/Disattiva il cron job che cerca ed esegue gli aggiornamenti in background.</li>
-            <li><strong>Frequenza:</strong> Scegli ogni quanto eseguire il controllo (Giornaliera, Settimanale, Mensile, Semestrale).</li>
-            <li><span class="button-desc secondary">Invia email di test</span>: Verifica che il sistema di notifica via email funzioni correttamente.</li>
-        </ul>
-    </section>
+    <h4>9. AJAX Handlers</h4>
+    <p>The plugin registers several AJAX handlers for admin-side operations: update_plugin_ajax to update a single plugin, bulk_update_ajax for multiple updates, restore_backup_ajax to restore a backup, exclude_plugin_ajax to exclude a plugin, and force_clear_cache_ajax to clear cache and force a new check. All handlers verify user permissions via current_user_can and use check_ajax_referer for CSRF security.</p>
 
-    <section id="guida-download">
-        <h2>Guida & Download</h2>
-        <p>Questa sezione (nel menu Impostazioni) è fondamentale per chi gestisce il repository lato server.</p>
-        
-        <h3>Configurazione Lato Server</h3>
-        <p>Perché il plugin funzioni, devi preparare il tuo server:</p>
-        <ol>
-            <li>Crea una cartella pubblica (es. <code>/my-repo/plugins/</code>).</li>
-            <li>Carica all'interno i file <code>.zip</code> dei tuoi plugin.</li>
-            <li><strong>File Index:</strong> Devi scaricare e caricare un file speciale <code>index.php</code> che gestisce la lettura delle versioni.</li>
-        </ol>
+    <h4>10. Self-Update</h4>
+    <p>The plugin can update itself automatically by checking releases from the official repository. The check_self_update method verifies the available version against the installed version. If a new version is available, the plugin injects update information into the update_plugins transient. Self-update is managed via perform_self_update which uses special logic to rename the plugin folder during update, since the running plugin cannot be directly overwritten.</p>
 
-        <h3>Pulsanti di Download</h3>
-        <ul>
-            <li><span class="button-desc">Scarica index.php per Plugin</span>: Scarica il file da caricare nella cartella dei plugin sul server.</li>
-            <li><span class="button-desc">Scarica index.php per Temi</span>: Scarica il file (specifico) da caricare nella cartella dei temi.</li>
-        </ul>
-        <div class="note">
-            <strong>Importante:</strong> I file index.php per plugin e temi sono diversi e contengono logiche separate. Assicurati di usare quello corretto per ogni cartella.
-        </div>
+    <h4>11. Notification Badge</h4>
+    <p>The notification badge in the admin menu is managed via the marrison_available_updates_count option. This value is calculated by the check_for_available_updates method which sums the number of plugins and themes with available updates. The method runs on admin_init to ensure the badge always reflects the real state, leveraging transient cache to avoid repeated HTTP calls.</p>
 
-        <h3>Strumenti Avanzati</h3>
-        <ul>
-            <li><span class="button-desc secondary">Forza controllo aggiornamenti MCU</span>: Pulisce la cache interna di WordPress e forza una nuova verifica immediata delle versioni dal repository. Utile quando hai appena caricato un aggiornamento sul server e non vuoi aspettare il controllo automatico.</li>
-        </ul>
-    </section>
+    <h4>12. Server Requirements</h4>
+    <p>The plugin requires WordPress 6.0 or higher and PHP 7.4 or higher. The PHP ZIP extension is required for backup creation. The /wp-content/plugins/ and /wp-content/themes/ directories must be writable. For proper cron job functionality, WP-Cron must be enabled (default on WordPress). HTTP timeout is configured to 15 seconds for repository requests and 10 seconds for GitHub API requests.</p>
 
-    <section id="backup">
-        <h2>Gestione Backup</h2>
-        <p>Accessibile dal menu <strong>WP Master Updater > Backup</strong>.</p>
-        <p>Ogni volta che esegui un aggiornamento tramite questo plugin, viene creato automaticamente un backup della versione precedente.</p>
-        
-        <h3>Funzionalità:</h3>
-        <ul>
-            <li><strong>Lista Backup:</strong> Elenco cronologico di tutti i backup salvati (file <code>.zip</code>).</li>
-            <li><strong>Dettagli:</strong> Mostra nome plugin/tema, versione salvata, versione attuale installata, data e dimensione.</li>
-            <li><span class="button-desc secondary">Ripristina</span>: Cliccando questo pulsante, il plugin corrente viene sovrascritto con la versione contenuta nel backup. Utile in caso di aggiornamenti che rompono il sito ("Rollback").</li>
-        </ul>
-        <div class="note">
-            I backup sono salvati nella cartella <code>/wp-content/marrison-backups/</code> del tuo server.
-        </div>
-    </section>
-
-    <section id="automazione">
-        <h2>Automazione e Cron</h2>
-        <p>Il plugin utilizza il sistema WP-Cron di WordPress per gestire le operazioni pianificate.</p>
-        <ul>
-            <li><strong>Controllo Aggiornamenti:</strong> Avviene automaticamente in base alla frequenza scelta.</li>
-            <li><strong>Notifiche Email:</strong> Al termine di un aggiornamento automatico, viene inviata una email all'amministratore con il report dettagliato (successi, errori, versioni aggiornate).</li>
-            <li><strong>Elementor:</strong> Se usi Elementor, il plugin include un trigger automatico per aggiornare il database di Elementor dopo un update, prevenendo problemi di layout.</li>
-        </ul>
-    </section>
-
-</div>
+    <h4>13. Error Handling</h4>
+    <p>The plugin implements an error handling system that logs failed operations via error_log. In case of failure during an update, the backup is maintained to allow restore. Failure transients are set when the repository is unreachable to avoid repeated calls. Errors are included in email reports for scheduled updates. AJAX handlers return JSON responses with error details to allow display in the user interface.</p>
 
 </body>
 </html>
