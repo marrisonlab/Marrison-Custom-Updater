@@ -22,9 +22,6 @@ trait MCU_Scheduling_Trait {
         if (!current_user_can('manage_options')) {
             wp_die(esc_html__('Permessi insufficienti.', 'marrison-custom-updater'));
         }
-        if (method_exists($this, 'enforce_active_license_admin')) {
-            $this->enforce_active_license_admin();
-        }
 
         $enabled = isset($_POST['marrison_auto_update_enabled']) ? 'yes' : 'no';
         $frequency = sanitize_text_field($_POST['marrison_auto_update_frequency']);
@@ -82,9 +79,6 @@ trait MCU_Scheduling_Trait {
 
         if (!current_user_can('manage_options')) {
             wp_send_json_error(__('Permessi insufficienti.', 'marrison-custom-updater'));
-        }
-        if (method_exists($this, 'enforce_active_license_ajax')) {
-            $this->enforce_active_license_ajax();
         }
         
         $email = sanitize_email($_POST['email']);
@@ -381,15 +375,6 @@ trait MCU_Scheduling_Trait {
     }
 
     public function run_scheduled_updates() {
-        if (method_exists($this, 'is_license_active') && !$this->is_license_active()) {
-            update_option('marrison_last_cron_log', [
-                'time' => current_time('mysql'),
-                'status' => 'skipped',
-                'message' => __('Licenza MCU non attiva. Aggiornamento programmato saltato.', 'marrison-custom-updater')
-            ]);
-            return;
-        }
-
         $log_entry = [
             'time' => current_time('mysql'),
             'status' => 'started',

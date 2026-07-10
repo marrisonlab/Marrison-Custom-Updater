@@ -144,30 +144,6 @@ trait MCU_Admin_UI_Trait {
         <?php
     }
 
-    private function render_license_required_page($title = null, $with_wrap = true) {
-        $title = $title ?: __('WP Master Updater', 'marrison-custom-updater');
-        ?>
-        <?php if ($with_wrap): ?>
-            <div class="mcu-wrap">
-                <?php $this->render_header($title); ?>
-        <?php endif; ?>
-            <div class="mcu-card">
-                <div class="mcu-card-header">
-                    <h2 class="mcu-card-title"><span class="dashicons dashicons-lock"></span> <?php esc_html_e('Licenza richiesta', 'marrison-custom-updater'); ?></h2>
-                </div>
-                <p><?php echo esc_html($this->license_required_message()); ?></p>
-                <p>
-                    <a class="mcu-button mcu-button-primary" href="<?php echo esc_url(admin_url('admin.php?page=marrison-updater-settings')); ?>">
-                        <?php esc_html_e('Vai alle impostazioni licenza', 'marrison-custom-updater'); ?>
-                    </a>
-                </p>
-            </div>
-        <?php if ($with_wrap): ?>
-            </div>
-        <?php endif; ?>
-        <?php
-    }
-
     public function enqueue_admin_scripts($hook) {
         if (strpos($hook, 'marrison-updater') === false) {
             return;
@@ -288,9 +264,95 @@ JS
             'Plugin con Aggiornamenti' => 'Plugins with Updates',
             'Aggiornamento in corso...' => 'Update in progress...',
             'Impostazioni salvate correttamente.' => 'Settings saved successfully.',
-            'Licenza richiesta' => 'License required',
-            'Vai alle impostazioni licenza' => 'Go to license settings',
-            'Licenza MCU non attiva. Inserisci una chiave valida nelle impostazioni per usare questo plugin.' => 'MCU license is not active. Enter a valid key in settings to use this plugin.',
+            'Pulisci Cache' => 'Clear Cache',
+            'URL del repository ripristinato ai valori predefiniti.' => 'Repository URL restored to default values.',
+            'Bulk update completato.' => 'Bulk update completed.',
+            'Cache pulita con successo.' => 'Cache cleared successfully.',
+            'Plugin Privati' => 'Private Plugins',
+            'Plugin Pubblici' => 'Public Plugins',
+            'Temi Privati' => 'Private Themes',
+            'Temi Pubblici' => 'Public Themes',
+            'Traduzioni' => 'Translations',
+            'Plugin Repository Privato' => 'Private Plugin Repository',
+            'Temi Repository Privato' => 'Private Theme Repository',
+            'Repository non configurato.' => 'Repository not configured.',
+            'Repository Temi non configurato.' => 'Theme repository not configured.',
+            'Configura ora' => 'Configure now',
+            'Tutti i plugin privati sono aggiornati.' => 'All private plugins are up to date.',
+            'Tutti i plugin monitorati sono aggiornati.' => 'All monitored plugins are up to date.',
+            'Nessun aggiornamento temi disponibile.' => 'No theme updates available.',
+            'Escluso dagli aggiornamenti' => 'Excluded from updates',
+            'Tutti i plugin sono aggiornati.' => 'All plugins are up to date.',
+            'Versione Attuale' => 'Current Version',
+            'Nuova Versione' => 'New Version',
+            'Tipo' => 'Type',
+            'Stato' => 'Status',
+            'Premium' => 'Premium',
+            'Strumenti Aggiuntivi' => 'Additional Tools',
+            'Elaborazione in corso...' => 'Processing...',
+            'Avvio...' => 'Starting...',
+            'Sei sicuro di voler ripristinare questo backup? L\'attuale versione verrÃ  sovrascritta.' => 'Are you sure you want to restore this backup? The current version will be overwritten.',
+            'Sei sicuro di voler ripristinare questo backup? L\'attuale versione verrà sovrascritta.' => 'Are you sure you want to restore this backup? The current version will be overwritten.',
+            'Ripristino...' => 'Restoring...',
+            'Ripristino backup in corso...' => 'Backup restore in progress...',
+            'Preparazione ripristino...' => 'Preparing restore...',
+            'Ripristinato' => 'Restored',
+            'Ripristino completato!' => 'Restore completed!',
+            'Backup ripristinato con successo!' => 'Backup restored successfully!',
+            'Errore!' => 'Error!',
+            'Errore:' => 'Error:',
+            'Sconosciuto' => 'Unknown',
+            'Errore di connessione' => 'Connection error',
+            'Errore di connessione al server.' => 'Server connection error.',
+            'Backup in corso...' => 'Backup in progress...',
+            'Aggiornamento' => 'Updating',
+            'Scaricamento pacchetto...' => 'Downloading package...',
+            'Estrazione file...' => 'Extracting files...',
+            'Installazione...' => 'Installing...',
+            'Completato!' => 'Completed!',
+            'aggiornato con successo!' => 'updated successfully!',
+            'Riprova' => 'Retry',
+            'Seleziona almeno un elemento da aggiornare.' => 'Select at least one item to update.',
+            'Sei sicuro di voler aggiornare' => 'Are you sure you want to update',
+            'elementi?' => 'items?',
+            'Aggiornamento massivo in corso...' => 'Bulk update in progress...',
+            'Tutti gli aggiornamenti completati.' => 'All updates completed.',
+            'Aggiornamento:' => 'Updating:',
+            'Sei sicuro di voler aggiornare tutti i plugin, temi e traduzioni?' => 'Are you sure you want to update all plugins, themes, and translations?',
+            'Controllo aggiornamenti in corso...' => 'Checking updates...',
+            'Recupero lista aggiornamenti...' => 'Retrieving update list...',
+            'Errore durante il recupero degli aggiornamenti' => 'Error while retrieving updates',
+            'Plugin Privato:' => 'Private Plugin:',
+            'Plugin Ufficiale:' => 'Official Plugin:',
+            'Nessun aggiornamento necessario.' => 'No updates needed.',
+            'Tutto aggiornato!' => 'Everything is up to date!',
+            'Tutti gli aggiornamenti completati!' => 'All updates completed!',
+            'Aggiornamento massivo completato.' => 'Bulk update completed.',
+            'Aggiornamento in corso:' => 'Updating:',
+            'Impostazione salvata:' => 'Setting saved:',
+            'Incluso' => 'Included',
+            'Errore nel salvataggio' => 'Error while saving',
+            'Sei sicuro di voler aggiornare tutti i plugin pubblici?' => 'Are you sure you want to update all public plugins?',
+            'Aggiornamento plugin pubblici...' => 'Updating public plugins...',
+            'Inizio aggiornamento...' => 'Starting update...',
+            'Aggiornamento completato!' => 'Update completed!',
+            'Plugin pubblici aggiornati con successo' => 'Public plugins updated successfully',
+            'Errore durante l\'aggiornamento' => 'Error during update',
+            'Pulizia in corso...' => 'Cleaning...',
+            'Sei sicuro di voler pulire la cache? Questo ricaricherà la lista degli aggiornamenti dal repository.' => 'Are you sure you want to clear the cache? This will reload the update list from the repository.',
+            'Seleziona almeno un plugin da installare' => 'Select at least one plugin to install',
+            'Sei sicuro di voler installare i plugin selezionati?' => 'Are you sure you want to install the selected plugins?',
+            'Installazione in corso...' => 'Installation in progress...',
+            'Installazione plugin...' => 'Installing plugins...',
+            'Installazione completata!' => 'Installation completed!',
+            'Plugin installati con successo' => 'Plugins installed successfully',
+            'Errore durante l\'installazione' => 'Error during installation',
+            'Installa selezionati' => 'Install selected',
+            'Inserisci un indirizzo email' => 'Enter an email address',
+            'Invio in corso...' => 'Sending...',
+            'Invia mail di test' => 'Send test email',
+            'Email di test inviata con successo' => 'Test email sent successfully',
+            'Errore nell\'invio dell\'email' => 'Error sending email',
         ];
     }
 
@@ -332,12 +394,7 @@ JS
 
     public function settings_page() {
         $settingsUpdated = $_GET['settings-updated'] ?? '';
-        $licenseUpdated = $_GET['license-updated'] ?? '';
         $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'general';
-        $license_active = method_exists($this, 'is_license_active') ? $this->is_license_active() : false;
-        $license_status = class_exists('MCU_License') ? MCU_License::get_status() : [];
-        $license_label = class_exists('MCU_License') ? MCU_License::status_label() : ['label' => 'Non disponibile', 'badge' => 'mcu-badge-warning'];
-        $license_checked = !empty($license_status['checked_at']) ? date_i18n('d/m/Y H:i', (int) $license_status['checked_at']) : __('Mai', 'marrison-custom-updater');
         ?>
         <div class="mcu-wrap">
             <?php $this->render_header(__('Impostazioni', 'marrison-custom-updater')); ?>
@@ -354,54 +411,18 @@ JS
             <?php elseif ($settingsUpdated === 'removed'): ?>
                 <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('URL del repository rimosso.', 'marrison-custom-updater'); ?></div>
             <?php endif; ?>
-            <?php if ($licenseUpdated === 'activated'): ?>
-                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Licenza attivata correttamente.', 'marrison-custom-updater'); ?></div>
-            <?php elseif ($licenseUpdated === 'failed'): ?>
-                <div class="mcu-notice mcu-notice-error"><span class="dashicons dashicons-warning"></span> <?php esc_html_e('Licenza non valida o Commander non raggiungibile.', 'marrison-custom-updater'); ?></div>
-            <?php endif; ?>
             <?php if (isset($_GET['cache_cleared'])): ?>
                 <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Cache pulita.', 'marrison-custom-updater'); ?></div>
             <?php endif; ?>
             <?php if (isset($_GET['mcu_checked'])): ?>
                 <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Controllo aggiornamenti MCU forzato con successo.', 'marrison-custom-updater'); ?></div>
             <?php endif; ?>
-            <?php if (!$license_active && $active_tab !== 'general'): ?>
-                <?php $this->render_license_required_page(__('Impostazioni', 'marrison-custom-updater'), false); ?>
-                <?php return; ?>
-            <?php endif; ?>
             <?php if ($active_tab == 'general'): ?>
                 <div class="mcu-card">
-                    <div class="mcu-card-header">
-                        <h2 class="mcu-card-title"><span class="dashicons dashicons-admin-network"></span> <?php esc_html_e('Licenza Commander', 'marrison-custom-updater'); ?></h2>
-                    </div>
                     <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
                         <?php wp_nonce_field('mcu_save_repo_url'); ?>
                         <input type="hidden" name="action" value="mcu_save_repo_url">
-                        <table class="form-table">
-                            <tr>
-                                <th scope="row"><?php esc_html_e('Stato licenza', 'marrison-custom-updater'); ?></th>
-                                <td>
-                                    <span class="mcu-badge <?php echo esc_attr($license_label['badge']); ?>"><?php echo esc_html($license_label['label']); ?></span>
-                                    <p class="description">
-                                        <?php esc_html_e('Ultima verifica:', 'marrison-custom-updater'); ?> <strong><?php echo esc_html($license_checked); ?></strong>
-                                        <?php if (!empty($license_status['message'])): ?>
-                                            <br><?php echo esc_html($license_status['message']); ?>
-                                        <?php endif; ?>
-                                    </p>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th scope="row"><label for="mcu_license_key"><?php esc_html_e('Chiave di licenza', 'marrison-custom-updater'); ?></label></th>
-                                <td>
-                                    <input type="text" id="mcu_license_key" name="mcu_license_key" value="<?php echo class_exists('MCU_License') ? esc_attr(MCU_License::get_key()) : ''; ?>" class="regular-text" style="width: 100%; max-width: 500px;" placeholder="MC-XXXX-XXXX-XXXX-XXXX" autocomplete="off">
-                                    <p class="description"><?php esc_html_e('La chiave deve risultare valida su Marrison Commander per abilitare gli aggiornamenti privati.', 'marrison-custom-updater'); ?></p>
-                                </td>
-                            </tr>
-                        </table>
-                        <div style="margin-top: 20px; display: flex; gap: 10px; margin-bottom: 30px;">
-                            <button class="mcu-button mcu-button-primary" type="submit"><?php esc_html_e('Salva e verifica licenza', 'marrison-custom-updater'); ?></button>
-                        </div>
-                        <div class="mcu-card-header" style="margin-top: 10px;">
+                        <div class="mcu-card-header">
                             <h2 class="mcu-card-title"><span class="dashicons dashicons-database"></span> <?php esc_html_e('Impostazioni Repository', 'marrison-custom-updater'); ?></h2>
                         </div>
                         <table class="form-table">
@@ -773,9 +794,6 @@ JS
         if (!current_user_can('manage_options')) {
             wp_die(esc_html__('Permessi insufficienti', 'marrison-custom-updater'));
         }
-        if (method_exists($this, 'enforce_active_license_admin')) {
-            $this->enforce_active_license_admin();
-        }
 
         // Use MCU_PLUGIN_DIR if defined, otherwise fallback to dirname logic
         $base_path = defined('MCU_PLUGIN_DIR') ? MCU_PLUGIN_DIR : plugin_dir_path(dirname(dirname(dirname(__FILE__))));
@@ -805,9 +823,6 @@ JS
         check_admin_referer('marrison_download_theme_repo_file');
         if (!current_user_can('manage_options')) {
             wp_die(esc_html__('Permessi insufficienti', 'marrison-custom-updater'));
-        }
-        if (method_exists($this, 'enforce_active_license_admin')) {
-            $this->enforce_active_license_admin();
         }
 
         // Use MCU_PLUGIN_DIR if defined, otherwise fallback to dirname logic
@@ -983,11 +998,6 @@ JS
     }
 
     public function backup_page() {
-        if (method_exists($this, 'is_license_active') && !$this->is_license_active()) {
-            $this->render_license_required_page(__('Backup Disponibili', 'marrison-custom-updater'));
-            return;
-        }
-
         $restored = $_GET['restored'] ?? '';
         $this->cleanup_orphan_plugin_backups();
         if (!function_exists('get_plugins')) {
@@ -1214,11 +1224,6 @@ JS
     }
 
     public function admin_page() {
-        if (method_exists($this, 'is_license_active') && !$this->is_license_active()) {
-            $this->render_license_required_page(__('Aggiornamenti', 'marrison-custom-updater'));
-            return;
-        }
-
         $updates     = $this->get_available_updates();
         $theme_updates = $this->get_available_theme_updates();
         $plugins     = get_plugins();
@@ -1353,14 +1358,14 @@ JS
                     data-nonce-auto="<?php echo wp_create_nonce('marrison_auto_update'); ?>"
                     data-nonce-bulk="<?php echo wp_create_nonce('marrison_bulk_update'); ?>"
                     data-nonce-all="<?php echo wp_create_nonce('marrison_update_all'); ?>">
-                <span class="dashicons dashicons-update-alt"></span> Aggiorna tutto
+                <span class="dashicons dashicons-update-alt"></span> <?php esc_html_e('Aggiorna tutto', 'marrison-custom-updater'); ?>
             </button>
             <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="display:inline;">
                 <?php wp_nonce_field('marrison_clear_cache'); ?>
                 <input type="hidden" name="action" value="marrison_clear_cache">
                 <input type="hidden" name="redirect_to" value="<?php echo esc_url(admin_url('admin.php?page=marrison-updater&cache_cleared=1')); ?>">
                 <button class="mcu-button mcu-button-secondary mcu-action-clear-cache">
-                    <span class="dashicons dashicons-update"></span> Pulisci Cache
+                    <span class="dashicons dashicons-update"></span> <?php esc_html_e('Pulisci Cache', 'marrison-custom-updater'); ?>
                 </button>
             </form>
             <?php
@@ -1368,25 +1373,25 @@ JS
             $this->render_header('WP Master Updater', $header_actions);
             ?>
             <?php if ($settingsUpdated === 'saved'): ?>
-                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Impostazioni salvate correttamente.</div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Impostazioni salvate correttamente.', 'marrison-custom-updater'); ?></div>
             <?php elseif ($settingsUpdated === 'removed'): ?>
-                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> URL del repository ripristinato ai valori predefiniti.</div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('URL del repository ripristinato ai valori predefiniti.', 'marrison-custom-updater'); ?></div>
             <?php endif; ?>
             <?php if ($bulkUpdated): ?>
-                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Bulk update completato.</div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Bulk update completato.', 'marrison-custom-updater'); ?></div>
             <?php endif; ?>
             <?php if (isset($_GET['cache_cleared'])): ?>
-                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> Cache pulita con successo.</div>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Cache pulita con successo.', 'marrison-custom-updater'); ?></div>
             <?php endif; ?>
             <div class="mcu-progress-container">
                 <div class="mcu-progress-header">
-                    <span id="mcu-progress-title">Aggiornamento in corso...</span>
+                    <span id="mcu-progress-title"><?php esc_html_e('Aggiornamento in corso...', 'marrison-custom-updater'); ?></span>
                     <span id="mcu-progress-percentage"></span>
                 </div>
                 <div class="mcu-progress-track">
                     <div class="mcu-progress-bar"></div>
                 </div>
-                <div class="mcu-progress-status" id="mcu-progress-status-text">Inizializzazione...</div>
+                <div class="mcu-progress-status" id="mcu-progress-status-text"><?php esc_html_e('Inizializzazione...', 'marrison-custom-updater'); ?></div>
             </div>
             <div class="mcu-dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
                 <div class="mcu-card mcu-stat-card">
@@ -1399,13 +1404,13 @@ JS
                             <?php echo $repo_updates_count > 0 ? $repo_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
                         </div>
                     <?php endif; ?>
-                    <div class="mcu-stat-label">Plugin Privati</div>
+                    <div class="mcu-stat-label"><?php esc_html_e('Plugin Privati', 'marrison-custom-updater'); ?></div>
                 </div>
                 <div class="mcu-card mcu-stat-card">
                     <div class="mcu-stat-number" style="color: <?php echo $public_plugin_updates_count > 0 ? 'var(--mcu-danger)' : 'var(--mcu-success)'; ?>;">
                         <?php echo $public_plugin_updates_count > 0 ? $public_plugin_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
                     </div>
-                    <div class="mcu-stat-label">Plugin Pubblici</div>
+                    <div class="mcu-stat-label"><?php esc_html_e('Plugin Pubblici', 'marrison-custom-updater'); ?></div>
                 </div>
                 <div class="mcu-card mcu-stat-card">
                     <?php if (empty($theme_repo_url_config)): ?>
@@ -1417,19 +1422,19 @@ JS
                             <?php echo $theme_updates_count > 0 ? $theme_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
                         </div>
                     <?php endif; ?>
-                    <div class="mcu-stat-label">Temi Privati</div>
+                    <div class="mcu-stat-label"><?php esc_html_e('Temi Privati', 'marrison-custom-updater'); ?></div>
                 </div>
                 <div class="mcu-card mcu-stat-card">
                     <div class="mcu-stat-number" style="color: <?php echo $public_theme_updates_count > 0 ? 'var(--mcu-danger)' : 'var(--mcu-success)'; ?>;">
                         <?php echo $public_theme_updates_count > 0 ? $public_theme_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
                     </div>
-                    <div class="mcu-stat-label">Temi Pubblici</div>
+                    <div class="mcu-stat-label"><?php esc_html_e('Temi Pubblici', 'marrison-custom-updater'); ?></div>
                 </div>
                 <div class="mcu-card mcu-stat-card">
                     <div class="mcu-stat-number" style="color: <?php echo $translation_updates_count > 0 ? 'var(--mcu-danger)' : 'var(--mcu-success)'; ?>;">
                         <?php echo $translation_updates_count > 0 ? $translation_updates_count : '<span class="dashicons dashicons-yes" style="font-size: 36px; height: 36px; width: 36px;"></span>'; ?>
                     </div>
-                    <div class="mcu-stat-label">Traduzioni</div>
+                    <div class="mcu-stat-label"><?php esc_html_e('Traduzioni', 'marrison-custom-updater'); ?></div>
                 </div>
             </div>
             <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
@@ -1437,20 +1442,20 @@ JS
                 <input type="hidden" name="action" value="marrison_bulk_update">
                 <div class="mcu-card" style="margin-bottom: 30px;">
                     <div class="mcu-card-header">
-                        <h2 class="mcu-card-title"><span class="dashicons dashicons-admin-plugins"></span> Plugin Repository Privato</h2>
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-admin-plugins"></span> <?php esc_html_e('Plugin Repository Privato', 'marrison-custom-updater'); ?></h2>
                         <?php if ($repo_updates_count > 0): ?>
-                            <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-bulk-update-private" data-type="plugin">Aggiorna Selezionati</button>
+                            <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-bulk-update-private" data-type="plugin"><?php esc_html_e('Aggiorna Selezionati', 'marrison-custom-updater'); ?></button>
                         <?php endif; ?>
                     </div>
                     <?php if (empty($updates)): ?>
                         <div class="mcu-empty-state">
                             <?php if (empty($repo_url_config)): ?>
                                 <span class="dashicons dashicons-warning" style="color: var(--mcu-warning);"></span>
-                                <p>Repository non configurato.</p>
-                                <a href="<?php echo admin_url('admin.php?page=marrison-updater-settings'); ?>" class="mcu-button mcu-button-secondary">Configura ora</a>
+                                <p><?php esc_html_e('Repository non configurato.', 'marrison-custom-updater'); ?></p>
+                                <a href="<?php echo admin_url('admin.php?page=marrison-updater-settings'); ?>" class="mcu-button mcu-button-secondary"><?php esc_html_e('Configura ora', 'marrison-custom-updater'); ?></a>
                             <?php else: ?>
                                 <span class="dashicons dashicons-saved"></span>
-                                <p>Tutti i plugin privati sono aggiornati.</p>
+                                <p><?php esc_html_e('Tutti i plugin privati sono aggiornati.', 'marrison-custom-updater'); ?></p>
                             <?php endif; ?>
                         </div>
                     <?php else: ?>
@@ -1539,16 +1544,16 @@ JS
                 </div>
                 <div class="mcu-card" style="margin-bottom: 30px;">
                     <div class="mcu-card-header">
-                        <h2 class="mcu-card-title"><span class="dashicons dashicons-art"></span> Temi Repository Privato</h2>
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-art"></span> <?php esc_html_e('Temi Repository Privato', 'marrison-custom-updater'); ?></h2>
                         <?php if ($theme_updates_count > 0): ?>
-                            <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-bulk-update-private" data-type="theme">Aggiorna Selezionati</button>
+                            <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-bulk-update-private" data-type="theme"><?php esc_html_e('Aggiorna Selezionati', 'marrison-custom-updater'); ?></button>
                         <?php endif; ?>
                     </div>
                     <?php if (empty($theme_repo_url_config)): ?>
                         <div class="mcu-empty-state">
                             <span class="dashicons dashicons-warning" style="color: var(--mcu-warning);"></span>
-                            <p>Repository Temi non configurato.</p>
-                            <a href="<?php echo admin_url('admin.php?page=marrison-updater-settings'); ?>" class="mcu-button mcu-button-secondary">Configura ora</a>
+                            <p><?php esc_html_e('Repository Temi non configurato.', 'marrison-custom-updater'); ?></p>
+                            <a href="<?php echo admin_url('admin.php?page=marrison-updater-settings'); ?>" class="mcu-button mcu-button-secondary"><?php esc_html_e('Configura ora', 'marrison-custom-updater'); ?></a>
                         </div>
                     <?php else: ?>
                     <table class="mcu-table">
@@ -1587,7 +1592,7 @@ JS
                                         <?php $nonce = wp_create_nonce('marrison_update_theme_' . $slug); ?>
                                         <input type="checkbox" name="themes[]" value="<?php echo esc_attr($slug); ?>" data-nonce="<?php echo esc_attr($nonce); ?>">
                                     <?php elseif($is_excluded): ?>
-                                        <span class="dashicons dashicons-hidden" style="color:var(--mcu-warning);" title="Escluso dagli aggiornamenti"></span>
+                                        <span class="dashicons dashicons-hidden" style="color:var(--mcu-warning);" title="<?php esc_attr_e('Escluso dagli aggiornamenti', 'marrison-custom-updater'); ?>"></span>
                                     <?php else: ?>
                                         <span class="dashicons dashicons-yes" style="color:var(--mcu-success);"></span>
                                     <?php endif; ?>
@@ -1603,7 +1608,7 @@ JS
                                     <?php endif; ?>
                                     <?php if($is_excluded): ?>
                                         <div style="margin-top: 4px;">
-                                            <span class="mcu-badge mcu-badge-warning" style="font-size:10px;">Escluso</span>
+                                            <span class="mcu-badge mcu-badge-warning" style="font-size:10px;"><?php esc_html_e('Escluso', 'marrison-custom-updater'); ?></span>
                                         </div>
                                     <?php endif; ?>
                                 </td>
@@ -1615,12 +1620,12 @@ JS
                                                 data-version="<?php echo esc_attr($u['version']); ?>"
                                                 data-nonce="<?php echo esc_attr($nonce); ?>"
                                                 data-type="theme">
-                                            Aggiorna
+                                            <?php esc_html_e('Aggiorna', 'marrison-custom-updater'); ?>
                                         </button>
                                     <?php elseif($is_excluded): ?>
-                                        <span style="color:var(--mcu-warning); font-size:12px; font-weight:500;">Escluso</span>
+                                        <span style="color:var(--mcu-warning); font-size:12px; font-weight:500;"><?php esc_html_e('Escluso', 'marrison-custom-updater'); ?></span>
                                     <?php else: ?>
-                                        <span style="color:var(--mcu-success); font-size:12px; font-weight:500;">Aggiornato</span>
+                                        <span style="color:var(--mcu-success); font-size:12px; font-weight:500;"><?php esc_html_e('Aggiornato', 'marrison-custom-updater'); ?></span>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -1628,7 +1633,7 @@ JS
                             }
                         endforeach; 
                         if (!$has_theme_updates): ?>
-                            <tr><td colspan="4" style="text-align:center; padding: 20px;">Nessun aggiornamento temi disponibile.</td></tr>
+                            <tr><td colspan="4" style="text-align:center; padding: 20px;"><?php esc_html_e('Nessun aggiornamento temi disponibile.', 'marrison-custom-updater'); ?></td></tr>
                         <?php endif; ?>
                         </tbody>
                     </table>
@@ -1715,18 +1720,18 @@ JS
             ?>
             <div class="mcu-card">
                 <div class="mcu-card-header">
-                    <h2 class="mcu-card-title"><span class="dashicons dashicons-wordpress"></span> Plugin con Aggiornamenti</h2>
+                    <h2 class="mcu-card-title"><span class="dashicons dashicons-wordpress"></span> <?php esc_html_e('Plugin con Aggiornamenti', 'marrison-custom-updater'); ?></h2>
                     <?php if ($public_plugin_updates_count > 0): ?>
                         <?php $auto_update_nonce = wp_create_nonce('marrison_auto_update'); ?>
                         <button type="button" class="mcu-button mcu-button-primary mcu-button-sm mcu-action-auto-update" data-nonce="<?php echo esc_attr($auto_update_nonce); ?>">
-                            Aggiorna Tutti
+                            <?php esc_html_e('Aggiorna Tutti', 'marrison-custom-updater'); ?>
                         </button>
                     <?php endif; ?>
                 </div>
                 <?php if (empty($plugins_with_auto_update)): ?>
                     <div class="mcu-empty-state">
                         <span class="dashicons dashicons-yes-alt"></span>
-                        <p>Tutti i plugin sono aggiornati.</p>
+                        <p><?php esc_html_e('Tutti i plugin sono aggiornati.', 'marrison-custom-updater'); ?></p>
                     </div>
                 <?php else: ?>
                     <table class="mcu-table">
@@ -1750,7 +1755,7 @@ JS
                                         <?php echo esc_html($info['name']); ?>
                                         <?php if($is_excluded): ?>
                                             <div style="margin-top: 4px;">
-                                                <span class="mcu-badge mcu-badge-warning" style="font-size:10px;">Escluso</span>
+                                                <span class="mcu-badge mcu-badge-warning" style="font-size:10px;"><?php esc_html_e('Escluso', 'marrison-custom-updater'); ?></span>
                                             </div>
                                         <?php endif; ?>
                                     </td>
@@ -1758,16 +1763,16 @@ JS
                                     <td><span class="mcu-badge mcu-badge-primary"><?php echo esc_html($info['new_version']); ?></span></td>
                                     <td>
                                         <?php if(isset($info['is_premium']) && $info['is_premium']): ?>
-                                            <span class="mcu-badge mcu-badge-warning" style="font-size:10px;">Premium</span>
+                                            <span class="mcu-badge mcu-badge-warning" style="font-size:10px;"><?php esc_html_e('Premium', 'marrison-custom-updater'); ?></span>
                                         <?php else: ?>
                                             <span class="mcu-badge mcu-badge-success" style="font-size:10px;">WordPress.org</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
                                         <?php if($is_excluded): ?>
-                                            <span class="mcu-badge mcu-badge-warning">Escluso</span>
+                                            <span class="mcu-badge mcu-badge-warning"><?php esc_html_e('Escluso', 'marrison-custom-updater'); ?></span>
                                         <?php else: ?>
-                                            <span class="mcu-badge mcu-badge-warning">In attesa</span>
+                                            <span class="mcu-badge mcu-badge-warning"><?php esc_html_e('In attesa', 'marrison-custom-updater'); ?></span>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -1777,16 +1782,16 @@ JS
                 <?php endif; ?>
             </div>
             <div class="mcu-card" style="margin-top: 20px; padding: 15px;">
-                <h3 style="margin: 0 0 15px 0;">Strumenti Aggiuntivi</h3>
+                <h3 style="margin: 0 0 15px 0;"><?php esc_html_e('Strumenti Aggiuntivi', 'marrison-custom-updater'); ?></h3>
                 <div style="display:flex; gap: 10px;">
                     <?php $auto_update_nonce = wp_create_nonce('marrison_auto_update'); ?>
                     <button type="button" class="mcu-button mcu-button-secondary marrison-update-themes-btn" 
                             data-nonce="<?php echo esc_attr($auto_update_nonce); ?>">
-                        <span class="dashicons dashicons-art"></span> Aggiorna tutti i temi
+                        <span class="dashicons dashicons-art"></span> <?php esc_html_e('Aggiorna tutti i temi', 'marrison-custom-updater'); ?>
                     </button>
                     <button type="button" class="mcu-button mcu-button-secondary marrison-update-translations-btn" 
                             data-nonce="<?php echo esc_attr($auto_update_nonce); ?>" style="margin-left: 10px;">
-                        <span class="dashicons dashicons-translation"></span> Aggiorna tutte le traduzioni
+                        <span class="dashicons dashicons-translation"></span> <?php esc_html_e('Aggiorna tutte le traduzioni', 'marrison-custom-updater'); ?>
                     </button>
                 </div>
             </div>
@@ -1805,9 +1810,6 @@ JS
         
         if (!current_user_can('update_themes')) {
             wp_send_json_error('Insufficient permissions');
-        }
-        if (method_exists($this, 'enforce_active_license_ajax')) {
-            $this->enforce_active_license_ajax();
         }
         include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
         include_once ABSPATH . 'wp-admin/includes/theme.php';
@@ -1856,9 +1858,6 @@ JS
         check_ajax_referer('marrison_auto_update', 'nonce');
         if (!current_user_can('update_core')) {
             wp_send_json_error('Insufficient permissions');
-        }
-        if (method_exists($this, 'enforce_active_license_ajax')) {
-            $this->enforce_active_license_ajax();
         }
 
         // Increase execution time to avoid timeouts during multiple remote checks
@@ -2010,9 +2009,6 @@ JS
         check_ajax_referer('marrison_update_all', 'nonce');
         if (!current_user_can('manage_options')) {
             wp_send_json_error('Insufficient permissions');
-        }
-        if (method_exists($this, 'enforce_active_license_ajax')) {
-            $this->enforce_active_license_ajax();
         }
         $data = $this->get_all_updates_data();
         wp_send_json_success($data);

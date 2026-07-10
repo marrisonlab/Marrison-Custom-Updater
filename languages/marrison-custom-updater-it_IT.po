@@ -25,10 +25,6 @@ msgstr "%d plugin installati con successo."
 msgid "Richiede PHP %s (Attuale: %s)"
 msgstr "Richiede PHP %s (Attuale: %s)"
 
-#: includes/traits/SchedulingTrait.php:106
-msgid "Impossibile contattare Commander: %s"
-msgstr "Impossibile contattare Commander: %s"
-
 #: includes/traits/UpdateOperationsTrait.php:272
 msgid "Impossibile inizializzare il filesystem."
 msgstr "Impossibile inizializzare il filesystem."
@@ -98,42 +94,6 @@ msgstr "Non sei autorizzato a visualizzare questa pagina."
 msgid "Verifica permessi"
 msgstr "Verifica permessi"
 
-#: includes/class-mcu-license.php:63
-msgid "Nessuna licenza inserita"
-msgstr "Nessuna licenza inserita"
-
-#: includes/class-mcu-license.php:71
-msgid "Licenza attiva"
-msgstr "Licenza attiva"
-
-#: includes/class-mcu-license.php:73
-msgid "Licenza scaduta"
-msgstr "Licenza scaduta"
-
-#: includes/class-mcu-license.php:75
-msgid "Licenza non valida"
-msgstr "Licenza non valida"
-
-#: includes/class-mcu-license.php:77
-msgid "Commander non raggiungibile"
-msgstr "Commander non raggiungibile"
-
-#: includes/class-mcu-license.php:79
-msgid "Da verificare"
-msgstr "Da verificare"
-
-#: includes/class-mcu-license.php:87
-msgid "Inserisci una chiave di licenza."
-msgstr "Inserisci una chiave di licenza."
-
-#: includes/class-mcu-license.php:109
-msgid "Impossibile contattare il server delle licenze. Riprova piu tardi."
-msgstr "Impossibile contattare il server delle licenze. Riprova più tardi."
-
-#: includes/class-mcu-license.php:123 includes/class-mcu-license.php:126
-msgid "Licenza attivata con successo."
-msgstr "Licenza attivata con successo."
-
 msgid "Impostazioni"
 msgstr "Impostazioni"
 
@@ -155,35 +115,14 @@ msgstr "Impostazioni salvate correttamente."
 msgid "URL del repository rimosso."
 msgstr "URL del repository rimosso."
 
-msgid "Licenza attivata correttamente."
-msgstr "Licenza attivata correttamente."
-
-msgid "Licenza non valida o Commander non raggiungibile."
-msgstr "Licenza non valida o Commander non raggiungibile."
-
 msgid "Cache pulita."
 msgstr "Cache pulita."
 
 msgid "Controllo aggiornamenti MCU forzato con successo."
 msgstr "Controllo aggiornamenti MCU forzato con successo."
 
-msgid "Licenza Commander"
-msgstr "Licenza Commander"
-
-msgid "Stato licenza"
-msgstr "Stato licenza"
-
 msgid "Ultima verifica:"
 msgstr "Ultima verifica:"
-
-msgid "Chiave di licenza"
-msgstr "Chiave di licenza"
-
-msgid "La chiave deve risultare valida su Marrison Commander per abilitare gli aggiornamenti privati."
-msgstr "La chiave deve risultare valida su Marrison Commander per abilitare gli aggiornamenti privati."
-
-msgid "Salva e verifica licenza"
-msgstr "Salva e verifica licenza"
 
 msgid "Impostazioni Repository"
 msgstr "Impostazioni Repository"
@@ -209,14 +148,6 @@ msgstr "Sei sicuro di voler rimuovere gli URL?"
 msgid "Rimuovi URL"
 msgstr "Rimuovi URL"
 
-#: includes/class-mcu-license.php:129
-msgid "Chiave di licenza non valida o scaduta."
-msgstr "Chiave di licenza non valida o scaduta."
-
-#: includes/class-mcu-license.php:180
-msgid "Licenza non piu valida."
-msgstr "Licenza non più valida."
-
 #: custom_updater.php:182 custom_updater.php:297 custom_updater.php:374
 msgid "Security check failed"
 msgstr "Controllo di sicurezza fallito"
@@ -234,8 +165,8 @@ msgid "Nessun plugin \"normale\" ha aggiornamenti disponibili"
 msgstr "Nessun plugin \"normale\" ha aggiornamenti disponibili"
 
 #: custom_updater.php:290
-msgid "Nessun plugin è stato aggiornato"
-msgstr "Nessun plugin è stato aggiornato"
+msgid "Nessun plugin Ã¨ stato aggiornato"
+msgstr "Nessun plugin Ã¨ stato aggiornato"
 
 #: custom_updater.php:382
 msgid "Missing file parameter"
@@ -261,17 +192,8 @@ msgstr "Visita il sito del plugin"
 msgid "Permessi insufficienti"
 msgstr "Permessi insufficienti"
 
-msgid "Licenza MCU non attiva. Inserisci una chiave valida nelle impostazioni per usare questo plugin."
-msgstr "Licenza MCU non attiva. Inserisci una chiave valida nelle impostazioni per usare questo plugin."
-
 msgid "WP Master Updater"
 msgstr "WP Master Updater"
-
-msgid "Licenza richiesta"
-msgstr "Licenza richiesta"
-
-msgid "Vai alle impostazioni licenza"
-msgstr "Vai alle impostazioni licenza"
 
 msgid "Aggiornamenti"
 msgstr "Aggiornamenti"
@@ -284,9 +206,6 @@ msgstr "Backup Disponibili"
 
 msgid "Permessi insufficienti."
 msgstr "Permessi insufficienti."
-
-msgid "Licenza MCU non attiva. Aggiornamento programmato saltato."
-msgstr "Licenza MCU non attiva. Aggiornamento programmato saltato."
 
 msgid "Stato Plugin"
 msgstr "Stato Plugin"
@@ -378,8 +297,8 @@ msgstr "Messaggio:"
 msgid "Aggiornamenti Trovati:"
 msgstr "Aggiornamenti Trovati:"
 
-msgid "Sì"
-msgstr "Sì"
+msgid "SÃ¬"
+msgstr "SÃ¬"
 
 msgid "No"
 msgstr "No"
@@ -548,3 +467,282 @@ msgstr "Tipo"
 
 msgid "Stato"
 msgstr "Stato"
+
+msgid "Aggiorna tutto"
+msgstr "Aggiorna tutto"
+
+msgid "Aggiorna Tutti"
+msgstr "Aggiorna Tutti"
+
+msgid "Aggiorna Selezionati"
+msgstr "Aggiorna Selezionati"
+
+msgid "In attesa"
+msgstr "In attesa"
+
+msgid "Backup Database"
+msgstr "Backup Database"
+
+msgid "Azioni"
+msgstr "Azioni"
+
+msgid "Sì"
+msgstr "Sì"
+
+msgid "Strumenti Aggiuntivi"
+msgstr "Strumenti Aggiuntivi"
+
+msgid "Aggiorna tutti i temi"
+msgstr "Aggiorna tutti i temi"
+
+msgid "Aggiorna tutte le traduzioni"
+msgstr "Aggiorna tutte le traduzioni"
+
+msgid "Plugin con Aggiornamenti"
+msgstr "Plugin con Aggiornamenti"
+
+msgid "Aggiornamento in corso..."
+msgstr "Aggiornamento in corso..."
+
+msgid "Pulisci Cache"
+msgstr "Pulisci Cache"
+
+msgid "URL del repository ripristinato ai valori predefiniti."
+msgstr "URL del repository ripristinato ai valori predefiniti."
+
+msgid "Bulk update completato."
+msgstr "Bulk update completato."
+
+msgid "Cache pulita con successo."
+msgstr "Cache pulita con successo."
+
+msgid "Plugin Privati"
+msgstr "Plugin Privati"
+
+msgid "Plugin Pubblici"
+msgstr "Plugin Pubblici"
+
+msgid "Temi Privati"
+msgstr "Temi Privati"
+
+msgid "Temi Pubblici"
+msgstr "Temi Pubblici"
+
+msgid "Traduzioni"
+msgstr "Traduzioni"
+
+msgid "Plugin Repository Privato"
+msgstr "Plugin Repository Privato"
+
+msgid "Temi Repository Privato"
+msgstr "Temi Repository Privato"
+
+msgid "Repository non configurato."
+msgstr "Repository non configurato."
+
+msgid "Repository Temi non configurato."
+msgstr "Repository Temi non configurato."
+
+msgid "Configura ora"
+msgstr "Configura ora"
+
+msgid "Tutti i plugin privati sono aggiornati."
+msgstr "Tutti i plugin privati sono aggiornati."
+
+msgid "Nessun aggiornamento temi disponibile."
+msgstr "Nessun aggiornamento temi disponibile."
+
+msgid "Tutti i plugin sono aggiornati."
+msgstr "Tutti i plugin sono aggiornati."
+
+msgid "Premium"
+msgstr "Premium"
+
+msgid "Strumenti Aggiuntivi"
+msgstr "Strumenti Aggiuntivi"
+
+msgid "Elaborazione in corso..."
+msgstr "Elaborazione in corso..."
+
+msgid "Avvio..."
+msgstr "Avvio..."
+
+msgid "Sei sicuro di voler ripristinare questo backup? L'attuale versione verrÃ  sovrascritta."
+msgstr "Sei sicuro di voler ripristinare questo backup? L'attuale versione verrÃ  sovrascritta."
+
+msgid "Sei sicuro di voler ripristinare questo backup? L'attuale versione verrà sovrascritta."
+msgstr "Sei sicuro di voler ripristinare questo backup? L'attuale versione verrà sovrascritta."
+
+msgid "Ripristino..."
+msgstr "Ripristino..."
+
+msgid "Ripristino backup in corso..."
+msgstr "Ripristino backup in corso..."
+
+msgid "Preparazione ripristino..."
+msgstr "Preparazione ripristino..."
+
+msgid "Ripristino completato!"
+msgstr "Ripristino completato!"
+
+msgid "Backup ripristinato con successo!"
+msgstr "Backup ripristinato con successo!"
+
+msgid "Errore!"
+msgstr "Errore!"
+
+msgid "Errore:"
+msgstr "Errore:"
+
+msgid "Sconosciuto"
+msgstr "Sconosciuto"
+
+msgid "Errore di connessione"
+msgstr "Errore di connessione"
+
+msgid "Errore di connessione al server."
+msgstr "Errore di connessione al server."
+
+msgid "Backup in corso..."
+msgstr "Backup in corso..."
+
+msgid "Aggiornamento"
+msgstr "Aggiornamento"
+
+msgid "Scaricamento pacchetto..."
+msgstr "Scaricamento pacchetto..."
+
+msgid "Estrazione file..."
+msgstr "Estrazione file..."
+
+msgid "Installazione..."
+msgstr "Installazione..."
+
+msgid "Completato!"
+msgstr "Completato!"
+
+msgid "aggiornato con successo!"
+msgstr "aggiornato con successo!"
+
+msgid "Riprova"
+msgstr "Riprova"
+
+msgid "Seleziona almeno un elemento da aggiornare."
+msgstr "Seleziona almeno un elemento da aggiornare."
+
+msgid "Sei sicuro di voler aggiornare"
+msgstr "Sei sicuro di voler aggiornare"
+
+msgid "elementi?"
+msgstr "elementi?"
+
+msgid "Aggiornamento massivo in corso..."
+msgstr "Aggiornamento massivo in corso..."
+
+msgid "Tutti gli aggiornamenti completati."
+msgstr "Tutti gli aggiornamenti completati."
+
+msgid "Aggiornamento:"
+msgstr "Aggiornamento:"
+
+msgid "Sei sicuro di voler aggiornare tutti i plugin, temi e traduzioni?"
+msgstr "Sei sicuro di voler aggiornare tutti i plugin, temi e traduzioni?"
+
+msgid "Controllo aggiornamenti in corso..."
+msgstr "Controllo aggiornamenti in corso..."
+
+msgid "Recupero lista aggiornamenti..."
+msgstr "Recupero lista aggiornamenti..."
+
+msgid "Errore durante il recupero degli aggiornamenti"
+msgstr "Errore durante il recupero degli aggiornamenti"
+
+msgid "Plugin Privato:"
+msgstr "Plugin Privato:"
+
+msgid "Plugin Ufficiale:"
+msgstr "Plugin Ufficiale:"
+
+msgid "Nessun aggiornamento necessario."
+msgstr "Nessun aggiornamento necessario."
+
+msgid "Tutto aggiornato!"
+msgstr "Tutto aggiornato!"
+
+msgid "Tutti gli aggiornamenti completati!"
+msgstr "Tutti gli aggiornamenti completati!"
+
+msgid "Aggiornamento massivo completato."
+msgstr "Aggiornamento massivo completato."
+
+msgid "Aggiornamento in corso:"
+msgstr "Aggiornamento in corso:"
+
+msgid "Impostazione salvata:"
+msgstr "Impostazione salvata:"
+
+msgid "Incluso"
+msgstr "Incluso"
+
+msgid "Errore nel salvataggio"
+msgstr "Errore nel salvataggio"
+
+msgid "Sei sicuro di voler aggiornare tutti i plugin pubblici?"
+msgstr "Sei sicuro di voler aggiornare tutti i plugin pubblici?"
+
+msgid "Aggiornamento plugin pubblici..."
+msgstr "Aggiornamento plugin pubblici..."
+
+msgid "Inizio aggiornamento..."
+msgstr "Inizio aggiornamento..."
+
+msgid "Aggiornamento completato!"
+msgstr "Aggiornamento completato!"
+
+msgid "Plugin pubblici aggiornati con successo"
+msgstr "Plugin pubblici aggiornati con successo"
+
+msgid "Errore durante l'aggiornamento"
+msgstr "Errore durante l'aggiornamento"
+
+msgid "Pulizia in corso..."
+msgstr "Pulizia in corso..."
+
+msgid "Sei sicuro di voler pulire la cache? Questo ricaricherà la lista degli aggiornamenti dal repository."
+msgstr "Sei sicuro di voler pulire la cache? Questo ricaricherà la lista degli aggiornamenti dal repository."
+
+msgid "Seleziona almeno un plugin da installare"
+msgstr "Seleziona almeno un plugin da installare"
+
+msgid "Sei sicuro di voler installare i plugin selezionati?"
+msgstr "Sei sicuro di voler installare i plugin selezionati?"
+
+msgid "Installazione in corso..."
+msgstr "Installazione in corso..."
+
+msgid "Installazione plugin..."
+msgstr "Installazione plugin..."
+
+msgid "Installazione completata!"
+msgstr "Installazione completata!"
+
+msgid "Plugin installati con successo"
+msgstr "Plugin installati con successo"
+
+msgid "Errore durante l'installazione"
+msgstr "Errore durante l'installazione"
+
+msgid "Installa selezionati"
+msgstr "Installa selezionati"
+
+msgid "Inserisci un indirizzo email"
+msgstr "Inserisci un indirizzo email"
+
+msgid "Invio in corso..."
+msgstr "Invio in corso..."
+
+msgid "Email di test inviata con successo"
+msgstr "Email di test inviata con successo"
+
+msgid "Errore nell'invio dell'email"
+msgstr "Errore nell'invio dell'email"

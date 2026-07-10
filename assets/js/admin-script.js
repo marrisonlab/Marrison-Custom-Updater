@@ -1,5 +1,9 @@
 jQuery(document).ready(function($) {
     console.log('WP Master Updater JS Loaded');
+
+    function t(text) {
+        return (window.mcuAdminTranslations && window.mcuAdminTranslations[text]) ? window.mcuAdminTranslations[text] : text;
+    }
     
     // UI Helpers
     const MCU = {
@@ -10,8 +14,8 @@ jQuery(document).ready(function($) {
                 scrollTop: $('.mcu-progress-container').offset().top - 50
             }, 500);
             
-            $('#mcu-progress-title').text(title || 'Elaborazione in corso...');
-            this.updateProgress(0, 'Avvio...');
+            $('#mcu-progress-title').text(title || t('Elaborazione in corso...'));
+            this.updateProgress(0, t('Avvio...'));
         },
         
         hideProgress: function() {
@@ -61,13 +65,13 @@ jQuery(document).ready(function($) {
         var filename = $btn.data('filename');
         var nonce = $btn.data('nonce');
         
-        if (!confirm('Sei sicuro di voler ripristinare questo backup? L\'attuale versione verrà sovrascritta.')) {
+        if (!confirm(t('Sei sicuro di voler ripristinare questo backup? L\'attuale versione verrà sovrascritta.'))) {
             return;
         }
 
-        $btn.prop('disabled', true).addClass('updating').html('<span class="dashicons dashicons-update-alt dashicons-spin"></span> Ripristino...');
-        MCU.showProgress('Ripristino backup in corso...');
-        MCU.updateProgress(10, 'Preparazione ripristino...');
+        $btn.prop('disabled', true).addClass('updating').html('<span class="dashicons dashicons-update-alt dashicons-spin"></span> ' + t('Ripristino...'));
+        MCU.showProgress(t('Ripristino backup in corso...'));
+        MCU.updateProgress(10, t('Preparazione ripristino...'));
 
         $.ajax({
             url: marrisonUpdater.ajaxurl,
@@ -79,22 +83,22 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    $btn.removeClass('updating').addClass('updated').prop('disabled', true).html('<span class="dashicons dashicons-yes"></span> Ripristinato');
-                    MCU.updateProgress(100, 'Ripristino completato!');
-                    MCU.toast('Backup ripristinato con successo!', 'success');
+                    $btn.removeClass('updating').addClass('updated').prop('disabled', true).html('<span class="dashicons dashicons-yes"></span> ' + t('Ripristinato'));
+                    MCU.updateProgress(100, t('Ripristino completato!'));
+                    MCU.toast(t('Backup ripristinato con successo!'), 'success');
                     setTimeout(function() {
                         location.reload();
                     }, 1500);
                 } else {
-                    $btn.prop('disabled', false).removeClass('updating').html('<span class="dashicons dashicons-undo"></span> Ripristina');
-                    MCU.updateProgress(100, 'Errore!');
-                    MCU.toast('Errore: ' + (response.data || 'Sconosciuto'), 'error');
+                    $btn.prop('disabled', false).removeClass('updating').html('<span class="dashicons dashicons-undo"></span> ' + t('Ripristina'));
+                    MCU.updateProgress(100, t('Errore!'));
+                    MCU.toast(t('Errore:') + ' ' + (response.data || t('Sconosciuto')), 'error');
                 }
             },
             error: function() {
-                $btn.prop('disabled', false).removeClass('updating').html('<span class="dashicons dashicons-undo"></span> Ripristina');
-                MCU.updateProgress(100, 'Errore di connessione');
-                MCU.toast('Errore di connessione al server.', 'error');
+                $btn.prop('disabled', false).removeClass('updating').html('<span class="dashicons dashicons-undo"></span> ' + t('Ripristina'));
+                MCU.updateProgress(100, t('Errore di connessione'));
+                MCU.toast(t('Errore di connessione al server.'), 'error');
             }
         });
     });
@@ -108,7 +112,7 @@ jQuery(document).ready(function($) {
         var nonce = $btn.data('nonce');
         var $result = $('#marrison-db-backup-result');
 
-        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update-alt dashicons-spin"></span> Backup in corso...');
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update-alt dashicons-spin"></span> ' + t('Backup in corso...'));
         $result.css('color', '#555').text('');
 
         $.ajax({
@@ -117,17 +121,17 @@ jQuery(document).ready(function($) {
             data: { action: 'marrison_db_backup', nonce: nonce },
             success: function(response) {
                 if (response.success) {
-                    $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> Esegui Backup Database');
+                    $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> ' + t('Esegui Backup Database'));
                     $result.css('color', 'var(--mcu-success, #46b450)').text('✓ ' + response.data.message);
                     setTimeout(function() { location.reload(); }, 1500);
                 } else {
-                    $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> Esegui Backup Database');
-                    $result.css('color', 'var(--mcu-danger, #d63638)').text('✗ ' + (response.data || 'Errore sconosciuto'));
+                    $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> ' + t('Esegui Backup Database'));
+                    $result.css('color', 'var(--mcu-danger, #d63638)').text('✗ ' + (response.data || t('Errore sconosciuto')));
                 }
             },
             error: function() {
-                $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> Esegui Backup Database');
-                $result.css('color', 'var(--mcu-danger, #d63638)').text('✗ Errore di connessione al server.');
+                $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> ' + t('Esegui Backup Database'));
+                $result.css('color', 'var(--mcu-danger, #d63638)').text('✗ ' + t('Errore di connessione al server.'));
             }
         });
     });
@@ -143,13 +147,13 @@ jQuery(document).ready(function($) {
         var version = $btn.data('version');
         
         var action = (type === 'theme') ? 'marrison_update_private_theme_ajax' : 'marrison_update_plugin_ajax';
-        var itemLabel = (type === 'theme') ? 'Tema' : 'Plugin';
+        var itemLabel = (type === 'theme') ? t('Tema') : t('Plugin');
         
         if($btn.prop('disabled')) return;
 
         // UI Updates
         $btn.prop('disabled', true).addClass('updating').html('<span class="dashicons dashicons-update-alt dashicons-spin"></span>');
-        MCU.showProgress('Aggiornamento ' + itemLabel);
+        MCU.showProgress(t('Aggiornamento') + ' ' + itemLabel);
         
         // Fake progress simulation
         var progress = 0;
@@ -157,9 +161,9 @@ jQuery(document).ready(function($) {
             progress += Math.random() * 5; // Slower increment
             if (progress > 90) progress = 90;
             
-            let statusText = 'Scaricamento pacchetto...';
-            if (progress > 30) statusText = 'Estrazione file...';
-            if (progress > 60) statusText = 'Installazione...';
+            let statusText = t('Scaricamento pacchetto...');
+            if (progress > 30) statusText = t('Estrazione file...');
+            if (progress > 60) statusText = t('Installazione...');
             
             MCU.updateProgress(progress, statusText);
         }, 800); // Slower interval
@@ -174,31 +178,31 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 clearInterval(progressInterval);
-                MCU.updateProgress(100, 'Completato!');
+                MCU.updateProgress(100, t('Completato!'));
                 
                 if (response.success) {
-                    $btn.removeClass('updating').addClass('updated').html('<span class="dashicons dashicons-yes"></span> Aggiornato');
+                    $btn.removeClass('updating').addClass('updated').html('<span class="dashicons dashicons-yes"></span> ' + t('Aggiornato'));
                     $btn.closest('tr').find('.mcu-badge-warning').removeClass('mcu-badge-warning').addClass('mcu-badge-success').text(version);
                     // Remove arrow and new version badge
                     $btn.closest('tr').find('.dashicons-arrow-right-alt2, .mcu-badge-success').remove();
                     
-                    MCU.toast(itemLabel + ' aggiornato con successo!', 'success');
+                    MCU.toast(itemLabel + ' ' + t('aggiornato con successo!'), 'success');
                     
                     // Reload to reflect changes globally
                     setTimeout(function() {
                         location.reload();
                     }, 1000);
                 } else {
-                    $btn.prop('disabled', false).removeClass('updating').html('Riprova');
-                    MCU.updateProgress(100, 'Errore!');
-                    MCU.toast('Errore: ' + (response.data || 'Sconosciuto'), 'error');
+                    $btn.prop('disabled', false).removeClass('updating').html(t('Riprova'));
+                    MCU.updateProgress(100, t('Errore!'));
+                    MCU.toast(t('Errore:') + ' ' + (response.data || t('Sconosciuto')), 'error');
                 }
             },
             error: function() {
                 clearInterval(progressInterval);
-                $btn.prop('disabled', false).removeClass('updating').html('Riprova');
-                MCU.updateProgress(100, 'Errore di connessione');
-                MCU.toast('Errore di connessione al server.', 'error');
+                $btn.prop('disabled', false).removeClass('updating').html(t('Riprova'));
+                MCU.updateProgress(100, t('Errore di connessione'));
+                MCU.toast(t('Errore di connessione al server.'), 'error');
             }
         });
     });
@@ -211,15 +215,15 @@ jQuery(document).ready(function($) {
         var selected = $(selector);
         
         if (selected.length === 0) {
-            alert('Seleziona almeno un elemento da aggiornare.');
+            alert(t('Seleziona almeno un elemento da aggiornare.'));
             return;
         }
 
-        if (!confirm('Sei sicuro di voler aggiornare ' + selected.length + ' elementi?')) {
+        if (!confirm(t('Sei sicuro di voler aggiornare') + ' ' + selected.length + ' ' + t('elementi?'))) {
             return;
         }
 
-        MCU.showProgress('Aggiornamento massivo in corso...');
+        MCU.showProgress(t('Aggiornamento massivo in corso...'));
         var total = selected.length;
         var processed = 0;
         var successCount = 0;
@@ -231,7 +235,7 @@ jQuery(document).ready(function($) {
 
         function processNext(index) {
             if (index >= total) {
-                MCU.updateProgress(100, 'Tutti gli aggiornamenti completati.');
+                MCU.updateProgress(100, t('Tutti gli aggiornamenti completati.'));
                 setTimeout(function() {
                     location.reload();
                 }, 1000);
@@ -243,7 +247,7 @@ jQuery(document).ready(function($) {
             var nonce = $checkbox.data('nonce');
             var action = (type === 'theme') ? 'marrison_update_private_theme_ajax' : 'marrison_update_plugin_ajax';
 
-            MCU.updateProgress(Math.round((index / total) * 100), 'Aggiornamento: ' + slug + '...');
+            MCU.updateProgress(Math.round((index / total) * 100), t('Aggiornamento:') + ' ' + slug + '...');
 
             $.ajax({
                 url: marrisonUpdater.ajaxurl,
@@ -283,13 +287,13 @@ jQuery(document).ready(function($) {
         var nonceBulk = $btn.attr('data-nonce-bulk');
         var nonceAuto = $btn.attr('data-nonce-auto');
         
-        if (!confirm('Sei sicuro di voler aggiornare tutti i plugin, temi e traduzioni?')) {
+        if (!confirm(t('Sei sicuro di voler aggiornare tutti i plugin, temi e traduzioni?'))) {
             return;
         }
 
         $btn.prop('disabled', true).addClass('updating');
-        MCU.showProgress('Controllo aggiornamenti in corso...');
-        MCU.updateProgress(5, 'Recupero lista aggiornamenti...');
+        MCU.showProgress(t('Controllo aggiornamenti in corso...'));
+        MCU.updateProgress(5, t('Recupero lista aggiornamenti...'));
 
         $.ajax({
             url: marrisonUpdater.ajaxurl,
@@ -300,8 +304,8 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (!response.success) {
-                    MCU.updateProgress(100, 'Errore: ' + (response.data || 'Sconosciuto'));
-                    MCU.toast('Errore durante il recupero degli aggiornamenti', 'error');
+                    MCU.updateProgress(100, t('Errore:') + ' ' + (response.data || t('Sconosciuto')));
+                    MCU.toast(t('Errore durante il recupero degli aggiornamenti'), 'error');
                     $btn.prop('disabled', false).removeClass('updating');
                     return;
                 }
@@ -314,7 +318,7 @@ jQuery(document).ready(function($) {
                     data.plugins_private.forEach(function(plugin) {
                         queue.push({
                             type: 'plugin_private',
-                            label: 'Plugin Privato: ' + (plugin.name || plugin.slug),
+                            label: t('Plugin Privato:') + ' ' + (plugin.name || plugin.slug),
                             slug: plugin.slug,
                             nonce: nonceBulk
                         });
@@ -326,7 +330,7 @@ jQuery(document).ready(function($) {
                     data.plugins_official.forEach(function(plugin) {
                         queue.push({
                             type: 'plugin_official',
-                            label: 'Plugin Ufficiale: ' + (plugin.name || plugin.slug),
+                            label: t('Plugin Ufficiale:') + ' ' + (plugin.name || plugin.slug),
                             file: plugin.file,
                             package: plugin.package,
                             new_version: plugin.version,
@@ -339,7 +343,7 @@ jQuery(document).ready(function($) {
                 if (data.themes_count > 0) {
                     queue.push({
                         type: 'themes',
-                        label: 'Temi (' + data.themes_count + ')',
+                        label: t('Temi') + ' (' + data.themes_count + ')',
                         nonce: nonceAll // or nonceAuto depending on backend
                     });
                 }
@@ -348,14 +352,14 @@ jQuery(document).ready(function($) {
                 if (data.translations_count > 0) {
                     queue.push({
                         type: 'translations',
-                        label: 'Traduzioni (' + data.translations_count + ')',
+                        label: t('Traduzioni') + ' (' + data.translations_count + ')',
                         nonce: nonceAuto
                     });
                 }
 
                 if (queue.length === 0) {
-                    MCU.updateProgress(100, 'Nessun aggiornamento necessario.');
-                    MCU.toast('Tutto aggiornato!', 'success');
+                    MCU.updateProgress(100, t('Nessun aggiornamento necessario.'));
+                    MCU.toast(t('Tutto aggiornato!'), 'success');
                     $btn.prop('disabled', false).removeClass('updating');
                     setTimeout(function() {
                         location.reload();
@@ -371,8 +375,8 @@ jQuery(document).ready(function($) {
 
                 function processQueue(index) {
                     if (index >= total) {
-                        MCU.updateProgress(100, 'Tutti gli aggiornamenti completati!');
-                        MCU.toast('Aggiornamento massivo completato.', 'success');
+                        MCU.updateProgress(100, t('Tutti gli aggiornamenti completati!'));
+                        MCU.toast(t('Aggiornamento massivo completato.'), 'success');
                         setTimeout(function() {
                             location.reload();
                         }, 1500);
@@ -381,7 +385,7 @@ jQuery(document).ready(function($) {
 
                     var item = queue[index];
                     var progress = Math.round(((index + 1) / total) * 100);
-                    MCU.updateProgress(progress, 'Aggiornamento in corso: ' + item.label + '...');
+                    MCU.updateProgress(progress, t('Aggiornamento in corso:') + ' ' + item.label + '...');
 
                     var ajaxData = {};
                     
@@ -436,8 +440,8 @@ jQuery(document).ready(function($) {
                 processQueue(0);
             },
             error: function() {
-                MCU.updateProgress(100, 'Errore di connessione');
-                MCU.toast('Errore di connessione al server.', 'error');
+                MCU.updateProgress(100, t('Errore di connessione'));
+                MCU.toast(t('Errore di connessione al server.'), 'error');
                 $btn.prop('disabled', false).removeClass('updating');
             }
         });
@@ -477,18 +481,18 @@ jQuery(document).ready(function($) {
             success: function(response) {
                 $toggle.prop('disabled', false);
                 if (response.success) {
-                    MCU.toast('Impostazione salvata: ' + (isChecked ? 'Escluso' : 'Incluso'), 'success');
+                    MCU.toast(t('Impostazione salvata:') + ' ' + (isChecked ? t('Escluso') : t('Incluso')), 'success');
                     // Optionally reload or update counters if needed immediately
                     // For now, a toast is enough feedback
                 } else {
                     $toggle.prop('checked', !isChecked); // Revert
-                    MCU.toast('Errore nel salvataggio', 'error');
+                    MCU.toast(t('Errore nel salvataggio'), 'error');
                 }
             },
             error: function() {
                 $toggle.prop('disabled', false);
                 $toggle.prop('checked', !isChecked); // Revert
-                MCU.toast('Errore di connessione', 'error');
+                MCU.toast(t('Errore di connessione'), 'error');
             }
         });
     });
@@ -500,13 +504,13 @@ jQuery(document).ready(function($) {
         var $btn = $(this);
         var nonce = $btn.data('nonce');
         
-        if (!confirm('Sei sicuro di voler aggiornare tutti i plugin pubblici?')) {
+        if (!confirm(t('Sei sicuro di voler aggiornare tutti i plugin pubblici?'))) {
             return;
         }
         
-        $btn.prop('disabled', true).text('Aggiornamento in corso...');
-        MCU.showProgress('Aggiornamento plugin pubblici...');
-        MCU.updateProgress(10, 'Inizio aggiornamento...');
+        $btn.prop('disabled', true).text(t('Aggiornamento in corso...'));
+        MCU.showProgress(t('Aggiornamento plugin pubblici...'));
+        MCU.updateProgress(10, t('Inizio aggiornamento...'));
         
         $.ajax({
             url: ajaxurl,
@@ -517,19 +521,19 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    MCU.updateProgress(100, 'Aggiornamento completato!');
-                    MCU.toast('Plugin pubblici aggiornati con successo', 'success');
+                    MCU.updateProgress(100, t('Aggiornamento completato!'));
+                    MCU.toast(t('Plugin pubblici aggiornati con successo'), 'success');
                     setTimeout(() => location.reload(), 1500);
                 } else {
-                    MCU.updateProgress(100, 'Errore: ' + (response.data || 'Sconosciuto'));
-                    MCU.toast('Errore durante l\'aggiornamento', 'error');
+                    MCU.updateProgress(100, t('Errore:') + ' ' + (response.data || t('Sconosciuto')));
+                    MCU.toast(t('Errore durante l\'aggiornamento'), 'error');
                 }
-                $btn.prop('disabled', false).text('Aggiorna Tutti');
+                $btn.prop('disabled', false).text(t('Aggiorna Tutti'));
             },
             error: function() {
-                MCU.updateProgress(100, 'Errore di connessione');
-                MCU.toast('Errore di connessione', 'error');
-                $btn.prop('disabled', false).text('Aggiorna Tutti');
+                MCU.updateProgress(100, t('Errore di connessione'));
+                MCU.toast(t('Errore di connessione'), 'error');
+                $btn.prop('disabled', false).text(t('Aggiorna Tutti'));
             }
         });
     });
@@ -542,11 +546,11 @@ jQuery(document).ready(function($) {
         var $btn = $(this);
         
         // Show confirmation dialog
-        if (!confirm('Sei sicuro di voler pulire la cache? Questo ricaricherà la lista degli aggiornamenti dal repository.')) {
+        if (!confirm(t('Sei sicuro di voler pulire la cache? Questo ricaricherà la lista degli aggiornamenti dal repository.'))) {
             return;
         }
         
-        $btn.prop('disabled', true).text('Pulizia in corso...');
+        $btn.prop('disabled', true).text(t('Pulizia in corso...'));
         
         // Submit the form normally (not AJAX)
         $form.submit();
@@ -558,11 +562,11 @@ jQuery(document).ready(function($) {
         
         var selected = $('input[name="plugins[]"]:checked');
         if (selected.length === 0) {
-            MCU.toast('Seleziona almeno un plugin da installare', 'warning');
+            MCU.toast(t('Seleziona almeno un plugin da installare'), 'warning');
             return;
         }
         
-        if (!confirm('Sei sicuro di voler installare i plugin selezionati?')) {
+        if (!confirm(t('Sei sicuro di voler installare i plugin selezionati?'))) {
             return;
         }
         
@@ -572,8 +576,8 @@ jQuery(document).ready(function($) {
             plugins.push($(this).val());
         });
         
-        $btn.prop('disabled', true).text('Installazione in corso...');
-        MCU.showProgress('Installazione plugin...');
+        $btn.prop('disabled', true).text(t('Installazione in corso...'));
+        MCU.showProgress(t('Installazione plugin...'));
         
         $.ajax({
             url: ajaxurl,
@@ -585,19 +589,19 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    MCU.updateProgress(100, 'Installazione completata!');
-                    MCU.toast('Plugin installati con successo', 'success');
+                    MCU.updateProgress(100, t('Installazione completata!'));
+                    MCU.toast(t('Plugin installati con successo'), 'success');
                     setTimeout(() => location.reload(), 1500);
                 } else {
-                    MCU.updateProgress(100, 'Errore: ' + (response.data || 'Sconosciuto'));
-                    MCU.toast('Errore durante l\'installazione', 'error');
+                    MCU.updateProgress(100, t('Errore:') + ' ' + (response.data || t('Sconosciuto')));
+                    MCU.toast(t('Errore durante l\'installazione'), 'error');
                 }
-                $btn.prop('disabled', false).text('Installa selezionati');
+                $btn.prop('disabled', false).text(t('Installa selezionati'));
             },
             error: function() {
-                MCU.updateProgress(100, 'Errore di connessione');
-                MCU.toast('Errore di connessione', 'error');
-                $btn.prop('disabled', false).text('Installa selezionati');
+                MCU.updateProgress(100, t('Errore di connessione'));
+                MCU.toast(t('Errore di connessione'), 'error');
+                $btn.prop('disabled', false).text(t('Installa selezionati'));
             }
         });
     });
@@ -617,11 +621,11 @@ jQuery(document).ready(function($) {
         var email = $('#marrison_auto_update_email').val();
         
         if (!email) {
-            $result.css('color', 'red').text('Inserisci un indirizzo email');
+            $result.css('color', 'red').text(t('Inserisci un indirizzo email'));
             return;
         }
         
-        $btn.prop('disabled', true).text('Invio in corso...');
+        $btn.prop('disabled', true).text(t('Invio in corso...'));
         $result.css('color', '#666').text('');
         
         $.ajax({
@@ -633,20 +637,20 @@ jQuery(document).ready(function($) {
                 email: email
             },
             success: function(response) {
-                $btn.prop('disabled', false).text('Invia mail di test');
+                $btn.prop('disabled', false).text(t('Invia mail di test'));
                 
                 if (response.success) {
                     $result.css('color', 'green').text('✓ ' + response.data);
-                    MCU.toast('Email di test inviata con successo', 'success');
+                    MCU.toast(t('Email di test inviata con successo'), 'success');
                 } else {
                     $result.css('color', 'red').text('✗ ' + response.data);
-                    MCU.toast('Errore nell\'invio dell\'email', 'error');
+                    MCU.toast(t('Errore nell\'invio dell\'email'), 'error');
                 }
             },
             error: function() {
-                $btn.prop('disabled', false).text('Invia mail di test');
-                $result.css('color', 'red').text('✗ Errore di connessione');
-                MCU.toast('Errore di connessione', 'error');
+                $btn.prop('disabled', false).text(t('Invia mail di test'));
+                $result.css('color', 'red').text('✗ ' + t('Errore di connessione'));
+                MCU.toast(t('Errore di connessione'), 'error');
             }
         });
     });

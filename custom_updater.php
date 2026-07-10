@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.5.8
+ * Version: 9.5.9
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  * Text Domain: marrison-custom-updater
@@ -14,7 +14,6 @@ if (!defined('MCU_PLUGIN_DIR')) {
     define('MCU_PLUGIN_DIR', plugin_dir_path(__FILE__));
 }
 
-require_once __DIR__ . '/includes/class-mcu-license.php';
 require_once __DIR__ . '/includes/traits/SchedulingTrait.php';
 require_once __DIR__ . '/includes/traits/AdminUITrait.php';
 require_once __DIR__ . '/includes/traits/UpdateOperationsTrait.php';
@@ -24,7 +23,6 @@ class MCU_Custom_Updater {
 
     private $updates_url = '';
     private $cache_duration;
-    private $license;
 
     use MCU_Scheduling_Trait;
     use MCU_Admin_UI_Trait;
@@ -32,7 +30,6 @@ class MCU_Custom_Updater {
 
     public function __construct() {
         $this->cache_duration = defined('HOUR_IN_SECONDS') ? 6 * constant('HOUR_IN_SECONDS') : 21600;
-        $this->license = new MCU_License();
 
         add_action('plugins_loaded', [$this, 'load_textdomain']);
 
@@ -149,26 +146,6 @@ class MCU_Custom_Updater {
         return load_plugin_textdomain('marrison-custom-updater', false, dirname(plugin_basename(__FILE__)) . '/languages');
     }
 
-    private function is_license_active() {
-        return class_exists('MCU_License') && MCU_License::is_active();
-    }
-
-    private function license_required_message() {
-        return __('Licenza MCU non attiva. Inserisci una chiave valida nelle impostazioni per usare questo plugin.', 'marrison-custom-updater');
-    }
-
-    private function enforce_active_license_ajax() {
-        if (!$this->is_license_active()) {
-            wp_send_json_error($this->license_required_message());
-        }
-    }
-
-    private function enforce_active_license_admin() {
-        if (!$this->is_license_active()) {
-            wp_die(esc_html($this->license_required_message()));
-        }
-    }
-
     public function force_clear_github_cache() {
         delete_transient('marrison_updater_github_version');
         delete_transient('marrison_github_fetch_failed');
@@ -186,7 +163,6 @@ class MCU_Custom_Updater {
         if (!current_user_can('manage_options')) {
             wp_send_json_error(__('Permessi insufficienti', 'marrison-custom-updater'));
         }
-        $this->enforce_active_license_ajax();
 
         $type = sanitize_text_field($_POST['type']);
         $slug = sanitize_text_field($_POST['slug']);
@@ -235,7 +211,6 @@ class MCU_Custom_Updater {
         if (!current_user_can('manage_options')) {
             wp_die(__('Insufficient permissions', 'marrison-custom-updater'));
         }
-        $this->enforce_active_license_ajax();
 
         // Ottieni tutti i plugin con aggiornamenti automatici attivati
         $auto_update_plugins = (array) get_site_option('auto_update_plugins', []);
@@ -350,7 +325,6 @@ class MCU_Custom_Updater {
         if (!current_user_can('manage_options')) {
             wp_send_json_error(__('Insufficient permissions', 'marrison-custom-updater'));
         }
-        $this->enforce_active_license_ajax();
 
         // Forza controllo aggiornamenti
         wp_update_plugins();
@@ -428,7 +402,6 @@ class MCU_Custom_Updater {
         if (!current_user_can('manage_options')) {
             wp_send_json_error(__('Insufficient permissions', 'marrison-custom-updater'));
         }
-        $this->enforce_active_license_ajax();
         
         if (empty($file)) {
              wp_send_json_error(__('Missing file parameter', 'marrison-custom-updater'));
@@ -520,11 +493,6 @@ class MCU_Custom_Updater {
 
     public function check_for_available_updates() {
         // Salva il numero di aggiornamenti disponibili in un'opzione per accesso rapido
-        if (!MCU_License::is_active()) {
-            update_option('marrison_available_updates_count', 0);
-            return;
-        }
-
         $updates = $this->get_available_updates();
         
         // Aggiorna la lista dei plugin conosciuti per il blocco futuro
@@ -599,11 +567,6 @@ class MCU_Custom_Updater {
         if (!isset($transient->response)) $transient->response = [];
         if (!isset($transient->no_update)) $transient->no_update = [];
         if (!isset($transient->checked)) $transient->checked = [];
-
-        if (!MCU_License::is_active()) {
-            $this->check_self_update($transient);
-            return $transient;
-        }
 
         if (!function_exists('get_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -728,10 +691,6 @@ class MCU_Custom_Updater {
         if (!isset($transient->response)) $transient->response = [];
         if (!isset($transient->no_update)) $transient->no_update = [];
         if (!isset($transient->checked)) $transient->checked = [];
-
-        if (!MCU_License::is_active()) {
-            return $transient;
-        }
 
         // Recupera tutti i temi installati per la ricerca fuzzy
         $installed_themes = wp_get_themes();
@@ -1071,7 +1030,6 @@ class MCU_Custom_Updater {
         }
 
         if (!current_user_can('install_plugins')) wp_die(__('Insufficient permissions', 'marrison-custom-updater'));
-        $this->enforce_active_license_admin();
 
         $result = $this->perform_restore($filename);
 
@@ -1098,7 +1056,6 @@ class MCU_Custom_Updater {
         if (!current_user_can('install_plugins')) {
             wp_send_json_error('Insufficient permissions');
         }
-        $this->enforce_active_license_ajax();
 
         if (empty($filename)) {
             wp_send_json_error('Missing filename');
@@ -1118,7 +1075,6 @@ class MCU_Custom_Updater {
     public function update_plugin() {
         $slug = sanitize_text_field($_GET['slug'] ?? '');
         check_admin_referer('marrison_update_' . $slug);
-        $this->enforce_active_license_admin();
 
         $this->perform_update($slug);
 
@@ -1131,7 +1087,6 @@ class MCU_Custom_Updater {
         if (!current_user_can('manage_options')) {
             wp_die(esc_html__('Permessi insufficienti', 'marrison-custom-updater'));
         }
-        $this->enforce_active_license_admin();
 
         $updated = [];
         
@@ -1171,7 +1126,6 @@ class MCU_Custom_Updater {
         if (!current_user_can('manage_options')) {
             wp_die(esc_html__('Permessi insufficienti', 'marrison-custom-updater'));
         }
-        $this->enforce_active_license_admin();
 
         $installed = [];
         foreach ($_POST['plugins'] ?? [] as $slug) {
@@ -1199,7 +1153,6 @@ class MCU_Custom_Updater {
         if (!current_user_can('manage_options')) {
             wp_die(esc_html__('Permessi insufficienti', 'marrison-custom-updater'));
         }
-        $this->enforce_active_license_admin();
         
         // Pulisci cache interna
         $this->delete_internal_cache();
@@ -1234,7 +1187,6 @@ class MCU_Custom_Updater {
         if (!current_user_can('manage_options')) {
             wp_die(esc_html__('Permessi insufficienti', 'marrison-custom-updater'));
         }
-        $this->enforce_active_license_admin();
         
         // Pulisce cache interna
         $this->delete_internal_cache();
@@ -1276,7 +1228,6 @@ class MCU_Custom_Updater {
         if (!current_user_can('manage_options')) {
             wp_die(esc_html__('Permessi insufficienti', 'marrison-custom-updater'));
         }
-        $this->enforce_active_license_admin();
 
         $type = $_POST['file_type'] ?? 'plugin';
         
@@ -1324,8 +1275,6 @@ echo json_encode($data);
             wp_die(__('Permessi insufficienti', 'marrison-custom-updater'));
         }
 
-        $license_result = null;
-
         if (isset($_POST['marrison_remove_repo_url'])) {
             delete_option('marrison_repo_url');
             delete_option('marrison_themes_repo_url'); // Rimuove anche questo per pulizia, o gestire separatamente?
@@ -1339,15 +1288,6 @@ echo json_encode($data);
             delete_option('marrison_repo_url');
             $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=removed');
         } else {
-            if (isset($_POST['mcu_license_key'])) {
-                $license_key = sanitize_text_field(wp_unslash($_POST['mcu_license_key']));
-                if ($license_key === '') {
-                    MCU_License::clear();
-                } elseif ($license_key !== MCU_License::get_key() || !MCU_License::is_active()) {
-                    $license_result = MCU_License::activate($license_key);
-                }
-            }
-
             // Salvataggio Plugin Repo
             if (isset($_POST['marrison_repo_url'])) {
                 $url_input = $_POST['marrison_repo_url'];
@@ -1371,12 +1311,7 @@ echo json_encode($data);
             // Monitoring configuration removed
 
 
-            $license_arg = '';
-            if (is_array($license_result)) {
-                $license_arg = $license_result['success'] ? '&license-updated=activated' : '&license-updated=failed';
-            }
-
-            $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=saved' . $license_arg . ($redirect_tab ?? ''));
+            $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=saved' . ($redirect_tab ?? ''));
         }
 
         // Pulisce la cache dopo aver modificato l'URL
@@ -1408,7 +1343,6 @@ echo json_encode($data);
         if (!current_user_can('manage_options')) {
             wp_send_json_error('Insufficient permissions');
         }
-        $this->enforce_active_license_ajax();
 
         include_once ABSPATH . 'wp-admin/includes/plugin.php';
 
@@ -1486,7 +1420,6 @@ echo json_encode($data);
         if (!current_user_can('update_themes')) {
             wp_send_json_error('Insufficient permissions');
         }
-        $this->enforce_active_license_ajax();
 
         // Carica classi
         include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
@@ -1544,7 +1477,6 @@ echo json_encode($data);
         if (!current_user_can('update_themes')) {
             wp_die('Insufficient permissions');
         }
-        $this->enforce_active_license_ajax();
 
         if (empty($themes)) {
             wp_send_json_error('Nessun tema selezionato');
@@ -1598,7 +1530,6 @@ echo json_encode($data);
         if (!current_user_can('manage_options')) {
             wp_die('Insufficient permissions');
         }
-        $this->enforce_active_license_ajax();
 
         if (empty($plugins)) {
             wp_send_json_error('Nessun plugin selezionato');
@@ -1707,12 +1638,6 @@ echo json_encode($data);
 if (class_exists('MCU_Custom_Updater')) {
     new MCU_Custom_Updater;
 }
-
-register_deactivation_hook(__FILE__, function() {
-    if (class_exists('MCU_License')) {
-        wp_clear_scheduled_hook(MCU_License::CRON_HOOK);
-    }
-});
 
 /**
  * Fix definitivo GitHub updater:

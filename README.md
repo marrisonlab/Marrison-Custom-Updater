@@ -1,6 +1,6 @@
 # Marrison Custom Updater
 
-[![Latest Version](https://img.shields.io/badge/version-9.5.8-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
+[![Latest Version](https://img.shields.io/badge/version-9.5.9-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
 [![WordPress Version](https://img.shields.io/badge/WordPress-6.0%2B-green.svg)](https://wordpress.org)
 [![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-green.svg)](https://php.net)
 [![License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -174,6 +174,11 @@ Il plugin invia report dettagliati dopo ogni aggiornamento automatico contenente
 - Controlla i log di errore WordPress
 
 ## 📝 Changelog
+
+### 9.5.9
+- Rimossa la verifica di licenza e semplificata la configurazione del plugin
+- Semplificata la configurazione del plugin
+- Ripulita la dashboard dai riferimenti alla verifica licenza
 
 Vedi il file [CHANGELOG.md](CHANGELOG.md) per un elenco completo delle modifiche versione per versione.
 
