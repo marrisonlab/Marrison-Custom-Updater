@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.6.5] - 2026-07-12
+
+### Changed
+- Backup database con ordinamento per chiave primaria quando disponibile durante l'esportazione a batch.
+- Backup file piu tollerante: file mancanti, non leggibili o cambiati durante il job vengono esclusi e riportati invece di interrompere tutto il processo.
+
+### Fixed
+- Validazione interna del numero righe esportate per tabella nel dump database; il backup fallisce se il dump scritto non corrisponde allo snapshot letto.
+
+## [9.6.4] - 2026-07-12
+
+### Added
+- Nuova opzione per saltare i file piu grandi del limite della singola parte e continuare il backup file.
+
+### Changed
+- Report manuale ed email schedulata indicano quanti file grandi sono stati saltati e la dimensione totale esclusa.
+
+## [9.6.3] - 2026-07-12
+
+### Changed
+- Backup file manuale eseguito come job AJAX a step, per ridurre timeout e interruzioni di connessione.
+- Backup file diviso automaticamente in parti `part001`, `part002`, ecc. sotto soglia, utile su hosting con limite di 1GB per file.
+- Avanzamento del backup file calcolato sui byte processati rispetto ai byte totali scansionati.
+
+### Fixed
+- Le parti del backup restano temporanee finche non sono chiuse correttamente, evitando backup incompleti dichiarati validi.
+
+## [9.6.2] - 2026-07-12
+
+### Changed
+- Backup completo dei file generato in formato `tar.gz` streaming invece di ZIP, per evitare archivi troncati o corrotti sui siti grandi.
+- I vecchi backup file `.zip` restano visibili, scaricabili e cancellabili dalla pagina Backup.
+
+### Fixed
+- Il backup file fallisce con errore se incontra file o directory non leggibili, evitando archivi incompleti dichiarati come riusciti.
+
+## [9.6.1] - 2026-07-12
+
+### Changed
+- Bump versione per includere le correzioni al dump database e alla validazione del backup.
+
+### Fixed
+- Il dump database preserva lo `SHOW CREATE TABLE` originale, inclusi `AUTO_INCREMENT`, indici e opzioni tabella.
+- Il dump database inizializza le variabili di sessione che ripristina, chiude sempre con `COMMIT` e non usa piu `LOCK TABLES`.
+- Gli `INSERT` del dump database includono la lista colonne e vengono divisi in blocchi per migliorare la compatibilita con phpMyAdmin.
+
+## [9.6.0] - 2026-07-12
+
+### Added
+- Backup completo dei file del sito in formato `.zip`, eseguibile manualmente dalla pagina Backup.
+- Opzione di backup file schedulato prima degli aggiornamenti automatici.
+- Link diretti nel report email per scaricare backup database e backup file.
+- Cancellazione dei singoli backup dalla pagina Backup.
+
+### Changed
+- Rotazione dei backup database e file limitata agli ultimi 3 archivi.
+- Backup database generato da snapshot coerente quando MySQL lo consente e compresso con `ZipArchive` quando disponibile.
+
+### Fixed
+- Il dump database preserva lo `SHOW CREATE TABLE` originale, inclusi `AUTO_INCREMENT`, indici e opzioni tabella.
+- Il dump database inizializza le variabili di sessione che ripristina, chiude sempre con `COMMIT` e non usa piu `LOCK TABLES`.
+- Gli `INSERT` del dump database includono la lista colonne e vengono divisi in blocchi per migliorare la compatibilita con phpMyAdmin.
+- Download dei backup ZIP in streaming a blocchi per evitare fatal error da memoria esaurita su file grandi.
+- Il backup file non usa più PclZip come fallback, evitando fatal error da memoria esaurita su siti grandi.
+- Corretta la lettura delle date nei nomi dei backup versionati.
+- Rimossi residui JS/commenti di debug.
+
 ## [9.5.8] - 2026-07-01
 
 ### 🐛 BUG FIX — Badge "aggiornamenti disponibili" bloccato su un valore stale
@@ -105,10 +172,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [9.5.2] - 2026-05-18
 
 ### � FIX
-- **Backup DB formato phpMyAdmin**: il dump SQL generato è ora identico all'export di phpMyAdmin
-- **Backup DB compatibilità**: rimozione completa di AUTO_INCREMENT (colonna e tabella), INSERT senza nomi colonna, SET SQL_MODE/START TRANSACTION globali
+- **Backup DB formato phpMyAdmin**: il dump SQL generato è ora compatibile con l'importazione phpMyAdmin
+- **Backup DB compatibilità**: gestione di `AUTO_INCREMENT`, SET SQL_MODE/START TRANSACTION globali
 - **Backup DB**: fixato `$wpdb->dbhost()` (proprietà, non metodo)
-- **Backup DB**: fixato segno `=` residuo dopo rimozione AUTO_INCREMENT
+- **Backup DB**: fixato segno `=` residuo nelle opzioni tabella
 
 ### 🎯 IMPACT
 - Backup database completamente compatibile con phpMyAdmin per restore affidabile
@@ -134,7 +201,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Backup manuale**: pulsante "Esegui Backup Database" nella pagina Backup per creare un dump SQL on-demand
 - **Backup schedulato**: nuova opzione in Impostazioni > Programmazione per eseguire automaticamente un backup del DB prima di ogni aggiornamento automatico
 - **Download**: ogni backup database è scaricabile direttamente dalla pagina Backup in formato `.zip`
-- **Rotazione automatica**: vengono mantenuti solo gli ultimi 5 backup del database, i precedenti vengono eliminati automaticamente
+- **Rotazione automatica**: vengono mantenuti solo gli ultimi 3 backup del database, i precedenti vengono eliminati automaticamente
 - **Formato**: dump SQL completo con `DROP TABLE IF EXISTS` + `CREATE TABLE` + `INSERT INTO`, compresso in `.zip`
 - **Sicurezza**: i file sono salvati in `wp-content/marrison-backups/` con `.htaccess` `deny from all`
 

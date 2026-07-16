@@ -5,9 +5,11 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.5.9
+Stable tag: 9.6.5
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
+
+Note: il backup completo dei file usa il formato tar.gz e richiede l'estensione PHP zlib.
 
 
 == Description ==
@@ -33,6 +35,40 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
 == Changelog ==
 
+= 9.6.5 =
+* **Fix**: Backup database con ordinamento per chiave primaria quando disponibile e validazione interna del numero righe esportate per tabella
+* **Miglioramento**: Backup file piu tollerante: file mancanti, non leggibili o cambiati durante il job vengono esclusi e riportati invece di interrompere tutto il processo
+
+= 9.6.4 =
+* **Nuovo**: Opzione per saltare i file piu grandi del limite della singola parte e continuare il backup file
+* **Miglioramento**: Report manuale ed email schedulata indicano quanti file grandi sono stati saltati e la dimensione totale esclusa
+
+= 9.6.3 =
+* **Fix critico**: Backup file manuale eseguito come job AJAX a step, per ridurre timeout e interruzioni di connessione
+* **Fix critico**: Backup file diviso automaticamente in parti `part001`, `part002`, ecc. sotto soglia, utile su hosting con limite di 1GB per file
+* **Sicurezza**: Le parti restano temporanee finche non sono chiuse correttamente, evitando backup incompleti dichiarati validi
+
+= 9.6.2 =
+* **Fix critico**: Backup completo dei file generato in formato `tar.gz` streaming invece di ZIP, per evitare archivi troncati o corrotti sui siti grandi
+* **Compatibilita**: I vecchi backup file `.zip` restano visibili, scaricabili e cancellabili dalla pagina Backup
+* **Sicurezza**: Il backup file fallisce con errore se incontra file o directory non leggibili, evitando archivi incompleti dichiarati come riusciti
+
+= 9.6.1 =
+* **Fix**: Dump database piu affidabile per phpMyAdmin: preserva `AUTO_INCREMENT`, chiude con `COMMIT`, evita `LOCK TABLES` e divide gli `INSERT` in blocchi
+* **Fix**: Validazione piu robusta del backup DB prima della creazione del file ZIP
+
+= 9.6.0 =
+* **Nuovo**: Backup completo dei file del sito
+* **Nuovo**: Pulsante "Esegui Backup File" nella pagina Backup per backup on-demand
+* **Nuovo**: Opzione in Impostazioni > Programmazione per backup automatico dei file prima degli aggiornamenti
+* **Nuovo**: Link diretti in email per scaricare backup database e backup file
+* **Nuovo**: Cancellazione dei singoli backup dalla pagina Backup
+* **Miglioramento**: Rotazione automatica backup database/file limitata agli ultimi 3 archivi
+* **Fix**: Dump database piu affidabile per phpMyAdmin: preserva `AUTO_INCREMENT`, chiude con `COMMIT`, evita `LOCK TABLES` e divide gli `INSERT` in blocchi
+* **Fix**: Il backup file non usa più PclZip come fallback, evitando fatal error da memoria esaurita su siti grandi
+* **Fix**: Download dei backup ZIP in streaming a blocchi per evitare errori di memoria su file grandi
+* **Pulizia**: Rimossi residui JS/commenti di debug e corretta lettura date nella lista backup
+
 = 9.5.9 =
 * Rimosse tutte le dipendenze da key/Commander e semplificata la configurazione del plugin
 * Ripulita la documentazione e l'interfaccia dalle sezioni di verifica licenza
@@ -47,8 +83,8 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 * **Miglioramento**: controllo aggiornamenti già eseguito via filtri site_transient
 
 = 9.5.2 =
-* **Fix**: backup database formato identico a phpMyAdmin per restore affidabile
-* **Fix**: rimozione completa di AUTO_INCREMENT (colonna e tabella) e INSERT senza nomi colonna
+* **Fix**: backup database compatibile con importazione phpMyAdmin
+* **Fix**: gestione di AUTO_INCREMENT e formattazione SQL del dump
 * **Fix**: fixato errore $wpdb->dbhost() e problemi di formattazione SQL
 
 = 9.5.1 =
@@ -61,7 +97,7 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 * **Nuovo**: Pulsante "Esegui Backup Database" nella pagina Backup per backup on-demand
 * **Nuovo**: Opzione in Impostazioni > Programmazione per backup automatico del DB prima degli aggiornamenti
 * **Nuovo**: Download diretto dei backup database dalla pagina Backup
-* **Nuovo**: Rotazione automatica, mantiene gli ultimi 5 backup del database
+* **Nuovo**: Rotazione automatica, mantiene gli ultimi 3 backup del database
 * **Sicurezza**: backup salvati in wp-content/marrison-backups/ con protezione .htaccess
 
 = 9.4.3 =

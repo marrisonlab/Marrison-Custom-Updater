@@ -28,12 +28,16 @@ trait MCU_Scheduling_Trait {
         $time = sanitize_text_field($_POST['marrison_auto_update_time']);
         $email = sanitize_email($_POST['marrison_auto_update_email']);
         $db_backup = isset($_POST['marrison_db_backup_with_updates']) ? 'yes' : 'no';
+        $files_backup = isset($_POST['marrison_files_backup_with_updates']) ? 'yes' : 'no';
+        $files_backup_skip_large = isset($_POST['marrison_files_backup_skip_large_files']) ? 'yes' : 'no';
 
         update_option('marrison_auto_update_enabled', $enabled);
         update_option('marrison_auto_update_frequency', $frequency);
         update_option('marrison_auto_update_time', $time);
         update_option('marrison_auto_update_email', $email);
         update_option('marrison_db_backup_with_updates', $db_backup);
+        update_option('marrison_files_backup_with_updates', $files_backup);
+        update_option('marrison_files_backup_skip_large_files', $files_backup_skip_large);
 
         wp_clear_scheduled_hook('marrison_scheduled_update_event');
 
@@ -389,6 +393,17 @@ trait MCU_Scheduling_Trait {
             $db_backup_filename = false;
             if (get_option('marrison_db_backup_with_updates') === 'yes') {
                 $db_backup_filename = $this->create_db_backup();
+                if (is_wp_error($db_backup_filename)) {
+                    $db_backup_filename = false;
+                }
+            }
+
+            $files_backup_filename = false;
+            if (get_option('marrison_files_backup_with_updates') === 'yes') {
+                $files_backup_filename = $this->create_files_backup();
+                if (is_wp_error($files_backup_filename)) {
+                    $files_backup_filename = false;
+                }
             }
 
             $data = $this->get_all_updates_data();
@@ -902,20 +917,57 @@ trait MCU_Scheduling_Trait {
                     $backup_dir_path = WP_CONTENT_DIR . '/marrison-backups';
                     $backup_file_path = $backup_dir_path . '/' . $db_backup_filename;
                     $backup_size = file_exists($backup_file_path) ? size_format(filesize($backup_file_path)) : 'N/A';
-                    $backup_page_url = admin_url('admin.php?page=marrison-updater-backups');
+                    $backup_download_url = $this->get_backup_download_url($db_backup_filename, 'db');
 
                     $message_html .= '<h3 style="' . $style_section_title . '; border-left-color: #46b450;">🗄️ Backup Database</h3>';
                     $message_html .= '<table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 10px;">';
                     $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Stato:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; color: #46b450; font-weight: bold;">✅ Completato</td></tr>';
                     $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>File:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; font-family: monospace;">' . esc_html($db_backup_filename) . '</td></tr>';
                     $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Dimensione:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' . esc_html($backup_size) . '</td></tr>';
-                    $message_html .= '<tr><td style="padding: 8px;"><strong>Download:</strong></td><td style="padding: 8px;"><a href="' . esc_url($backup_page_url) . '" style="display: inline-block; background: #46b450; color: #fff; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 13px;">🗄️ Vai alla pagina Backup</a></td></tr>';
+                    $message_html .= '<tr><td style="padding: 8px;"><strong>Download:</strong></td><td style="padding: 8px;"><a href="' . esc_url($backup_download_url) . '" style="display: inline-block; background: #46b450; color: #fff; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 13px;">Scarica backup database</a></td></tr>';
                     $message_html .= '</table>';
-                    $message_html .= '<p style="font-size: 12px; color: #888; margin-top: 5px;">Il backup è disponibile nella pagina Backup del pannello di amministrazione. Accedi con le tue credenziali per scaricarlo.</p>';
                 } elseif (get_option('marrison_db_backup_with_updates') === 'yes') {
                     $message_html .= '<h3 style="' . $style_section_title . '; border-left-color: #d63638;">🗄️ Backup Database</h3>';
                     $message_html .= '<div style="background: #fef7f7; padding: 10px; font-size: 13px; border-left: 4px solid #d63638; margin-top: 10px;">';
                     $message_html .= '⚠️ <strong>Attenzione:</strong> Il backup del database non è stato completato correttamente.';
+                    $message_html .= '</div>';
+                }
+
+                if ($files_backup_filename) {
+                    $backup_dir_path = WP_CONTENT_DIR . '/marrison-backups';
+                    $files_backup_filenames = is_array($files_backup_filename) ? $files_backup_filename : [$files_backup_filename];
+                    $backup_total_size = 0;
+                    $backup_download_links = [];
+                    foreach ($files_backup_filenames as $part_index => $backup_part_filename) {
+                        $backup_file_path = $backup_dir_path . '/' . $backup_part_filename;
+                        if (file_exists($backup_file_path)) {
+                            $backup_total_size += filesize($backup_file_path);
+                        }
+                        $backup_download_url = $this->get_backup_download_url($backup_part_filename, 'files');
+                        $backup_download_links[] = '<a href="' . esc_url($backup_download_url) . '" style="display: inline-block; background: #0073aa; color: #fff; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 13px; margin: 0 6px 6px 0;">Scarica parte ' . ((int) $part_index + 1) . '</a>';
+                    }
+                    $backup_size = $backup_total_size > 0 ? size_format($backup_total_size) : 'N/A';
+                    $skipped_large_files = get_option('marrison_last_files_backup_skipped', []);
+
+                    $message_html .= '<h3 style="' . $style_section_title . '; border-left-color: #0073aa;">Backup File</h3>';
+                    $message_html .= '<table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 10px;">';
+                    $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Stato:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; color: #46b450; font-weight: bold;">Completato</td></tr>';
+                    $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>File:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; font-family: monospace;">' . esc_html(implode(', ', $files_backup_filenames)) . '</td></tr>';
+                    $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Dimensione:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' . esc_html($backup_size) . '</td></tr>';
+                    if (!empty($skipped_large_files['count'])) {
+                        $skipped_items = [];
+                        foreach (($skipped_large_files['files'] ?? []) as $skipped_file) {
+                            $reason = !empty($skipped_file['reason']) ? ' - ' . esc_html($skipped_file['reason']) : '';
+                            $skipped_items[] = esc_html($skipped_file['path']) . ' (' . esc_html(size_format((int) $skipped_file['size'])) . ')' . $reason;
+                        }
+                        $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>File esclusi:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; color: #d63638;">' . esc_html((int) $skipped_large_files['count']) . ' file esclusi (' . esc_html(size_format((int) $skipped_large_files['bytes'])) . ')' . (!empty($skipped_items) ? '<br><span style="font-family: monospace; font-size: 12px;">' . implode('<br>', $skipped_items) . '</span>' : '') . '</td></tr>';
+                    }
+                    $message_html .= '<tr><td style="padding: 8px;"><strong>Download:</strong></td><td style="padding: 8px;">' . implode('', $backup_download_links) . '</td></tr>';
+                    $message_html .= '</table>';
+                } elseif (get_option('marrison_files_backup_with_updates') === 'yes') {
+                    $message_html .= '<h3 style="' . $style_section_title . '; border-left-color: #d63638;">Backup File</h3>';
+                    $message_html .= '<div style="background: #fef7f7; padding: 10px; font-size: 13px; border-left: 4px solid #d63638; margin-top: 10px;">';
+                    $message_html .= '<strong>Attenzione:</strong> Il backup dei file non è stato completato correttamente.';
                     $message_html .= '</div>';
                 }
 

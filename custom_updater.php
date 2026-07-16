@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.5.9
+ * Version: 9.6.5
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  * Text Domain: marrison-custom-updater
@@ -54,8 +54,6 @@ class MCU_Custom_Updater {
         // Hook per tracciare l'ultimo aggiornamento plugin (manuale o automatico)
         add_action('upgrader_process_complete', [$this, 'update_last_plugin_update_timestamp'], 10, 0);
         
-        // Monitoring hook removed
-        
         add_action('admin_menu', [$this, 'add_admin_menu']);
         add_action('admin_post_marrison_update_plugin', [$this, 'update_plugin']);
         add_action('admin_post_marrison_restore_plugin', [$this, 'restore_plugin']);
@@ -64,11 +62,13 @@ class MCU_Custom_Updater {
         add_action('admin_post_mcu_save_repo_url', [$this, 'save_repo_url']);
         add_action('admin_post_marrison_force_check_mcu', [$this, 'force_check_mcu']);
         
-        // Monitoring AJAX removed
         add_action('admin_post_marrison_download_repo_file', [$this, 'download_repo_file']);
         add_action('admin_post_marrison_download_theme_repo_file', [$this, 'download_theme_repo_file']);
         add_action('admin_post_marrison_save_scheduling', [$this, 'save_scheduling_settings']);
         add_action('admin_post_marrison_download_db_backup', [$this, 'download_db_backup']);
+        add_action('admin_post_nopriv_marrison_download_db_backup', [$this, 'download_db_backup']);
+        add_action('admin_post_marrison_download_files_backup', [$this, 'download_files_backup']);
+        add_action('admin_post_nopriv_marrison_download_files_backup', [$this, 'download_files_backup']);
         
         // Cron
         add_filter('cron_schedules', [$this, 'add_custom_cron_intervals']);
@@ -89,6 +89,8 @@ class MCU_Custom_Updater {
         add_action('wp_ajax_marrison_test_email', [$this, 'send_test_email_ajax']);
         add_action('wp_ajax_marrison_toggle_exclusion', [$this, 'toggle_exclusion_ajax']);
         add_action('wp_ajax_marrison_db_backup', [$this, 'ajax_db_backup']);
+        add_action('wp_ajax_marrison_files_backup', [$this, 'ajax_files_backup']);
+        add_action('wp_ajax_marrison_delete_backup', [$this, 'ajax_delete_backup']);
         
         // Aggiungi script e stili per la pagina admin
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
@@ -1307,9 +1309,6 @@ echo json_encode($data);
                     update_option('marrison_themes_repo_url', $theme_url);
                 }
             }
-
-            // Monitoring configuration removed
-
 
             $redirect_url = admin_url('admin.php?page=marrison-updater-settings&settings-updated=saved' . ($redirect_tab ?? ''));
         }

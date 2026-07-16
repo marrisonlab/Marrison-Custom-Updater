@@ -1,6 +1,6 @@
 # Marrison Custom Updater
 
-[![Latest Version](https://img.shields.io/badge/version-9.5.9-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
+[![Latest Version](https://img.shields.io/badge/version-9.6.5-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
 [![WordPress Version](https://img.shields.io/badge/WordPress-6.0%2B-green.svg)](https://wordpress.org)
 [![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-green.svg)](https://php.net)
 [![License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -28,9 +28,45 @@
 
 - WordPress 6.0 or higher
 - PHP 7.4 or higher
+- PHP zlib extension for full file backups in tar.gz format
 - Access to plugin files for backup/restore operations
 
 ## 🔄 Version History
+
+### [9.6.5] - 2026-07-12
+
+- Backup database con ordinamento per chiave primaria quando disponibile e validazione interna del numero righe esportate per tabella
+- Backup file piu tollerante: file mancanti, non leggibili o cambiati durante il job vengono esclusi e riportati invece di interrompere tutto il processo
+
+### [9.6.4] - 2026-07-12
+
+- Nuova opzione per saltare i file piu grandi del limite della singola parte e continuare il backup file
+- Report manuale ed email schedulata indicano quanti file grandi sono stati saltati e la dimensione totale esclusa
+
+### [9.6.3] - 2026-07-12
+
+- Backup file manuale eseguito come job AJAX a step, per ridurre timeout e interruzioni di connessione
+- Backup file diviso automaticamente in parti `part001`, `part002`, ecc. sotto soglia, utile su hosting con limite di 1GB per file
+- Le parti restano temporanee finche non sono chiuse correttamente, evitando di mostrare backup incompleti come validi
+
+### [9.6.2] - 2026-07-12
+
+- Backup completo dei file generato in formato `tar.gz` streaming invece di ZIP, per evitare archivi troncati o corrotti sui siti grandi
+- I vecchi backup file `.zip` restano visibili, scaricabili e cancellabili dalla pagina Backup
+- Il backup file fallisce con errore se incontra file o directory non leggibili, evitando archivi incompleti dichiarati come riusciti
+
+### [9.6.1] - 2026-07-12
+
+- Dump database reso importabile con maggiore affidabilita: preserva `AUTO_INCREMENT`, chiude con `COMMIT`, evita `LOCK TABLES` e divide gli `INSERT` in blocchi
+- Validazione piu robusta del backup DB prima della creazione del file ZIP
+
+### [9.6.0] - 2026-07-12
+
+- Backup completo dei file del sito, manuale e schedulato
+- Link diretti nel report email per scaricare backup database e file
+- Rotazione automatica limitata agli ultimi 3 backup
+- Dump database piu affidabile per phpMyAdmin: preserva `AUTO_INCREMENT`, chiude con `COMMIT`, evita `LOCK TABLES` e divide gli `INSERT` in blocchi
+- Pulizia residui debug/commenti e fix parsing date backup
 
 ### [9.5.5] - 2026-06-03
 

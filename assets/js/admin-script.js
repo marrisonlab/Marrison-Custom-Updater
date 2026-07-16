@@ -1,5 +1,4 @@
 jQuery(document).ready(function($) {
-    console.log('WP Master Updater JS Loaded');
 
     function t(text) {
         return (window.mcuAdminTranslations && window.mcuAdminTranslations[text]) ? window.mcuAdminTranslations[text] : text;
@@ -103,7 +102,48 @@ jQuery(document).ready(function($) {
         });
     });
 
-    // Monitoring Sync removed
+    // --- Delete Backup Handler ---
+    $(document).on('click', '.mcu-action-delete-backup', function(e) {
+        e.preventDefault();
+
+        var $btn = $(this);
+        var filename = $btn.data('filename');
+        var nonce = $btn.data('nonce');
+
+        if (!confirm(t('Sei sicuro di voler eliminare questo backup? L\'operazione non può essere annullata.'))) {
+            return;
+        }
+
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update-alt dashicons-spin"></span> ' + t('Eliminazione...'));
+
+        $.ajax({
+            url: marrisonUpdater.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'marrison_delete_backup',
+                filename: filename,
+                nonce: nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    MCU.toast(response.data.message || t('Backup eliminato correttamente.'), 'success');
+                    $btn.closest('tr').fadeOut(250, function() {
+                        $(this).remove();
+                        if ($('.mcu-action-delete-backup').length === 0) {
+                            location.reload();
+                        }
+                    });
+                } else {
+                    $btn.prop('disabled', false).html('<span class="dashicons dashicons-trash"></span> ' + t('Elimina'));
+                    MCU.toast(t('Errore:') + ' ' + (response.data || t('Sconosciuto')), 'error');
+                }
+            },
+            error: function() {
+                $btn.prop('disabled', false).html('<span class="dashicons dashicons-trash"></span> ' + t('Elimina'));
+                MCU.toast(t('Errore di connessione al server.'), 'error');
+            }
+        });
+    });
 
     // --- DB Backup Handler ---
     $(document).on('click', '#marrison-db-backup-btn', function(e) {
@@ -131,6 +171,90 @@ jQuery(document).ready(function($) {
             },
             error: function() {
                 $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> ' + t('Esegui Backup Database'));
+                $result.css('color', 'var(--mcu-danger, #d63638)').text('✗ ' + t('Errore di connessione al server.'));
+            }
+        });
+    });
+
+    // --- Chunked Files Backup Handler ---
+    $(document).on('click', '#marrison-files-backup-btn', function(e) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        var $btn = $(this);
+        var nonce = $btn.data('nonce');
+        var $result = $('#marrison-files-backup-result');
+        var jobId = '';
+
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update-alt dashicons-spin"></span> ' + t('Backup in corso...'));
+        $result.css('color', '#555').text('');
+        MCU.showProgress(t('Backup file in corso...'));
+        MCU.updateProgress(0, t('Scansione file...'));
+
+        function runBackupStep() {
+            $.ajax({
+                url: marrisonUpdater.ajaxurl,
+                type: 'POST',
+                data: { action: 'marrison_files_backup', nonce: nonce, job_id: jobId },
+                success: function(response) {
+                    if (!response.success) {
+                        $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> ' + t('Esegui Backup File'));
+                        $result.css('color', 'var(--mcu-danger, #d63638)').text('X ' + (response.data || t('Errore sconosciuto')));
+                        MCU.updateProgress(100, t('Errore!'));
+                        return;
+                    }
+
+                    var data = response.data || {};
+                    jobId = data.job_id || jobId;
+                    MCU.updateProgress(data.percent || 0, data.message || t('Backup file in corso...'));
+                    $result.css('color', '#555').text(data.message || '');
+
+                    if (data.done) {
+                        $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> ' + t('Esegui Backup File'));
+                        $result.css('color', 'var(--mcu-success, #46b450)').text('OK ' + data.message);
+                        MCU.updateProgress(100, data.message || t('Backup completato!'));
+                        setTimeout(function() { location.reload(); }, 1500);
+                    } else {
+                        setTimeout(runBackupStep, 500);
+                    }
+                },
+                error: function() {
+                    $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> ' + t('Esegui Backup File'));
+                    $result.css('color', 'var(--mcu-danger, #d63638)').text('X ' + t('Errore di connessione al server.'));
+                    MCU.updateProgress(100, t('Errore di connessione'));
+                }
+            });
+        }
+
+        runBackupStep();
+    });
+
+    // --- Files Backup Handler ---
+    $(document).on('click', '#marrison-files-backup-btn', function(e) {
+        e.preventDefault();
+        var $btn = $(this);
+        var nonce = $btn.data('nonce');
+        var $result = $('#marrison-files-backup-result');
+
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update-alt dashicons-spin"></span> ' + t('Backup in corso...'));
+        $result.css('color', '#555').text('');
+
+        $.ajax({
+            url: marrisonUpdater.ajaxurl,
+            type: 'POST',
+            data: { action: 'marrison_files_backup', nonce: nonce },
+            success: function(response) {
+                if (response.success) {
+                    $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> ' + t('Esegui Backup File'));
+                    $result.css('color', 'var(--mcu-success, #46b450)').text('✓ ' + response.data.message);
+                    setTimeout(function() { location.reload(); }, 1500);
+                } else {
+                    $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> ' + t('Esegui Backup File'));
+                    $result.css('color', 'var(--mcu-danger, #d63638)').text('✗ ' + (response.data || t('Errore sconosciuto')));
+                }
+            },
+            error: function() {
+                $btn.prop('disabled', false).html('<span class="dashicons dashicons-download"></span> ' + t('Esegui Backup File'));
                 $result.css('color', 'var(--mcu-danger, #d63638)').text('✗ ' + t('Errore di connessione al server.'));
             }
         });

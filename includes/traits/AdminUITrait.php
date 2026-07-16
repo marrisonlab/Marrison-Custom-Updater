@@ -148,8 +148,8 @@ trait MCU_Admin_UI_Trait {
         if (strpos($hook, 'marrison-updater') === false) {
             return;
         }
-        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . '../../assets/css/admin-style.css', [], '9.2.1');
-        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . '../../assets/js/admin-script.js', ['jquery'], '9.2.1', true);
+        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . '../../assets/css/admin-style.css', [], '9.6.5');
+        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . '../../assets/js/admin-script.js', ['jquery'], '9.6.5', true);
         wp_localize_script('mcu-admin-script', 'marrisonUpdater', [
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('marrison_ajax_nonce'),
@@ -236,12 +236,15 @@ JS
             'Inizializzazione...' => 'Initializing...',
             'Backup Database' => 'Database Backup',
             'Esegui Backup Database' => 'Run Database Backup',
+            'Backup File' => 'File Backup',
+            'Esegui Backup File' => 'Run File Backup',
             'Lista Backup' => 'Backup List',
             'Versione Backup' => 'Backup Version',
             'Data Backup' => 'Backup Date',
             'Dimensione' => 'Size',
             'Azioni' => 'Actions',
             'Scarica' => 'Download',
+            'Elimina' => 'Delete',
             'Ripristina' => 'Restore',
             'Stato:' => 'Status:',
             'Messaggio:' => 'Message:',
@@ -304,7 +307,11 @@ JS
             'Sconosciuto' => 'Unknown',
             'Errore di connessione' => 'Connection error',
             'Errore di connessione al server.' => 'Server connection error.',
+            'Sei sicuro di voler eliminare questo backup? L\'operazione non può essere annullata.' => 'Are you sure you want to delete this backup? This action cannot be undone.',
+            'Eliminazione...' => 'Deleting...',
+            'Backup eliminato correttamente.' => 'Backup deleted successfully.',
             'Backup in corso...' => 'Backup in progress...',
+            'Backup file completato!' => 'File backup completed!',
             'Aggiornamento' => 'Updating',
             'Scaricamento pacchetto...' => 'Downloading package...',
             'Estrazione file...' => 'Extracting files...',
@@ -402,8 +409,6 @@ JS
                 <a href="?page=marrison-updater-settings&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Generale', 'marrison-custom-updater'); ?></a>
                 <a href="?page=marrison-updater-settings&tab=scheduling" class="nav-tab <?php echo $active_tab == 'scheduling' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Programmazione', 'marrison-custom-updater'); ?></a>
                 <a href="?page=marrison-updater-settings&tab=exclusions" class="nav-tab <?php echo $active_tab == 'exclusions' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Esclusioni', 'marrison-custom-updater'); ?></a>
-                <!-- Monitoring tab removed -->
-
                 <a href="?page=marrison-updater-settings&tab=howto" class="nav-tab <?php echo $active_tab == 'howto' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Guida & Download', 'marrison-custom-updater'); ?></a>
             </h2>
             <?php if ($settingsUpdated === 'saved'): ?>
@@ -633,7 +638,27 @@ JS
                                         <input type="checkbox" id="marrison_db_backup_with_updates" name="marrison_db_backup_with_updates" value="yes" <?php checked('yes', get_option('marrison_db_backup_with_updates')); ?>>
                                         <span class="mcu-slider"></span>
                                     </label>
-                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;"><?php esc_html_e('Esegui un backup del database prima di ogni aggiornamento automatico (mantiene gli ultimi 5).', 'marrison-custom-updater'); ?></p>
+                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;"><?php esc_html_e('Esegui un backup del database prima di ogni aggiornamento automatico (mantiene gli ultimi 3).', 'marrison-custom-updater'); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="marrison_files_backup_with_updates"><?php esc_html_e('Backup File', 'marrison-custom-updater'); ?></label></th>
+                                <td>
+                                    <label class="mcu-switch">
+                                        <input type="checkbox" id="marrison_files_backup_with_updates" name="marrison_files_backup_with_updates" value="yes" <?php checked('yes', get_option('marrison_files_backup_with_updates')); ?>>
+                                        <span class="mcu-slider"></span>
+                                    </label>
+                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;"><?php esc_html_e('Esegui un backup completo dei file prima di ogni aggiornamento automatico (mantiene gli ultimi 3 set, formato tar.gz in parti).', 'marrison-custom-updater'); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="marrison_files_backup_skip_large_files"><?php esc_html_e('File grandi nel backup', 'marrison-custom-updater'); ?></label></th>
+                                <td>
+                                    <label class="mcu-switch">
+                                        <input type="checkbox" id="marrison_files_backup_skip_large_files" name="marrison_files_backup_skip_large_files" value="yes" <?php checked('yes', get_option('marrison_files_backup_skip_large_files')); ?>>
+                                        <span class="mcu-slider"></span>
+                                    </label>
+                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;"><?php esc_html_e('Salta i file piu grandi del limite della singola parte (850 MB di default) e continua il backup.', 'marrison-custom-updater'); ?></p>
                                 </td>
                             </tr>
                         </table>
@@ -1024,10 +1049,13 @@ JS
             $backup_dir = WP_CONTENT_DIR . '/marrison-backups';
             $backups = [];
             $db_backups = [];
+            $files_backups = [];
             if (is_dir($backup_dir)) {
                 $all_files = array_merge(
                     glob($backup_dir . '/*-backup.zip') ?: [],
-                    glob($backup_dir . '/db-backup-*.zip') ?: []
+                    glob($backup_dir . '/db-backup-*.zip') ?: [],
+                    glob($backup_dir . '/files-backup-*.zip') ?: [],
+                    glob($backup_dir . '/files-backup-*.tar.gz') ?: []
                 );
                 $all_files = array_unique($all_files);
                 usort($all_files, function($a, $b) { return filemtime($b) - filemtime($a); });
@@ -1042,18 +1070,30 @@ JS
                         ];
                         continue;
                     }
+                    if (strpos($filename, 'files-backup-') === 0) {
+                        $files_backups[] = [
+                            'file'     => $file,
+                            'filename' => $filename,
+                            'date'     => date('d/m/Y H:i', filemtime($file)),
+                            'size'     => size_format(filesize($file)),
+                        ];
+                        continue;
+                    }
                     $slug = '';
                     $backup_version = 'N/A';
+                    $type = 'plugin';
                     $type_label = __('Plugin', 'marrison-custom-updater');
                     $parse_name = $filename;
                     if (strpos($filename, 'theme-') === 0) {
+                        $type = 'theme';
                         $type_label = __('Tema', 'marrison-custom-updater');
                         $parse_name = substr($filename, 6);
                     } elseif (strpos($filename, 'plugin-') === 0) {
+                        $type = 'plugin';
                         $type_label = __('Plugin', 'marrison-custom-updater');
                         $parse_name = substr($filename, 7);
                     }
-                    if (preg_match('/^(.*?)-v(.*?)-(\/d{8})-(\/d{6})-backup\.zip$/', $parse_name, $matches)) {
+                    if (preg_match('/^(.*?)-v(.*?)-(\d{8})-(\d{6})-backup\.zip$/', $parse_name, $matches)) {
                         $slug = $matches[1];
                         $backup_version = $matches[2];
                     } elseif (preg_match('/^(.*?)-v(.*)-backup\.zip$/', $parse_name, $matches)) {
@@ -1062,7 +1102,7 @@ JS
                     } elseif (preg_match('/^(.*?)-backup\.zip$/', $parse_name, $matches)) {
                         $slug = $matches[1];
                     } else {
-                        if (preg_match('/^(.*)-v(.*)-(\/d{8})-(\/d{6})-backup\.zip$/', $filename, $matches)) {
+                        if (preg_match('/^(.*)-v(.*)-(\d{8})-(\d{6})-backup\.zip$/', $filename, $matches)) {
                             $slug = $matches[1];
                             $backup_version = $matches[2];
                         } elseif (preg_match('/^(.*)-v(.*)-backup\.zip$/', $filename, $matches)) {
@@ -1076,6 +1116,7 @@ JS
                         'file' => $file,
                         'filename' => $filename,
                         'slug' => $slug,
+                        'type' => $type,
                         'type_label' => $type_label,
                         'backup_version' => $backup_version,
                         'date' => date('d/m/Y H:i', filemtime($file)),
@@ -1113,10 +1154,17 @@ JS
                                             admin_url('admin-post.php?action=marrison_download_db_backup&file=' . urlencode($db['filename'])),
                                             'marrison_download_db_backup'
                                         );
+                                        $delete_nonce = wp_create_nonce('marrison_delete_backup_' . $db['filename']);
                                         ?>
                                         <a href="<?php echo esc_url($dl_url); ?>" class="mcu-button mcu-button-secondary mcu-button-sm">
                                             <span class="dashicons dashicons-download"></span> <?php esc_html_e('Scarica', 'marrison-custom-updater'); ?>
                                         </a>
+                                        <button type="button"
+                                                class="mcu-button mcu-button-danger mcu-button-sm mcu-action-delete-backup"
+                                                data-filename="<?php echo esc_attr($db['filename']); ?>"
+                                                data-nonce="<?php echo esc_attr($delete_nonce); ?>">
+                                            <span class="dashicons dashicons-trash"></span> <?php esc_html_e('Elimina', 'marrison-custom-updater'); ?>
+                                        </button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -1126,6 +1174,59 @@ JS
                     <div class="mcu-empty-state">
                         <span class="dashicons dashicons-database"></span>
                         <p><?php esc_html_e('Nessun backup database disponibile. Clicca il pulsante per crearne uno.', 'marrison-custom-updater'); ?></p>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <div class="mcu-card" style="margin-bottom: 30px;">
+                <div class="mcu-card-header">
+                    <h2 class="mcu-card-title"><span class="dashicons dashicons-archive"></span> <?php esc_html_e('Backup File', 'marrison-custom-updater'); ?></h2>
+                    <button type="button" id="marrison-files-backup-btn" class="mcu-button mcu-button-primary"
+                        data-nonce="<?php echo wp_create_nonce('marrison_files_backup'); ?>">
+                        <span class="dashicons dashicons-download"></span> <?php esc_html_e('Esegui Backup File', 'marrison-custom-updater'); ?>
+                    </button>
+                </div>
+                <span id="marrison-files-backup-result" style="padding: 0 20px; font-weight: 600;"></span>
+                <?php if (!empty($files_backups)): ?>
+                    <table class="mcu-table">
+                        <thead><tr>
+                            <th><?php esc_html_e('File', 'marrison-custom-updater'); ?></th>
+                            <th><?php esc_html_e('Data', 'marrison-custom-updater'); ?></th>
+                            <th><?php esc_html_e('Dimensione', 'marrison-custom-updater'); ?></th>
+                            <th style="text-align:right;"><?php esc_html_e('Azione', 'marrison-custom-updater'); ?></th>
+                        </tr></thead>
+                        <tbody>
+                            <?php foreach ($files_backups as $backup): ?>
+                                <tr>
+                                    <td><span class="dashicons dashicons-archive" style="color:#0073aa;"></span> <?php echo esc_html($backup['filename']); ?></td>
+                                    <td><?php echo esc_html($backup['date']); ?></td>
+                                    <td><?php echo esc_html($backup['size']); ?></td>
+                                    <td style="text-align:right;">
+                                        <?php
+                                        $dl_url = wp_nonce_url(
+                                            admin_url('admin-post.php?action=marrison_download_files_backup&file=' . urlencode($backup['filename'])),
+                                            'marrison_download_files_backup'
+                                        );
+                                        $delete_nonce = wp_create_nonce('marrison_delete_backup_' . $backup['filename']);
+                                        ?>
+                                        <a href="<?php echo esc_url($dl_url); ?>" class="mcu-button mcu-button-secondary mcu-button-sm">
+                                            <span class="dashicons dashicons-download"></span> <?php esc_html_e('Scarica', 'marrison-custom-updater'); ?>
+                                        </a>
+                                        <button type="button"
+                                                class="mcu-button mcu-button-danger mcu-button-sm mcu-action-delete-backup"
+                                                data-filename="<?php echo esc_attr($backup['filename']); ?>"
+                                                data-nonce="<?php echo esc_attr($delete_nonce); ?>">
+                                            <span class="dashicons dashicons-trash"></span> <?php esc_html_e('Elimina', 'marrison-custom-updater'); ?>
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <div class="mcu-empty-state">
+                        <span class="dashicons dashicons-archive"></span>
+                        <p><?php esc_html_e('Nessun backup file disponibile. Clicca il pulsante per crearne uno.', 'marrison-custom-updater'); ?></p>
                     </div>
                 <?php endif; ?>
             </div>
@@ -1152,8 +1253,17 @@ JS
                                 $plugin_name = $info['slug'];
                                 $current_version = __('Non installato', 'marrison-custom-updater');
                                 $version_class = '';
-                                if (isset($info['type_label']) && $info['type_label'] === 'Tema') {
+                                if (($info['type'] ?? 'plugin') === 'theme') {
                                     $theme = wp_get_theme($info['slug']);
+                                    if (!$theme->exists()) {
+                                        $installed_themes = wp_get_themes();
+                                        foreach ($installed_themes as $theme_slug => $installed_theme) {
+                                            if (strcasecmp($theme_slug, $info['slug']) === 0 || strcasecmp($installed_theme->get_stylesheet(), $info['slug']) === 0) {
+                                                $theme = $installed_theme;
+                                                break;
+                                            }
+                                        }
+                                    }
                                     if ($theme->exists()) {
                                         $plugin_name = $theme->get('Name');
                                         $current_version = $theme->get('Version');
@@ -1190,6 +1300,7 @@ JS
                                     <td style="text-align:right;">
                                         <?php 
                                         $restore_nonce = wp_create_nonce('marrison_restore_' . $info['filename']); 
+                                        $delete_nonce = wp_create_nonce('marrison_delete_backup_' . $info['filename']);
                                         $is_active_version = ($info['backup_version'] !== 'N/A' && $info['backup_version'] === $current_version);
                                         ?>
                                         <?php if ($is_active_version): ?>
@@ -1207,6 +1318,12 @@ JS
                                                 <span class="dashicons dashicons-undo"></span> <?php esc_html_e('Ripristina', 'marrison-custom-updater'); ?>
                                             </button>
                                         <?php endif; ?>
+                                        <button type="button"
+                                                class="mcu-button mcu-button-danger mcu-button-sm mcu-action-delete-backup"
+                                                data-filename="<?php echo esc_attr($info['filename']); ?>"
+                                                data-nonce="<?php echo esc_attr($delete_nonce); ?>">
+                                            <span class="dashicons dashicons-trash"></span> <?php esc_html_e('Elimina', 'marrison-custom-updater'); ?>
+                                        </button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
