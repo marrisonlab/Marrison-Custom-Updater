@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.6.6] - 2026-07-24
+
+### Added
+- Manifest JSON nel backup database con conteggi, dimensione SQL e hash SHA256.
+- Stato di verifica nella pagina Backup e nel report email programmato.
+
+### Changed
+- Il backup database ora valida scrittura SQL, dimensione file, hash e contenuto dello ZIP prima di dichiarare successo.
+- Il backup file ora fallisce sugli errori avvenuti dopo l'inizio della scrittura tar.gz, evitando archivi potenzialmente corrotti marcati come validi.
+- Gli aggiornamenti automatici vengono bloccati se un backup richiesto non viene completato e verificato.
+- Il backup database verificato richiede tabelle InnoDB e blocca view, trigger o engine non transazionali con errore esplicito.
+
 ## [9.6.5] - 2026-07-12
 
 ### Changed

@@ -1,6 +1,6 @@
 # Marrison Custom Updater
 
-[![Latest Version](https://img.shields.io/badge/version-9.6.5-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
+[![Latest Version](https://img.shields.io/badge/version-9.6.6-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
 [![WordPress Version](https://img.shields.io/badge/WordPress-6.0%2B-green.svg)](https://wordpress.org)
 [![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-green.svg)](https://php.net)
 [![License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -32,6 +32,15 @@
 - Access to plugin files for backup/restore operations
 
 ## 🔄 Version History
+
+### [9.6.6] - 2026-07-24
+
+- Backup database con scrittura SQL controllata byte per byte, manifest JSON e hash SHA256 dentro lo ZIP
+- Validazione dello ZIP dopo la compressione: il backup viene mostrato come riuscito solo se SQL, manifest, dimensione e hash coincidono
+- Gli aggiornamenti automatici vengono bloccati se un backup richiesto non viene completato e verificato
+- Il backup DB verificato richiede tabelle InnoDB; view, trigger o engine non transazionali vengono bloccati con errore esplicito
+- Backup file piu severo sugli errori durante la scrittura tar.gz: se l'archivio potrebbe essere corrotto, il job fallisce invece di dichiarare successo
+- Pagina Backup e report email indicano quando un backup database e stato verificato
 
 ### [9.6.5] - 2026-07-12
 
@@ -161,6 +170,8 @@ Il plugin crea automaticamente un backup prima di ogni aggiornamento per:
 - ✅ Temi privati
 - ✅ Temi pubblici
 
+I backup database includono un manifest JSON con conteggi, dimensione SQL e hash SHA256; la pagina Backup mostra se l'archivio e stato verificato. Se un backup richiesto non viene completato e verificato, gli aggiornamenti automatici vengono bloccati.
+
 ### Pulizia Backup Orfani
 
 Quando accedi alla pagina **Backup**, il plugin:
@@ -191,6 +202,7 @@ Il plugin invia report dettagliati dopo ogni aggiornamento automatico contenente
 - Lista plugin aggiornati con versioni (precedente → nuova)
 - Errori eventuali con codici di errore
 - Plugin saltati e motivazione
+- Stato dei backup database/file, con verifica e link download quando disponibili
 - Stato aggiornamento database Elementor (se applicabile)
 
 ## 🐛 Troubleshooting
@@ -202,7 +214,8 @@ Il plugin invia report dettagliati dopo ogni aggiornamento automatico contenente
 
 ### Backup non creati
 - Verifica i permessi della cartella `wp-content/marrison-backups`
-- Controlla che l'estensione ZIP sia disponibile sul server
+- Controlla che `ZipArchive`/PclZip sia disponibile per i backup database e che `zlib` sia attiva per i backup file `tar.gz`
+- Per i backup database verificati, controlla che le tabelle siano InnoDB e che non siano presenti view, trigger o engine non transazionali
 
 ### Aggiornamenti automatici non partono
 - Verifica che i cron job WordPress siano attivi
@@ -211,10 +224,12 @@ Il plugin invia report dettagliati dopo ogni aggiornamento automatico contenente
 
 ## 📝 Changelog
 
-### 9.5.9
-- Rimossa la verifica di licenza e semplificata la configurazione del plugin
-- Semplificata la configurazione del plugin
-- Ripulita la dashboard dai riferimenti alla verifica licenza
+### 9.6.6
+- Backup database verificato con manifest JSON, dimensione SQL e hash SHA256 inclusi nello ZIP
+- Validazione post-compressione dello ZIP prima di dichiarare il backup riuscito
+- Aggiornamenti automatici bloccati quando un backup richiesto non viene completato e verificato
+- Backup file piu severo sugli errori durante la scrittura `tar.gz`
+- Stato di verifica visibile nella pagina Backup e nei report email programmati
 
 Vedi il file [CHANGELOG.md](CHANGELOG.md) per un elenco completo delle modifiche versione per versione.
 

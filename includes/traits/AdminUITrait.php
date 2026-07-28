@@ -148,8 +148,9 @@ trait MCU_Admin_UI_Trait {
         if (strpos($hook, 'marrison-updater') === false) {
             return;
         }
-        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . '../../assets/css/admin-style.css', [], '9.6.5');
-        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . '../../assets/js/admin-script.js', ['jquery'], '9.6.5', true);
+        $asset_version = defined('MCU_PLUGIN_VERSION') ? MCU_PLUGIN_VERSION : '9.6.6';
+        wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . '../../assets/css/admin-style.css', [], $asset_version);
+        wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . '../../assets/js/admin-script.js', ['jquery'], $asset_version, true);
         wp_localize_script('mcu-admin-script', 'marrisonUpdater', [
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('marrison_ajax_nonce'),
@@ -1067,6 +1068,7 @@ JS
                             'filename' => $filename,
                             'date'     => date('d/m/Y H:i', filemtime($file)),
                             'size'     => size_format(filesize($file)),
+                            'integrity' => $this->get_db_backup_integrity_status($filename, $file),
                         ];
                         continue;
                     }
@@ -1140,6 +1142,7 @@ JS
                             <th><?php esc_html_e('File', 'marrison-custom-updater'); ?></th>
                             <th><?php esc_html_e('Data', 'marrison-custom-updater'); ?></th>
                             <th><?php esc_html_e('Dimensione', 'marrison-custom-updater'); ?></th>
+                            <th><?php esc_html_e('Verifica', 'marrison-custom-updater'); ?></th>
                             <th style="text-align:right;"><?php esc_html_e('Azione', 'marrison-custom-updater'); ?></th>
                         </tr></thead>
                         <tbody>
@@ -1148,6 +1151,10 @@ JS
                                     <td><span class="dashicons dashicons-database" style="color:#874abd;"></span> <?php echo esc_html($db['filename']); ?></td>
                                     <td><?php echo esc_html($db['date']); ?></td>
                                     <td><?php echo esc_html($db['size']); ?></td>
+                                    <td>
+                                        <span class="mcu-badge <?php echo esc_attr($db['integrity']['class']); ?>"><?php echo esc_html($db['integrity']['label']); ?></span>
+                                        <div style="font-size:11px; color:#646970; margin-top:4px;"><?php echo esc_html($db['integrity']['detail']); ?></div>
+                                    </td>
                                     <td style="text-align:right;">
                                         <?php
                                         $dl_url = wp_nonce_url(

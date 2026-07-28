@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.6.5
+Stable tag: 9.6.6
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -34,6 +34,14 @@ Note: il backup completo dei file usa il formato tar.gz e richiede l'estensione 
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 9.6.6 =
+* **Sicurezza**: Backup database con scrittura SQL controllata byte per byte, manifest JSON e hash SHA256 dentro lo ZIP
+* **Sicurezza**: Validazione dello ZIP dopo la compressione: il backup viene dichiarato riuscito solo se SQL, manifest, dimensione e hash coincidono
+* **Sicurezza**: Gli aggiornamenti automatici vengono bloccati se un backup richiesto non viene completato e verificato
+* **Compatibilita**: Il backup DB verificato richiede tabelle InnoDB; view, trigger o engine non transazionali vengono bloccati con errore esplicito
+* **Fix critico**: Backup file piu severo sugli errori durante la scrittura tar.gz, evitando archivi potenzialmente corrotti dichiarati validi
+* **Miglioramento**: Pagina Backup e report email indicano quando un backup database e stato verificato
 
 = 9.6.5 =
 * **Fix**: Backup database con ordinamento per chiave primaria quando disponibile e validazione interna del numero righe esportate per tabella

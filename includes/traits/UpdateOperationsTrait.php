@@ -661,69 +661,107 @@ trait MCU_Update_Operations_Trait {
     public function create_db_backup() {
         global $wpdb;
 
-        $backup_dir   = $this->get_backup_dir();
-        $date         = date('Ymd');
-        $time         = date('His');
-        $sql_filename = 'db-backup-' . $date . '-' . $time . '.sql';
-        $zip_filename = 'db-backup-' . $date . '-' . $time . '.zip';
-        $sql_path     = $backup_dir . '/' . $sql_filename;
-        $zip_path     = $backup_dir . '/' . $zip_filename;
+        $backup_dir = $this->get_backup_dir();
+        if (!is_dir($backup_dir) || !is_writable($backup_dir)) {
+            return new WP_Error('backup_dir_not_writable', __('Directory backup non scrivibile.', 'marrison-custom-updater'));
+        }
 
+        $date              = date('Ymd');
+        $time              = date('His');
+        $prefix            = 'db-backup-' . $date . '-' . $time;
+        $sql_filename      = $prefix . '.sql';
+        $zip_filename      = $prefix . '.zip';
+        $manifest_filename = $prefix . '-manifest.json';
+        $sql_path          = $backup_dir . '/' . $sql_filename;
+        $zip_path          = $backup_dir . '/' . $zip_filename;
+        $manifest_path     = $backup_dir . '/' . $manifest_filename;
+
+        $handle = null;
         $snapshot_started = false;
-        $wpdb->query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
-        if ($wpdb->query('START TRANSACTION WITH CONSISTENT SNAPSHOT') !== false) {
-            $snapshot_started = true;
+        $sql_bytes = 0;
+        $table_stats = [];
+        $total_rows = 0;
+        $charset = $this->get_db_backup_charset();
+
+        $fail = function($code, $message) use (&$handle, &$snapshot_started, $sql_path, $zip_path, $manifest_path) {
+            return $this->abort_db_backup($handle, $snapshot_started, $sql_path, $zip_path, $manifest_path, $code, $message);
+        };
+
+        if ($wpdb->query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ') === false) {
+            return $fail(
+                'db_backup_isolation_failed',
+                __('Backup database non creato: impossibile impostare una transazione coerente.', 'marrison-custom-updater')
+            );
         }
 
-        $tables = $wpdb->get_col('SHOW TABLES');
+        if ($wpdb->query('START TRANSACTION WITH CONSISTENT SNAPSHOT') === false) {
+            return $fail(
+                'db_backup_snapshot_failed',
+                __('Backup database non creato: impossibile creare uno snapshot coerente del database.', 'marrison-custom-updater')
+            );
+        }
+        $snapshot_started = true;
+
+        $tables = $this->get_db_backup_base_tables($wpdb);
+        if (is_wp_error($tables)) {
+            return $fail($tables->get_error_code(), $tables->get_error_message());
+        }
         if (empty($tables)) {
-            if ($snapshot_started) {
-                $wpdb->query('COMMIT');
-            }
-            return false;
+            return $fail('db_backup_no_tables', __('Backup database non creato: nessuna tabella trovata.', 'marrison-custom-updater'));
         }
 
-        sort($tables);
-
-        $handle = fopen($sql_path, 'w');
+        $handle = @fopen($sql_path, 'wb');
         if (!$handle) {
-            if ($snapshot_started) {
-                $wpdb->query('COMMIT');
-            }
-            return false;
+            return $fail('db_backup_open_failed', __('Impossibile creare il file SQL del backup database.', 'marrison-custom-updater'));
         }
 
-        fwrite($handle, "-- phpMyAdmin SQL Dump\n");
-        fwrite($handle, "-- version 5.2.1\n");
-        fwrite($handle, "-- https://www.phpmyadmin.net/\n");
-        fwrite($handle, "--\n");
-        fwrite($handle, "-- Host: " . $wpdb->dbhost . "\n");
-        fwrite($handle, "-- Generation Time: " . date('r') . "\n");
-        fwrite($handle, "-- Server version: " . $wpdb->db_version() . "\n");
-        fwrite($handle, "-- PHP Version: " . phpversion() . "\n");
-        fwrite($handle, "--\n");
-        fwrite($handle, "-- Database: `" . DB_NAME . "`\n");
-        fwrite($handle, "--\n\n");
+        $header_sql =
+            "-- phpMyAdmin SQL Dump\n" .
+            "-- version 5.2.1\n" .
+            "-- https://www.phpmyadmin.net/\n" .
+            "--\n" .
+            "-- Host: " . $wpdb->dbhost . "\n" .
+            "-- Generation Time: " . date('r') . "\n" .
+            "-- Server version: " . $wpdb->db_version() . "\n" .
+            "-- PHP Version: " . phpversion() . "\n" .
+            "--\n" .
+            "-- Database: " . $this->quote_db_identifier(DB_NAME) . "\n" .
+            "--\n\n" .
+            "/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;\n" .
+            "/*!40103 SET TIME_ZONE='+00:00' */;\n" .
+            "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;\n" .
+            "/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n" .
+            "/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n" .
+            "/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;\n" .
+            "/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;\n" .
+            "/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;\n" .
+            "/*!40101 SET NAMES " . $charset . " */;\n\n" .
+            "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n\n" .
+            "START TRANSACTION;\n\n";
 
-        fwrite($handle, "/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;\n");
-        fwrite($handle, "/*!40103 SET TIME_ZONE='+00:00' */;\n");
-        fwrite($handle, "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;\n");
-        fwrite($handle, "/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n");
-        fwrite($handle, "/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n");
-        fwrite($handle, "/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;\n");
-        fwrite($handle, "/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;\n");
-        fwrite($handle, "/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;\n");
-        fwrite($handle, "/*!40101 SET NAMES utf8mb4 */;\n\n");
-        fwrite($handle, "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n\n");
-        fwrite($handle, "START TRANSACTION;\n\n");
+        if (!$this->write_backup_stream_data($handle, $header_sql, $sql_bytes)) {
+            return $fail('db_backup_write_failed', __('Errore durante la scrittura dell\'header SQL del backup database.', 'marrison-custom-updater'));
+        }
 
         foreach ($tables as $table) {
-            $create = $wpdb->get_row("SHOW CREATE TABLE `{$table}`", ARRAY_N);
-            if (!$create) continue;
+            $table_sql = $this->quote_db_identifier($table);
+            $create = $wpdb->get_row("SHOW CREATE TABLE {$table_sql}", ARRAY_N);
+            if (!$create || empty($create[1])) {
+                return $fail('db_backup_schema_failed', sprintf(__('Impossibile leggere lo schema della tabella %s.', 'marrison-custom-updater'), $table));
+            }
 
-            $create_sql = $create[1];
-            $columns = $wpdb->get_results("SHOW COLUMNS FROM `{$table}`", ARRAY_A);
-            $expected_rows = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$table}`");
+            $create_sql = (string) $create[1];
+            $columns = $wpdb->get_results("SHOW COLUMNS FROM {$table_sql}", ARRAY_A);
+            if (empty($columns) || !is_array($columns)) {
+                return $fail('db_backup_columns_failed', sprintf(__('Impossibile leggere le colonne della tabella %s.', 'marrison-custom-updater'), $table));
+            }
+
+            $expected_rows_raw = $wpdb->get_var("SELECT COUNT(*) FROM {$table_sql}");
+            if ($expected_rows_raw === null) {
+                return $fail('db_backup_count_failed', sprintf(__('Impossibile contare le righe della tabella %s.', 'marrison-custom-updater'), $table));
+            }
+
+            $expected_rows = (int) $expected_rows_raw;
             $dumped_rows = 0;
             $order_clause = $this->get_db_backup_order_clause($wpdb, $table);
 
@@ -731,138 +769,636 @@ trait MCU_Update_Operations_Trait {
                 return isset($col['Extra']) && stripos($col['Extra'], 'auto_increment') !== false;
             });
             if (!empty($auto_increment_columns) && stripos($create_sql, 'AUTO_INCREMENT') === false) {
-                fclose($handle);
-                if ($snapshot_started) {
-                    $wpdb->query('COMMIT');
-                }
-                @unlink($sql_path);
-                return new WP_Error('missing_auto_increment', sprintf(__('Schema non valido per la tabella %s: AUTO_INCREMENT mancante.', 'marrison-custom-updater'), $table));
+                return $fail(
+                    'missing_auto_increment',
+                    sprintf(__('Schema non valido per la tabella %s: AUTO_INCREMENT mancante.', 'marrison-custom-updater'), $table)
+                );
             }
 
-            fwrite($handle, "--\n-- Table structure for table `{$table}`\n--\n\n");
-            fwrite($handle, "DROP TABLE IF EXISTS `{$table}`;\n");
-            fwrite($handle, "/*!40101 SET @saved_cs_client     = @@character_set_client */;\n");
-            fwrite($handle, "/*!40101 SET character_set_client = utf8mb4 */;\n");
-            fwrite($handle, $create_sql . ";\n");
-            fwrite($handle, "/*!40101 SET character_set_client = @saved_cs_client */;\n\n");
+            $schema_sql =
+                "--\n-- Table structure for table " . $table_sql . "\n--\n\n" .
+                "DROP TABLE IF EXISTS " . $table_sql . ";\n" .
+                "/*!40101 SET @saved_cs_client     = @@character_set_client */;\n" .
+                "/*!40101 SET character_set_client = " . $charset . " */;\n" .
+                $create_sql . ";\n" .
+                "/*!40101 SET character_set_client = @saved_cs_client */;\n\n";
+
+            if (!$this->write_backup_stream_data($handle, $schema_sql, $sql_bytes)) {
+                return $fail('db_backup_write_failed', sprintf(__('Errore durante la scrittura dello schema della tabella %s.', 'marrison-custom-updater'), $table));
+            }
+
+            $insert_columns = array_values(array_filter($columns, [$this, 'is_db_backup_insertable_column']));
+            if ($expected_rows > 0 && empty($insert_columns)) {
+                return $fail('db_backup_no_insertable_columns', sprintf(__('La tabella %s contiene righe ma nessuna colonna inseribile.', 'marrison-custom-updater'), $table));
+            }
 
             $column_names = array_map(function($col) {
-                return '`' . str_replace('`', '``', $col['Field']) . '`';
-            }, $columns);
+                return $this->quote_db_identifier($col['Field']);
+            }, $insert_columns);
+
             $numeric_cols = [];
-            foreach ($columns as $col) {
-                $numeric_cols[$col['Field']] = (bool) preg_match(
-                    '/^(tinyint|smallint|mediumint|int|bigint|float|double|decimal|numeric|real|bit|year)/i',
-                    $col['Type']
-                );
+            $binary_cols = [];
+            foreach ($insert_columns as $col) {
+                $numeric_cols[$col['Field']] = $this->is_db_backup_numeric_column($col['Type']);
+                $binary_cols[$col['Field']] = $this->is_db_backup_binary_column($col['Type']);
             }
 
-            $offset = 0;
-            $batch  = 500;
-            $insert_prefix = "INSERT INTO `{$table}` (" . implode(', ', $column_names) . ") VALUES\n";
-            $insert_chunk_limit = 1024 * 1024;
-            while (true) {
-                $rows = $wpdb->get_results(
-                    $wpdb->prepare("SELECT * FROM `{$table}`{$order_clause} LIMIT %d OFFSET %d", $batch, $offset),
-                    ARRAY_A
-                );
-                if (empty($rows)) break;
+            if (!empty($insert_columns)) {
+                $offset = 0;
+                $batch = 500;
+                $select_columns_sql = implode(', ', $column_names);
+                $insert_prefix = "INSERT INTO " . $table_sql . " (" . implode(', ', $column_names) . ") VALUES\n";
+                $insert_chunk_limit = 1024 * 1024;
 
-                $value_rows = [];
-                $current_insert_size = strlen($insert_prefix);
-                foreach ($rows as $row) {
-                    $vals = [];
-                    foreach ($columns as $col) {
-                        $field = $col['Field'];
-                        $val = array_key_exists($field, $row) ? $row[$field] : null;
-                        if ($val === null) {
-                            $vals[] = 'NULL';
-                        } elseif (!empty($numeric_cols[$field]) && is_numeric($val)) {
-                            $vals[] = $val;
-                        } else {
-                            $vals[] = "'" . $this->escape_for_sql($wpdb, (string) $val) . "'";
+                while (true) {
+                    $rows = $wpdb->get_results(
+                        $wpdb->prepare("SELECT {$select_columns_sql} FROM {$table_sql}{$order_clause} LIMIT %d OFFSET %d", $batch, $offset),
+                        ARRAY_A
+                    );
+                    if ($rows === null && !empty($wpdb->last_error)) {
+                        return $fail('db_backup_select_failed', sprintf(__('Errore durante la lettura della tabella %s.', 'marrison-custom-updater'), $table));
+                    }
+                    if (empty($rows)) {
+                        break;
+                    }
+
+                    $value_rows = [];
+                    $current_insert_size = strlen($insert_prefix);
+                    foreach ($rows as $row) {
+                        $vals = [];
+                        foreach ($insert_columns as $col) {
+                            $field = $col['Field'];
+                            $val = array_key_exists($field, $row) ? $row[$field] : null;
+                            $vals[] = $this->get_db_backup_sql_value($wpdb, $val, $col, $numeric_cols, $binary_cols);
+                        }
+
+                        $tuple = '(' . implode(', ', $vals) . ')';
+                        $tuple_size = strlen($tuple) + 2;
+                        if (!empty($value_rows) && ($current_insert_size + $tuple_size) > $insert_chunk_limit) {
+                            if (!$this->write_backup_stream_data($handle, $insert_prefix . implode(",\n", $value_rows) . ";\n", $sql_bytes)) {
+                                return $fail('db_backup_write_failed', sprintf(__('Errore durante la scrittura dei dati della tabella %s.', 'marrison-custom-updater'), $table));
+                            }
+                            $value_rows = [];
+                            $current_insert_size = strlen($insert_prefix);
+                        }
+
+                        $value_rows[] = $tuple;
+                        $current_insert_size += $tuple_size;
+                    }
+
+                    if (!empty($value_rows)) {
+                        if (!$this->write_backup_stream_data($handle, $insert_prefix . implode(",\n", $value_rows) . ";\n", $sql_bytes)) {
+                            return $fail('db_backup_write_failed', sprintf(__('Errore durante la scrittura dei dati della tabella %s.', 'marrison-custom-updater'), $table));
                         }
                     }
-                    $tuple = '(' . implode(', ', $vals) . ')';
-                    $tuple_size = strlen($tuple) + 2;
-                    if (!empty($value_rows) && ($current_insert_size + $tuple_size) > $insert_chunk_limit) {
-                        fwrite($handle, $insert_prefix . implode(",\n", $value_rows) . ";\n");
-                        $value_rows = [];
-                        $current_insert_size = strlen($insert_prefix);
+
+                    $offset += $batch;
+                    $dumped_rows += count($rows);
+                    if (count($rows) < $batch) {
+                        break;
                     }
-                    $value_rows[] = $tuple;
-                    $current_insert_size += $tuple_size;
                 }
-
-                if (!empty($value_rows)) {
-                    fwrite($handle, $insert_prefix . implode(",\n", $value_rows) . ";\n");
-                }
-
-                $offset += $batch;
-                $dumped_rows += count($rows);
-                if (count($rows) < $batch) break;
             }
 
             if ($dumped_rows !== $expected_rows) {
-                fclose($handle);
-                if ($snapshot_started) {
-                    $wpdb->query('COMMIT');
-                }
-                @unlink($sql_path);
-                return new WP_Error(
+                return $fail(
                     'db_backup_row_count_mismatch',
                     sprintf(__('Backup database non valido per la tabella %1$s: attese %2$d righe, scritte %3$d.', 'marrison-custom-updater'), $table, $expected_rows, $dumped_rows)
                 );
             }
 
-            fwrite($handle, "-- --------------------------------------------------------\n\n");
+            $total_rows += $dumped_rows;
+            $table_stats[] = [
+                'name' => $table,
+                'rows' => $dumped_rows,
+                'columns' => count($columns),
+                'insert_columns' => count($insert_columns),
+            ];
+
+            if (!$this->write_backup_stream_data($handle, "-- --------------------------------------------------------\n\n", $sql_bytes)) {
+                return $fail('db_backup_write_failed', sprintf(__('Errore durante la finalizzazione della tabella %s.', 'marrison-custom-updater'), $table));
+            }
         }
 
-        fwrite($handle, "COMMIT;\n\n");
-        fwrite($handle, "/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;\n");
-        fwrite($handle, "/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;\n");
-        fwrite($handle, "/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;\n");
-        fwrite($handle, "/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;\n");
-        fwrite($handle, "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n");
-        fwrite($handle, "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n");
-        fwrite($handle, "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n");
-        fwrite($handle, "/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;\n");
-        fclose($handle);
+        $footer_sql =
+            "COMMIT;\n\n" .
+            "/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;\n" .
+            "/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;\n" .
+            "/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;\n" .
+            "/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;\n" .
+            "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n" .
+            "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n" .
+            "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n" .
+            "/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;\n" .
+            "-- MCU_BACKUP_COMPLETE\n";
+
+        if (!$this->write_backup_stream_data($handle, $footer_sql, $sql_bytes)) {
+            return $fail('db_backup_write_failed', __('Errore durante la scrittura del footer SQL del backup database.', 'marrison-custom-updater'));
+        }
+
+        if (!@fflush($handle)) {
+            return $fail('db_backup_flush_failed', __('Backup database non valido: impossibile sincronizzare il file SQL su disco.', 'marrison-custom-updater'));
+        }
+
+        if (!@fclose($handle)) {
+            $handle = null;
+            return $fail('db_backup_close_failed', __('Backup database non valido: impossibile chiudere il file SQL.', 'marrison-custom-updater'));
+        }
+        $handle = null;
+
         if ($snapshot_started) {
             $wpdb->query('COMMIT');
+            $snapshot_started = false;
         }
 
-        if (class_exists('ZipArchive')) {
-            $zip = new ZipArchive();
-            $opened = $zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
-            $result = false;
-            if ($opened === true) {
-                $added = $zip->addFile($sql_path, $sql_filename);
-                $closed = $zip->close();
-                $result = $added && $closed;
-            }
-        } else {
-            if (!class_exists('PclZip')) {
-                require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
-            }
-            $archive = new PclZip($zip_path);
-            $result  = $archive->create($sql_path, PCLZIP_OPT_REMOVE_PATH, $backup_dir);
+        clearstatcache(true, $sql_path);
+        $sql_size = @filesize($sql_path);
+        if ($sql_size === false || (int) $sql_size !== (int) $sql_bytes) {
+            return $fail('db_backup_size_mismatch', __('Backup database non valido: la dimensione del file SQL non coincide con i byte scritti.', 'marrison-custom-updater'));
         }
+
+        $sql_hash = @hash_file('sha256', $sql_path);
+        if (!$sql_hash) {
+            return $fail('db_backup_hash_failed', __('Backup database non valido: impossibile calcolare l\'hash del file SQL.', 'marrison-custom-updater'));
+        }
+
+        $manifest = [
+            'type' => 'marrison_database_backup',
+            'format_version' => 2,
+            'plugin_version' => defined('MCU_PLUGIN_VERSION') ? MCU_PLUGIN_VERSION : 'unknown',
+            'generated_at' => gmdate('c'),
+            'database' => [
+                'name' => defined('DB_NAME') ? DB_NAME : '',
+                'host' => $wpdb->dbhost,
+                'server_version' => $wpdb->db_version(),
+                'charset' => $charset,
+            ],
+            'sql' => [
+                'file' => $sql_filename,
+                'bytes' => (int) $sql_size,
+                'sha256' => $sql_hash,
+                'complete_marker' => 'MCU_BACKUP_COMPLETE',
+            ],
+            'totals' => [
+                'tables' => count($table_stats),
+                'rows' => $total_rows,
+            ],
+            'tables' => $table_stats,
+            'integrity' => [
+                'consistent_snapshot' => true,
+                'write_verified' => true,
+                'row_counts_verified' => true,
+                'sql_hash_verified' => true,
+                'zip_verified_before_success' => true,
+            ],
+        ];
+
+        $manifest_json = wp_json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if (!is_string($manifest_json) || $manifest_json === '') {
+            return $fail('db_backup_manifest_encode_failed', __('Backup database non valido: impossibile generare il manifest di verifica.', 'marrison-custom-updater'));
+        }
+
+        if (!$this->write_backup_file_data($manifest_path, $manifest_json . "\n")) {
+            return $fail('db_backup_manifest_write_failed', __('Backup database non valido: impossibile scrivere il manifest di verifica.', 'marrison-custom-updater'));
+        }
+
+        $zip_result = $this->create_db_backup_zip_archive($zip_path, $backup_dir, [$sql_path, $manifest_path]);
+        if (is_wp_error($zip_result)) {
+            return $fail($zip_result->get_error_code(), $zip_result->get_error_message());
+        }
+
+        $zip_validation = $this->validate_db_backup_zip($zip_path, $sql_filename, $manifest_filename, (int) $sql_size, $sql_hash);
+        if (is_wp_error($zip_validation)) {
+            return $fail($zip_validation->get_error_code(), $zip_validation->get_error_message());
+        }
+
+        clearstatcache(true, $zip_path);
+        $archive_size = @filesize($zip_path);
+        $archive_hash = @hash_file('sha256', $zip_path);
+        if ($archive_size === false || !$archive_hash) {
+            return $fail('db_backup_archive_hash_failed', __('Backup database non valido: impossibile calcolare l\'hash dello ZIP.', 'marrison-custom-updater'));
+        }
+
+        $this->record_db_backup_integrity($zip_filename, [
+            'created_at' => $manifest['generated_at'],
+            'verified_at' => gmdate('c'),
+            'plugin_version' => $manifest['plugin_version'],
+            'archive_bytes' => (int) $archive_size,
+            'archive_sha256' => $archive_hash,
+            'sql_bytes' => (int) $sql_size,
+            'sql_sha256' => $sql_hash,
+            'total_tables' => count($table_stats),
+            'total_rows' => $total_rows,
+        ]);
+
         @unlink($sql_path);
-
-        if (!$result) return false;
+        @unlink($manifest_path);
 
         $db_backups = glob($backup_dir . '/db-backup-*.zip');
         if (is_array($db_backups) && count($db_backups) > 3) {
             usort($db_backups, function($a, $b) { return filemtime($a) - filemtime($b); });
-            foreach (array_slice($db_backups, 0, count($db_backups) - 3) as $f) @unlink($f);
+            foreach (array_slice($db_backups, 0, count($db_backups) - 3) as $f) {
+                @unlink($f);
+            }
         }
+        $this->prune_db_backup_integrity_records($backup_dir);
 
         return $zip_filename;
     }
 
+    private function abort_db_backup(&$handle, &$snapshot_started, $sql_path, $zip_path, $manifest_path, $code, $message) {
+        global $wpdb;
+
+        if (is_resource($handle)) {
+            @fclose($handle);
+            $handle = null;
+        }
+
+        if ($snapshot_started) {
+            $wpdb->query('ROLLBACK');
+            $snapshot_started = false;
+        }
+
+        foreach ([$sql_path, $zip_path, $manifest_path] as $path) {
+            if ($path && file_exists($path)) {
+                @unlink($path);
+            }
+        }
+
+        return new WP_Error($code, $message);
+    }
+
+    private function get_db_backup_base_tables($wpdb) {
+        $rows = $wpdb->get_results('SHOW FULL TABLES', ARRAY_N);
+        if ($rows === null && !empty($wpdb->last_error)) {
+            return new WP_Error(
+                'db_backup_tables_failed',
+                sprintf(__('Impossibile leggere le tabelle del database: %s', 'marrison-custom-updater'), $wpdb->last_error)
+            );
+        }
+
+        $tables = [];
+        $unsupported = [];
+        foreach ((array) $rows as $row) {
+            $name = isset($row[0]) ? (string) $row[0] : '';
+            $type = strtoupper(isset($row[1]) ? (string) $row[1] : 'BASE TABLE');
+            if ($name === '') {
+                continue;
+            }
+            if ($type === 'BASE TABLE') {
+                $tables[] = $name;
+            } else {
+                $unsupported[] = $type . ' ' . $name;
+            }
+        }
+
+        $triggers = $wpdb->get_results('SHOW TRIGGERS', ARRAY_A);
+        if (is_array($triggers) && !empty($triggers)) {
+            foreach ($triggers as $trigger) {
+                $unsupported[] = 'TRIGGER ' . (isset($trigger['Trigger']) ? $trigger['Trigger'] : '');
+            }
+        }
+
+        if (!empty($unsupported)) {
+            $sample = implode(', ', array_slice($unsupported, 0, 10));
+            if (count($unsupported) > 10) {
+                $sample .= ', ...';
+            }
+
+            return new WP_Error(
+                'db_backup_unsupported_objects',
+                sprintf(__('Backup database non creato: sono presenti oggetti non supportati dal dump verificato (%s). Usa phpMyAdmin o mysqldump per includerli.', 'marrison-custom-updater'), $sample)
+            );
+        }
+
+        $table_engines = [];
+        $status_rows = $wpdb->get_results('SHOW TABLE STATUS', ARRAY_A);
+        if (is_array($status_rows)) {
+            foreach ($status_rows as $status_row) {
+                if (!empty($status_row['Name'])) {
+                    $table_engines[$status_row['Name']] = isset($status_row['Engine']) ? (string) $status_row['Engine'] : '';
+                }
+            }
+        }
+
+        $unsupported_engines = [];
+        foreach ($tables as $table) {
+            $engine = isset($table_engines[$table]) ? strtolower($table_engines[$table]) : '';
+            if ($engine !== 'innodb') {
+                $unsupported_engines[] = ($engine !== '' ? strtoupper($engine) : 'UNKNOWN') . ' ' . $table;
+            }
+        }
+
+        if (!empty($unsupported_engines)) {
+            $sample = implode(', ', array_slice($unsupported_engines, 0, 10));
+            if (count($unsupported_engines) > 10) {
+                $sample .= ', ...';
+            }
+
+            return new WP_Error(
+                'db_backup_non_transactional_tables',
+                sprintf(__('Backup database non creato: lo snapshot verificato richiede tabelle InnoDB, ma sono presenti tabelle con engine diverso (%s). Usa phpMyAdmin o mysqldump per un export bloccante.', 'marrison-custom-updater'), $sample)
+            );
+        }
+
+        sort($tables, SORT_STRING);
+        return $tables;
+    }
+
+    private function get_db_backup_charset() {
+        $charset = defined('DB_CHARSET') && DB_CHARSET ? DB_CHARSET : 'utf8mb4';
+        return preg_match('/^[A-Za-z0-9_]+$/', $charset) ? $charset : 'utf8mb4';
+    }
+
+    private function quote_db_identifier($identifier) {
+        return '`' . str_replace('`', '``', (string) $identifier) . '`';
+    }
+
+    private function write_backup_stream_data($handle, $data, &$bytes_written = null) {
+        $length = strlen($data);
+        $offset = 0;
+
+        while ($offset < $length) {
+            $written = @fwrite($handle, substr($data, $offset));
+            if ($written === false || $written <= 0) {
+                return false;
+            }
+            $offset += $written;
+        }
+
+        if ($bytes_written !== null) {
+            $bytes_written += $length;
+        }
+
+        return true;
+    }
+
+    private function write_backup_file_data($path, $data) {
+        $written = @file_put_contents($path, $data, LOCK_EX);
+        return $written !== false && (int) $written === strlen($data);
+    }
+
+    private function is_db_backup_insertable_column($col) {
+        $extra = isset($col['Extra']) ? strtolower((string) $col['Extra']) : '';
+        return strpos($extra, 'generated') === false;
+    }
+
+    private function is_db_backup_numeric_column($type) {
+        return (bool) preg_match('/^(tinyint|smallint|mediumint|int|bigint|float|double|decimal|numeric|real|year)/i', (string) $type);
+    }
+
+    private function is_db_backup_binary_column($type) {
+        $type = strtolower((string) $type);
+        return strpos($type, 'blob') !== false || strpos($type, 'binary') !== false || preg_match('/^bit\b/i', $type);
+    }
+
+    private function get_db_backup_sql_value($wpdb, $val, $col, $numeric_cols, $binary_cols) {
+        $field = $col['Field'];
+
+        if ($val === null) {
+            return 'NULL';
+        }
+
+        if (!empty($binary_cols[$field])) {
+            return "X'" . bin2hex((string) $val) . "'";
+        }
+
+        if (!empty($numeric_cols[$field]) && is_numeric($val)) {
+            return (string) $val;
+        }
+
+        return "'" . $this->escape_for_sql($wpdb, (string) $val) . "'";
+    }
+
+    private function create_db_backup_zip_archive($zip_path, $backup_dir, $files) {
+        if (class_exists('ZipArchive')) {
+            $zip = new ZipArchive();
+            $opened = $zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+            if ($opened !== true) {
+                return new WP_Error('db_backup_zip_open_failed', __('Impossibile creare il file ZIP del backup database.', 'marrison-custom-updater'));
+            }
+
+            foreach ($files as $file) {
+                if (!$zip->addFile($file, basename($file))) {
+                    $zip->close();
+                    return new WP_Error('db_backup_zip_add_failed', sprintf(__('Impossibile aggiungere %s allo ZIP del backup database.', 'marrison-custom-updater'), basename($file)));
+                }
+            }
+
+            if (!$zip->close()) {
+                return new WP_Error('db_backup_zip_close_failed', __('Impossibile finalizzare lo ZIP del backup database.', 'marrison-custom-updater'));
+            }
+
+            return true;
+        }
+
+        if (!class_exists('PclZip')) {
+            require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
+        }
+
+        $archive = new PclZip($zip_path);
+        $result = $archive->create($files, PCLZIP_OPT_REMOVE_PATH, $backup_dir);
+        if (!is_array($result) || empty($result)) {
+            return new WP_Error('db_backup_zip_create_failed', __('Impossibile creare lo ZIP del backup database.', 'marrison-custom-updater'));
+        }
+
+        return true;
+    }
+
+    private function validate_db_backup_zip($zip_path, $sql_filename, $manifest_filename, $expected_sql_size, $expected_sql_hash) {
+        clearstatcache(true, $zip_path);
+        if (!file_exists($zip_path) || filesize($zip_path) <= 0) {
+            return new WP_Error('db_backup_zip_missing', __('Backup database non valido: lo ZIP non e stato creato correttamente.', 'marrison-custom-updater'));
+        }
+
+        if (class_exists('ZipArchive')) {
+            $zip = new ZipArchive();
+            $opened = $zip->open($zip_path, ZipArchive::CHECKCONS);
+            if ($opened !== true) {
+                return new WP_Error('db_backup_zip_invalid', __('Backup database non valido: lo ZIP non supera il controllo di consistenza.', 'marrison-custom-updater'));
+            }
+
+            $sql_stat = $zip->statName($sql_filename);
+            $manifest_stat = $zip->statName($manifest_filename);
+            if (!$sql_stat || !$manifest_stat) {
+                $zip->close();
+                return new WP_Error('db_backup_zip_missing_entries', __('Backup database non valido: SQL o manifest mancanti nello ZIP.', 'marrison-custom-updater'));
+            }
+
+            if ((int) $sql_stat['size'] !== (int) $expected_sql_size) {
+                $zip->close();
+                return new WP_Error('db_backup_zip_size_mismatch', __('Backup database non valido: la dimensione SQL nello ZIP non coincide.', 'marrison-custom-updater'));
+            }
+
+            $stream = $zip->getStream($sql_filename);
+            if (!$stream) {
+                $zip->close();
+                return new WP_Error('db_backup_zip_stream_failed', __('Backup database non valido: impossibile leggere SQL dallo ZIP.', 'marrison-custom-updater'));
+            }
+
+            $bytes = 0;
+            $hash = $this->hash_backup_stream($stream, $bytes);
+            fclose($stream);
+            $zip->close();
+
+            if (!$hash || (int) $bytes !== (int) $expected_sql_size || !hash_equals($expected_sql_hash, $hash)) {
+                return new WP_Error('db_backup_zip_hash_mismatch', __('Backup database non valido: hash SQL nello ZIP non coincidente.', 'marrison-custom-updater'));
+            }
+
+            return true;
+        }
+
+        if (!class_exists('PclZip')) {
+            require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
+        }
+
+        $tmp_dir = trailingslashit(dirname($zip_path)) . 'mcu-zip-validate-' . wp_generate_password(8, false, false);
+        if (!wp_mkdir_p($tmp_dir)) {
+            return new WP_Error('db_backup_validation_tmp_failed', __('Backup database non valido: impossibile preparare la verifica dello ZIP.', 'marrison-custom-updater'));
+        }
+
+        $archive = new PclZip($zip_path);
+        $result = $archive->extract(PCLZIP_OPT_PATH, $tmp_dir, PCLZIP_OPT_REMOVE_ALL_PATH);
+        if (!is_array($result) || empty($result)) {
+            $this->delete_backup_temp_dir($tmp_dir);
+            return new WP_Error('db_backup_zip_extract_failed', __('Backup database non valido: impossibile estrarre lo ZIP per la verifica.', 'marrison-custom-updater'));
+        }
+
+        $sql_path = $tmp_dir . '/' . $sql_filename;
+        $manifest_path = $tmp_dir . '/' . $manifest_filename;
+        clearstatcache(true, $sql_path);
+        if (!file_exists($sql_path) || !file_exists($manifest_path) || (int) filesize($sql_path) !== (int) $expected_sql_size) {
+            $this->delete_backup_temp_dir($tmp_dir);
+            return new WP_Error('db_backup_zip_extract_mismatch', __('Backup database non valido: contenuto ZIP non coincidente.', 'marrison-custom-updater'));
+        }
+
+        $hash = @hash_file('sha256', $sql_path);
+        $this->delete_backup_temp_dir($tmp_dir);
+        if (!$hash || !hash_equals($expected_sql_hash, $hash)) {
+            return new WP_Error('db_backup_zip_hash_mismatch', __('Backup database non valido: hash SQL nello ZIP non coincidente.', 'marrison-custom-updater'));
+        }
+
+        return true;
+    }
+
+    private function hash_backup_stream($stream, &$bytes) {
+        $context = hash_init('sha256');
+        $bytes = 0;
+
+        while (!feof($stream)) {
+            $chunk = fread($stream, 1024 * 1024);
+            if ($chunk === false) {
+                return false;
+            }
+            if ($chunk === '') {
+                continue;
+            }
+            $bytes += strlen($chunk);
+            hash_update($context, $chunk);
+        }
+
+        return hash_final($context);
+    }
+
+    private function delete_backup_temp_dir($dir) {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $items = @scandir($dir);
+        if (is_array($items)) {
+            foreach ($items as $item) {
+                if ($item === '.' || $item === '..') {
+                    continue;
+                }
+
+                $path = $dir . '/' . $item;
+                if (is_dir($path)) {
+                    $this->delete_backup_temp_dir($path);
+                } else {
+                    @unlink($path);
+                }
+            }
+        }
+
+        @rmdir($dir);
+    }
+
+    private function record_db_backup_integrity($filename, $record) {
+        $records = get_option('marrison_db_backup_integrity', []);
+        if (!is_array($records)) {
+            $records = [];
+        }
+
+        $records[$filename] = $record;
+        update_option('marrison_db_backup_integrity', $records, false);
+    }
+
+    private function prune_db_backup_integrity_records($backup_dir) {
+        $records = get_option('marrison_db_backup_integrity', []);
+        if (!is_array($records) || empty($records)) {
+            return;
+        }
+
+        foreach (array_keys($records) as $filename) {
+            if (!file_exists(trailingslashit($backup_dir) . $filename)) {
+                unset($records[$filename]);
+            }
+        }
+
+        update_option('marrison_db_backup_integrity', $records, false);
+    }
+
+    private function remove_db_backup_integrity_record($filename) {
+        $records = get_option('marrison_db_backup_integrity', []);
+        if (!is_array($records) || !isset($records[$filename])) {
+            return;
+        }
+
+        unset($records[$filename]);
+        update_option('marrison_db_backup_integrity', $records, false);
+    }
+
+    private function get_db_backup_integrity_status($filename, $file_path) {
+        $records = get_option('marrison_db_backup_integrity', []);
+        if (!is_array($records) || empty($records[$filename])) {
+            return [
+                'class' => 'mcu-badge-warning',
+                'label' => __('Legacy', 'marrison-custom-updater'),
+                'detail' => __('Creato prima della verifica forte.', 'marrison-custom-updater'),
+            ];
+        }
+
+        $record = $records[$filename];
+        clearstatcache(true, $file_path);
+        $current_size = file_exists($file_path) ? @filesize($file_path) : false;
+        if ($current_size === false || (!empty($record['archive_bytes']) && (int) $current_size !== (int) $record['archive_bytes'])) {
+            return [
+                'class' => 'mcu-badge-danger',
+                'label' => __('Da ricontrollare', 'marrison-custom-updater'),
+                'detail' => __('Dimensione archivio diversa dalla verifica iniziale.', 'marrison-custom-updater'),
+            ];
+        }
+
+        $tables = isset($record['total_tables']) ? (int) $record['total_tables'] : 0;
+        $rows = isset($record['total_rows']) ? (int) $record['total_rows'] : 0;
+        $hash = !empty($record['sql_sha256']) ? substr($record['sql_sha256'], 0, 12) : '';
+
+        return [
+            'class' => 'mcu-badge-success',
+            'label' => __('Verificato', 'marrison-custom-updater'),
+            'detail' => sprintf(
+                __('%1$s tabelle, %2$s righe, SHA256 %3$s', 'marrison-custom-updater'),
+                function_exists('number_format_i18n') ? number_format_i18n($tables) : number_format($tables),
+                function_exists('number_format_i18n') ? number_format_i18n($rows) : number_format($rows),
+                $hash
+            ),
+        ];
+    }
+
     private function get_db_backup_order_clause($wpdb, $table) {
-        $keys = $wpdb->get_results("SHOW KEYS FROM `{$table}` WHERE Key_name = 'PRIMARY'", ARRAY_A);
+        $table_sql = $this->quote_db_identifier($table);
+        $keys = $wpdb->get_results("SHOW KEYS FROM {$table_sql} WHERE Key_name = 'PRIMARY'", ARRAY_A);
         if (empty($keys)) {
             return '';
         }
@@ -874,7 +1410,7 @@ trait MCU_Update_Operations_Trait {
         $columns = [];
         foreach ($keys as $key) {
             if (!empty($key['Column_name'])) {
-                $columns[] = '`' . str_replace('`', '``', $key['Column_name']) . '`';
+                $columns[] = $this->quote_db_identifier($key['Column_name']);
             }
         }
 
@@ -1101,7 +1637,10 @@ trait MCU_Update_Operations_Trait {
                         'mode' => @fileperms($path) ?: 0755,
                         'size' => 0,
                     ];
-                    fwrite($handle, wp_json_encode($entry) . "\n");
+                    if (!$this->write_backup_stream_data($handle, wp_json_encode($entry) . "\n")) {
+                        fclose($handle);
+                        return new WP_Error('backup_manifest_write_failed', __('Errore durante la scrittura del manifest del backup file.', 'marrison-custom-updater'));
+                    }
                     $stats['entries']++;
                     $stack[] = $path;
                     continue;
@@ -1144,14 +1683,19 @@ trait MCU_Update_Operations_Trait {
                     'mode' => @fileperms($path) ?: 0644,
                     'size' => $size,
                 ];
-                fwrite($handle, wp_json_encode($entry) . "\n");
+                if (!$this->write_backup_stream_data($handle, wp_json_encode($entry) . "\n")) {
+                    fclose($handle);
+                    return new WP_Error('backup_manifest_write_failed', __('Errore durante la scrittura del manifest del backup file.', 'marrison-custom-updater'));
+                }
                 $stats['entries']++;
                 $stats['files']++;
                 $stats['bytes'] += $size;
             }
         }
 
-        fclose($handle);
+        if (!fclose($handle)) {
+            return new WP_Error('backup_manifest_close_failed', __('Errore durante la chiusura del manifest del backup file.', 'marrison-custom-updater'));
+        }
         if ($stats['files'] === 0) {
             return new WP_Error('backup_empty', __('Nessun file leggibile trovato per il backup.', 'marrison-custom-updater'));
         }
@@ -1197,6 +1741,10 @@ trait MCU_Update_Operations_Trait {
         fclose($handle);
 
         if ($complete) {
+            if ((int) $state['processed_entries'] !== (int) $state['total_entries']) {
+                return new WP_Error('backup_manifest_incomplete', __('Manifest del backup incompleto: il numero di elementi processati non coincide.', 'marrison-custom-updater'));
+            }
+
             $result = $this->finalize_files_backup_job_part($state);
             if (is_wp_error($result)) {
                 return $result;
@@ -1262,8 +1810,8 @@ trait MCU_Update_Operations_Trait {
 
         if ($entry['type'] === 'dir') {
             $ok = $this->write_tar_header($handle, rtrim($entry['rel'], '/') . '/', 0, (int) $entry['mtime'], '5', (int) $entry['mode']);
-            @gzclose($handle);
-            if (!$ok) {
+            $closed = @gzclose($handle);
+            if (!$ok || !$closed) {
                 return new WP_Error('targz_write_failed', sprintf(__('Errore durante la scrittura della directory: %s', 'marrison-custom-updater'), $entry['rel']));
             }
             $state['current_part_entries']++;
@@ -1274,15 +1822,13 @@ trait MCU_Update_Operations_Trait {
         if ($ok) {
             $ok = $this->write_file_to_tar_gz_handle($handle, $entry['path'], $entry['rel'], (int) $entry['size']);
         }
-        @gzclose($handle);
+        $closed = @gzclose($handle);
 
         if (is_wp_error($ok)) {
-            $this->record_files_backup_skipped($state, $entry['rel'], (int) $entry['size'], 'file_read_failed');
-            return true;
+            return $ok;
         }
-        if (!$ok) {
-            $this->record_files_backup_skipped($state, $entry['rel'], (int) $entry['size'], 'file_write_failed');
-            return true;
+        if (!$ok || !$closed) {
+            return new WP_Error('targz_write_failed', sprintf(__('Errore durante la scrittura dell\'archivio per il file: %s', 'marrison-custom-updater'), $entry['rel']));
         }
 
         $state['current_part_entries']++;
@@ -1308,7 +1854,7 @@ trait MCU_Update_Operations_Trait {
             }
             if (!$this->write_tar_data($handle, $chunk)) {
                 fclose($file_handle);
-                return false;
+                return new WP_Error('targz_write_failed', sprintf(__('Errore durante la scrittura del file: %s', 'marrison-custom-updater'), $relative_path));
             }
             $written += strlen($chunk);
         }
@@ -1316,10 +1862,14 @@ trait MCU_Update_Operations_Trait {
 
         $padding = (512 - ($written % 512)) % 512;
         if ($padding > 0 && !$this->write_tar_data($handle, str_repeat("\0", $padding))) {
-            return false;
+            return new WP_Error('targz_write_failed', sprintf(__('Errore durante la scrittura del padding del file: %s', 'marrison-custom-updater'), $relative_path));
         }
 
-        return $written === $size;
+        if ($written !== $size) {
+            return new WP_Error('backup_file_incomplete', sprintf(__('File scritto parzialmente durante il backup: %s', 'marrison-custom-updater'), $relative_path));
+        }
+
+        return true;
     }
 
     private function get_files_backup_job_part_path($state, $final = false) {
@@ -1686,7 +2236,18 @@ trait MCU_Update_Operations_Trait {
             if (is_wp_error($filename)) {
                 wp_send_json_error($filename->get_error_message());
             } elseif ($filename) {
-                wp_send_json_success(['message' => 'Backup database completato!', 'filename' => $filename]);
+                $record = get_option('marrison_db_backup_integrity', []);
+                $record = is_array($record) && isset($record[$filename]) ? $record[$filename] : [];
+                $message = __('Backup database completato e verificato!', 'marrison-custom-updater');
+                if (!empty($record)) {
+                    $message .= ' ' . sprintf(
+                        __('%1$s tabelle, %2$s righe.', 'marrison-custom-updater'),
+                        function_exists('number_format_i18n') ? number_format_i18n((int) ($record['total_tables'] ?? 0)) : number_format((int) ($record['total_tables'] ?? 0)),
+                        function_exists('number_format_i18n') ? number_format_i18n((int) ($record['total_rows'] ?? 0)) : number_format((int) ($record['total_rows'] ?? 0))
+                    );
+                }
+
+                wp_send_json_success(['message' => $message, 'filename' => $filename]);
             } else {
                 wp_send_json_error('Errore durante la creazione del backup database.');
             }
@@ -1793,6 +2354,10 @@ trait MCU_Update_Operations_Trait {
 
         if (!is_file($real_file_path) || !@unlink($real_file_path)) {
             wp_send_json_error(__('Impossibile eliminare il backup.', 'marrison-custom-updater'));
+        }
+
+        if (strpos($filename, 'db-backup-') === 0) {
+            $this->remove_db_backup_integrity_record($filename);
         }
 
         wp_send_json_success(['message' => __('Backup eliminato correttamente.', 'marrison-custom-updater')]);

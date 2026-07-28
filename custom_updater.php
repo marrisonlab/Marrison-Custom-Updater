@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.6.5
+ * Version: 9.6.6
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  * Text Domain: marrison-custom-updater
@@ -12,6 +12,9 @@
 
 if (!defined('MCU_PLUGIN_DIR')) {
     define('MCU_PLUGIN_DIR', plugin_dir_path(__FILE__));
+}
+if (!defined('MCU_PLUGIN_VERSION')) {
+    define('MCU_PLUGIN_VERSION', '9.6.6');
 }
 
 require_once __DIR__ . '/includes/traits/SchedulingTrait.php';

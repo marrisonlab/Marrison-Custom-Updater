@@ -391,17 +391,21 @@ trait MCU_Scheduling_Trait {
             @set_time_limit(0);
 
             $db_backup_filename = false;
+            $db_backup_error = '';
             if (get_option('marrison_db_backup_with_updates') === 'yes') {
                 $db_backup_filename = $this->create_db_backup();
                 if (is_wp_error($db_backup_filename)) {
+                    $db_backup_error = $db_backup_filename->get_error_message();
                     $db_backup_filename = false;
                 }
             }
 
             $files_backup_filename = false;
+            $files_backup_error = '';
             if (get_option('marrison_files_backup_with_updates') === 'yes') {
                 $files_backup_filename = $this->create_files_backup();
                 if (is_wp_error($files_backup_filename)) {
+                    $files_backup_error = $files_backup_filename->get_error_message();
                     $files_backup_filename = false;
                 }
             }
@@ -428,9 +432,18 @@ trait MCU_Scheduling_Trait {
             $updated_translations = 0;
             $failed_updates = [];
             $skipped_updates = [];
+            $backup_blocked_updates = ($db_backup_error !== '' || $files_backup_error !== '');
+            if ($backup_blocked_updates) {
+                $backup_errors = array_filter([$db_backup_error, $files_backup_error]);
+                $skipped_updates[] = [
+                    'name' => __('Aggiornamenti automatici', 'marrison-custom-updater'),
+                    'version' => 'N/A',
+                    'reason' => sprintf(__('Aggiornamenti bloccati: backup richiesto non completato (%s).', 'marrison-custom-updater'), implode(' | ', $backup_errors)),
+                ];
+            }
 
             // --- 1. Aggiornamento Plugin Privati ---
-            if (!empty($data['plugins_private'])) {
+            if (!$backup_blocked_updates && !empty($data['plugins_private'])) {
                 foreach ($data['plugins_private'] as $u) {
                     $plugin_file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
                     $old_version = 'N/A';
@@ -463,9 +476,13 @@ trait MCU_Scheduling_Trait {
             update_option('marrison_last_cron_log', $log_entry);
 
             // --- 2. Aggiornamento Plugin Ufficiali ---
-            wp_update_plugins();
-            $transient_plugins = get_site_transient('update_plugins');
-            if (!empty($transient_plugins->response)) {
+            if (!$backup_blocked_updates) {
+                wp_update_plugins();
+                $transient_plugins = get_site_transient('update_plugins');
+            } else {
+                $transient_plugins = null;
+            }
+            if (!$backup_blocked_updates && !empty($transient_plugins->response)) {
                 $private_updates = $this->get_available_updates();
                 $private_slugs = array_map(function($u) { return $u['slug']; }, $private_updates);
                 $known_slugs = get_option('marrison_known_private_slugs', []);
@@ -554,7 +571,7 @@ trait MCU_Scheduling_Trait {
             update_option('marrison_last_cron_log', $log_entry);
 
             // --- 3. Aggiornamento Temi ---
-            if ($data['themes_count'] > 0) {
+            if (!$backup_blocked_updates && $data['themes_count'] > 0) {
                 $current = get_site_transient('update_themes');
                 if (!empty($current->response)) {
                     $themes = array_keys($current->response);
@@ -608,7 +625,7 @@ trait MCU_Scheduling_Trait {
             $log_entry['message'] = 'Themes processed.';
             update_option('marrison_last_cron_log', $log_entry);
             
-            if ($data['translations_count'] > 0) {
+            if (!$backup_blocked_updates && $data['translations_count'] > 0) {
                 include_once ABSPATH . 'wp-admin/includes/translation-install.php';
                 $translations = wp_get_translation_updates();
                 if (!empty($translations)) {
@@ -918,18 +935,27 @@ trait MCU_Scheduling_Trait {
                     $backup_file_path = $backup_dir_path . '/' . $db_backup_filename;
                     $backup_size = file_exists($backup_file_path) ? size_format(filesize($backup_file_path)) : 'N/A';
                     $backup_download_url = $this->get_backup_download_url($db_backup_filename, 'db');
+                    $db_integrity_records = get_option('marrison_db_backup_integrity', []);
+                    $db_integrity = is_array($db_integrity_records) && isset($db_integrity_records[$db_backup_filename]) ? $db_integrity_records[$db_backup_filename] : [];
 
                     $message_html .= '<h3 style="' . $style_section_title . '; border-left-color: #46b450;">🗄️ Backup Database</h3>';
                     $message_html .= '<table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 10px;">';
-                    $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Stato:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; color: #46b450; font-weight: bold;">✅ Completato</td></tr>';
+                    $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Stato:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; color: #46b450; font-weight: bold;">✅ Completato e verificato</td></tr>';
                     $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>File:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; font-family: monospace;">' . esc_html($db_backup_filename) . '</td></tr>';
                     $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Dimensione:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' . esc_html($backup_size) . '</td></tr>';
+                    if (!empty($db_integrity)) {
+                        $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Contenuto:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' . esc_html((int) ($db_integrity['total_tables'] ?? 0)) . ' tabelle, ' . esc_html((int) ($db_integrity['total_rows'] ?? 0)) . ' righe</td></tr>';
+                        $message_html .= '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>SHA256 SQL:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; font-family: monospace;">' . esc_html(substr((string) ($db_integrity['sql_sha256'] ?? ''), 0, 16)) . '</td></tr>';
+                    }
                     $message_html .= '<tr><td style="padding: 8px;"><strong>Download:</strong></td><td style="padding: 8px;"><a href="' . esc_url($backup_download_url) . '" style="display: inline-block; background: #46b450; color: #fff; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 13px;">Scarica backup database</a></td></tr>';
                     $message_html .= '</table>';
                 } elseif (get_option('marrison_db_backup_with_updates') === 'yes') {
                     $message_html .= '<h3 style="' . $style_section_title . '; border-left-color: #d63638;">🗄️ Backup Database</h3>';
                     $message_html .= '<div style="background: #fef7f7; padding: 10px; font-size: 13px; border-left: 4px solid #d63638; margin-top: 10px;">';
                     $message_html .= '⚠️ <strong>Attenzione:</strong> Il backup del database non è stato completato correttamente.';
+                    if ($db_backup_error !== '') {
+                        $message_html .= '<br><strong>Errore:</strong> ' . esc_html($db_backup_error);
+                    }
                     $message_html .= '</div>';
                 }
 
@@ -968,6 +994,9 @@ trait MCU_Scheduling_Trait {
                     $message_html .= '<h3 style="' . $style_section_title . '; border-left-color: #d63638;">Backup File</h3>';
                     $message_html .= '<div style="background: #fef7f7; padding: 10px; font-size: 13px; border-left: 4px solid #d63638; margin-top: 10px;">';
                     $message_html .= '<strong>Attenzione:</strong> Il backup dei file non è stato completato correttamente.';
+                    if ($files_backup_error !== '') {
+                        $message_html .= '<br><strong>Errore:</strong> ' . esc_html($files_backup_error);
+                    }
                     $message_html .= '</div>';
                 }
 
