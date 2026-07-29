@@ -386,9 +386,22 @@ trait MCU_Scheduling_Trait {
         ];
         update_option('marrison_last_cron_log', $log_entry);
 
+        $mcu_update_lock = null;
+        $mcu_update_snapshot = null;
+
         try {
             @ignore_user_abort(true);
             @set_time_limit(0);
+
+            $mcu_update_lock = $this->mcu_acquire_update_lock('scheduled_updates', ['source' => 'cron']);
+            if (is_wp_error($mcu_update_lock)) {
+                $log_entry['status'] = 'skipped';
+                $log_entry['message'] = $mcu_update_lock->get_error_message();
+                update_option('marrison_last_cron_log', $log_entry);
+                return;
+            }
+            $mcu_update_snapshot = $this->mcu_capture_active_plugin_snapshot(['operation' => 'scheduled_updates']);
+            $this->mcu_log_event('info', 'scheduled_updates_started', ['source' => 'cron']);
 
             $db_backup_filename = false;
             $db_backup_error = '';
@@ -562,8 +575,7 @@ trait MCU_Scheduling_Trait {
                             }
                         }
                     }
-                    wp_clean_plugins_cache(true);
-                    delete_site_transient('update_plugins');
+                    $this->mcu_flush_update_caches(['operation' => 'scheduled_official_plugins']);
                 }
             }
             
@@ -1048,6 +1060,13 @@ trait MCU_Scheduling_Trait {
             $log_entry['status'] = 'error';
             $log_entry['message'] = 'Eccezione: ' . $e->getMessage();
             update_option('marrison_last_cron_log', $log_entry);
+        } finally {
+            if (!empty($mcu_update_lock) && !is_wp_error($mcu_update_lock)) {
+                $this->mcu_flush_update_caches(['operation' => 'scheduled_updates']);
+                $this->mcu_restore_active_plugin_snapshot($mcu_update_snapshot, ['operation' => 'scheduled_updates']);
+                $this->mcu_release_update_lock($mcu_update_lock);
+                $this->mcu_log_event('info', 'scheduled_updates_finished', ['status' => $log_entry['status'] ?? 'unknown']);
+            }
         }
     }
 }

@@ -20,11 +20,29 @@ trait MCU_Update_Operations_Trait {
         }
         $response = wp_remote_get($repo_url . 'index.php', ['timeout' => 5]);
         if (is_wp_error($response)) {
+            $this->mcu_log_event('error', 'private_plugin_repo_fetch_failed', [
+                'url'   => $repo_url . 'index.php',
+                'error' => $response,
+            ]);
             set_transient('marrison_updates_fetch_failed', 1, 5 * MINUTE_IN_SECONDS);
             return [];
         }
-        $updates = json_decode(wp_remote_retrieve_body($response), true);
+        $response_code = (int) wp_remote_retrieve_response_code($response);
+        if ($response_code >= 400) {
+            $this->mcu_log_event('error', 'private_plugin_repo_http_error', [
+                'url'           => $repo_url . 'index.php',
+                'response_code' => $response_code,
+            ]);
+            set_transient('marrison_updates_fetch_failed', 1, 5 * MINUTE_IN_SECONDS);
+            return [];
+        }
+        $body = wp_remote_retrieve_body($response);
+        $updates = json_decode($body, true);
         if (!is_array($updates)) {
+            $this->mcu_log_event('error', 'private_plugin_repo_invalid_json', [
+                'url'         => $repo_url . 'index.php',
+                'body_sample' => substr((string) $body, 0, 500),
+            ]);
             set_transient('marrison_updates_fetch_failed', 1, 5 * MINUTE_IN_SECONDS);
             return [];
         }
@@ -40,6 +58,10 @@ trait MCU_Update_Operations_Trait {
         }
         $updates = $cleaned_updates;
         set_transient('marrison_available_updates_v2', $updates, $this->cache_duration);
+        $this->mcu_log_event('info', 'private_plugin_repo_fetched', [
+            'url'   => $repo_url . 'index.php',
+            'count' => count($updates),
+        ]);
         return $updates;
     }
 
@@ -56,11 +78,29 @@ trait MCU_Update_Operations_Trait {
         }
         $response = wp_remote_get($repo_url . 'index.php', ['timeout' => 5]);
         if (is_wp_error($response)) {
+            $this->mcu_log_event('error', 'private_theme_repo_fetch_failed', [
+                'url'   => $repo_url . 'index.php',
+                'error' => $response,
+            ]);
             set_transient('marrison_theme_updates_fetch_failed', 1, 5 * MINUTE_IN_SECONDS);
             return [];
         }
-        $updates = json_decode(wp_remote_retrieve_body($response), true);
+        $response_code = (int) wp_remote_retrieve_response_code($response);
+        if ($response_code >= 400) {
+            $this->mcu_log_event('error', 'private_theme_repo_http_error', [
+                'url'           => $repo_url . 'index.php',
+                'response_code' => $response_code,
+            ]);
+            set_transient('marrison_theme_updates_fetch_failed', 1, 5 * MINUTE_IN_SECONDS);
+            return [];
+        }
+        $body = wp_remote_retrieve_body($response);
+        $updates = json_decode($body, true);
         if (!is_array($updates)) {
+            $this->mcu_log_event('error', 'private_theme_repo_invalid_json', [
+                'url'         => $repo_url . 'index.php',
+                'body_sample' => substr((string) $body, 0, 500),
+            ]);
             set_transient('marrison_theme_updates_fetch_failed', 1, 5 * MINUTE_IN_SECONDS);
             return [];
         }
@@ -76,6 +116,10 @@ trait MCU_Update_Operations_Trait {
         }
         $updates = $cleaned_updates;
         set_transient('marrison_available_theme_updates', $updates, $this->cache_duration);
+        $this->mcu_log_event('info', 'private_theme_repo_fetched', [
+            'url'   => $repo_url . 'index.php',
+            'count' => count($updates),
+        ]);
         return $updates;
     }
 
@@ -84,6 +128,531 @@ trait MCU_Update_Operations_Trait {
         $excluded = get_option($option_name, []);
         if (!is_array($excluded)) $excluded = [];
         return in_array($slug, $excluded);
+    }
+
+    private function mcu_get_update_run_id() {
+        static $run_id = null;
+        if ($run_id === null) {
+            $run_id = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : md5(uniqid('mcu', true));
+        }
+        return $run_id;
+    }
+
+    private function mcu_get_update_log_dir() {
+        $dir = WP_CONTENT_DIR . '/marrison-updater-logs';
+        if (!is_dir($dir)) {
+            wp_mkdir_p($dir);
+        }
+        if (is_dir($dir)) {
+            $index = $dir . '/index.php';
+            if (!file_exists($index)) {
+                @file_put_contents($index, '<?php // Silence is golden');
+            }
+            $htaccess = $dir . '/.htaccess';
+            if (!file_exists($htaccess)) {
+                @file_put_contents($htaccess, "deny from all\n");
+            }
+        }
+        return $dir;
+    }
+
+    private function mcu_get_update_log_file($timestamp = null) {
+        $timestamp = $timestamp ? (int) $timestamp : current_time('timestamp');
+        return $this->mcu_get_update_log_dir() . '/mcu-update-' . date('Y-m', $timestamp) . '.log';
+    }
+
+    private function mcu_get_update_log_files() {
+        $dir = $this->mcu_get_update_log_dir();
+        $files = glob($dir . '/mcu-update-*.log');
+        if (!is_array($files)) {
+            return [];
+        }
+        usort($files, function($a, $b) {
+            return filemtime($b) - filemtime($a);
+        });
+        return $files;
+    }
+
+    private function mcu_get_update_log_items() {
+        $items = [];
+        foreach ($this->mcu_get_update_log_files() as $file) {
+            $filename = basename($file);
+            $items[] = [
+                'filename' => $filename,
+                'date'     => date_i18n('d/m/Y H:i', filemtime($file)),
+                'size'     => function_exists('size_format') ? size_format(filesize($file)) : filesize($file) . ' B',
+                'url'      => wp_nonce_url(
+                    add_query_arg(
+                        [
+                            'action' => 'marrison_download_update_log',
+                            'file'   => $filename,
+                        ],
+                        admin_url('admin-post.php')
+                    ),
+                    'marrison_download_update_log_' . $filename
+                ),
+            ];
+        }
+        return $items;
+    }
+
+    private function mcu_cleanup_update_logs($force = false) {
+        $cleanup_key = 'marrison_update_log_cleanup_ran';
+        if (!$force && get_transient($cleanup_key) !== false) {
+            return;
+        }
+
+        $retention_months = (int) apply_filters('mcu_update_log_retention_months', 6);
+        if ($retention_months < 1) {
+            $retention_months = 1;
+        }
+
+        $cutoff = strtotime('-' . $retention_months . ' months', current_time('timestamp'));
+        foreach ($this->mcu_get_update_log_files() as $file) {
+            if (filemtime($file) < $cutoff) {
+                @unlink($file);
+            }
+        }
+
+        $day = defined('DAY_IN_SECONDS') ? DAY_IN_SECONDS : 86400;
+        $month = defined('MONTH_IN_SECONDS') ? MONTH_IN_SECONDS : 30 * $day;
+        set_transient($cleanup_key, 1, $month);
+    }
+
+    private function mcu_redact_url_for_log($url) {
+        $parts = wp_parse_url($url);
+        if (!$parts || empty($parts['host'])) {
+            return $url;
+        }
+
+        $safe = '';
+        if (!empty($parts['scheme'])) {
+            $safe .= $parts['scheme'] . '://';
+        }
+        $safe .= $parts['host'];
+        if (!empty($parts['port'])) {
+            $safe .= ':' . $parts['port'];
+        }
+        if (!empty($parts['path'])) {
+            $safe .= $parts['path'];
+        }
+        if (!empty($parts['query'])) {
+            $safe .= '?[redacted-query]';
+        }
+        return $safe;
+    }
+
+    private function mcu_normalize_log_context($value, $depth = 0) {
+        if ($depth > 4) {
+            return '[max-depth]';
+        }
+        if (is_wp_error($value)) {
+            return [
+                'error_code'    => $value->get_error_code(),
+                'error_message' => $value->get_error_message(),
+                'error_data'    => $this->mcu_normalize_log_context($value->get_error_data(), $depth + 1),
+            ];
+        }
+        if (is_array($value)) {
+            $normalized = [];
+            foreach ($value as $key => $item) {
+                $key_string = is_string($key) ? $key : (string) $key;
+                if (preg_match('/(password|secret|token|key|nonce|auth|signature|license)/i', $key_string)) {
+                    $normalized[$key_string] = '[redacted]';
+                } else {
+                    $normalized[$key_string] = $this->mcu_normalize_log_context($item, $depth + 1);
+                }
+            }
+            return $normalized;
+        }
+        if (is_object($value)) {
+            return $this->mcu_normalize_log_context(get_object_vars($value), $depth + 1);
+        }
+        if (is_string($value)) {
+            $string = filter_var($value, FILTER_VALIDATE_URL) ? $this->mcu_redact_url_for_log($value) : $value;
+            return strlen($string) > 2000 ? substr($string, 0, 2000) . '[truncated]' : $string;
+        }
+        if (is_resource($value)) {
+            return '[resource]';
+        }
+        return $value;
+    }
+
+    private function mcu_log_event($level, $event, $context = []) {
+        $this->mcu_cleanup_update_logs();
+
+        $entry = [
+            'time'       => current_time('mysql'),
+            'level'      => $level,
+            'event'      => $event,
+            'run_id'     => $this->mcu_get_update_run_id(),
+            'site_url'   => function_exists('home_url') ? home_url() : '',
+            'memory'     => function_exists('memory_get_usage') ? memory_get_usage(true) : 0,
+            'context'    => $this->mcu_normalize_log_context($context),
+        ];
+
+        $encoded = function_exists('wp_json_encode')
+            ? wp_json_encode($entry, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+            : json_encode($entry);
+
+        if (!$encoded) {
+            return false;
+        }
+
+        $file = $this->mcu_get_update_log_file();
+        return (bool) @file_put_contents($file, $encoded . PHP_EOL, FILE_APPEND | LOCK_EX);
+    }
+
+    private function mcu_error_message($result, $fallback = '') {
+        if (is_wp_error($result)) {
+            return $result->get_error_message();
+        }
+        if (is_string($result) && $result !== '') {
+            return $result;
+        }
+        return $fallback !== '' ? $fallback : __('Errore sconosciuto', 'marrison-custom-updater');
+    }
+
+    private function mcu_has_local_update_lock() {
+        return !empty($this->mcu_update_lock_token);
+    }
+
+    private function mcu_acquire_update_lock($operation, $context = []) {
+        if ($this->mcu_has_local_update_lock()) {
+            return $this->mcu_update_lock_token;
+        }
+
+        $existing = get_transient('marrison_update_lock');
+        if (is_array($existing) && !empty($existing['expires']) && (int) $existing['expires'] > time()) {
+            $this->mcu_log_event('warning', 'update_lock_blocked', [
+                'operation' => $operation,
+                'existing'  => $existing,
+                'context'   => $context,
+            ]);
+            return new WP_Error(
+                'mcu_update_locked',
+                sprintf(
+                    __('Aggiornamento gia in corso (%s). Riprova tra qualche minuto.', 'marrison-custom-updater'),
+                    isset($existing['operation']) ? $existing['operation'] : 'unknown'
+                )
+            );
+        }
+
+        $minute = defined('MINUTE_IN_SECONDS') ? MINUTE_IN_SECONDS : 60;
+        $hour = defined('HOUR_IN_SECONDS') ? HOUR_IN_SECONDS : 3600;
+        $timeout = (int) apply_filters('mcu_update_lock_timeout', 2 * $hour);
+        if ($timeout < 5 * $minute) {
+            $timeout = 5 * $minute;
+        }
+        $token = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : md5(uniqid('mcu-lock', true));
+        $lock = [
+            'token'      => $token,
+            'operation'  => $operation,
+            'started_at' => current_time('mysql'),
+            'expires'    => time() + $timeout,
+            'run_id'     => $this->mcu_get_update_run_id(),
+        ];
+
+        set_transient('marrison_update_lock', $lock, $timeout);
+        $this->mcu_update_lock_token = $token;
+        $this->mcu_log_event('info', 'update_lock_acquired', [
+            'operation' => $operation,
+            'context'   => $context,
+        ]);
+
+        return $token;
+    }
+
+    private function mcu_release_update_lock($token = '') {
+        $token = $token !== '' ? $token : $this->mcu_update_lock_token;
+        $existing = get_transient('marrison_update_lock');
+        if (!is_array($existing) || empty($existing['token']) || hash_equals((string) $existing['token'], (string) $token)) {
+            delete_transient('marrison_update_lock');
+        }
+        $this->mcu_log_event('info', 'update_lock_released', ['token' => $token]);
+        if (hash_equals((string) $this->mcu_update_lock_token, (string) $token)) {
+            $this->mcu_update_lock_token = '';
+        }
+    }
+
+    private function mcu_capture_active_plugin_snapshot($context = []) {
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        $snapshot = [
+            'active_plugins'  => array_values((array) get_option('active_plugins', [])),
+            'network_plugins' => (array) get_site_option('active_sitewide_plugins', []),
+        ];
+
+        $this->mcu_log_event('info', 'active_plugin_snapshot_captured', [
+            'active_count'  => count($snapshot['active_plugins']),
+            'network_count' => count($snapshot['network_plugins']),
+            'woo_active'    => in_array('woocommerce/woocommerce.php', $snapshot['active_plugins'], true) || isset($snapshot['network_plugins']['woocommerce/woocommerce.php']),
+            'context'       => $context,
+        ]);
+
+        return $snapshot;
+    }
+
+    private function mcu_plugin_activation_priority($plugin_file) {
+        if ($plugin_file === 'woocommerce/woocommerce.php') {
+            return 0;
+        }
+
+        $path = WP_PLUGIN_DIR . '/' . $plugin_file;
+        if (file_exists($path) && function_exists('get_plugin_data')) {
+            $data = get_plugin_data($path, false, false);
+            $requires = isset($data['RequiresPlugins']) ? strtolower((string) $data['RequiresPlugins']) : '';
+            if (strpos($requires, 'woocommerce') !== false) {
+                return 10;
+            }
+        }
+
+        return 20;
+    }
+
+    private function mcu_sort_plugins_for_activation($plugins) {
+        usort($plugins, function($a, $b) {
+            $priority = $this->mcu_plugin_activation_priority($a) - $this->mcu_plugin_activation_priority($b);
+            if ($priority !== 0) {
+                return $priority;
+            }
+            return strcmp($a, $b);
+        });
+        return $plugins;
+    }
+
+    private function mcu_restore_active_plugin_snapshot($snapshot, $context = []) {
+        if (empty($snapshot) || !is_array($snapshot)) {
+            return;
+        }
+        if (!function_exists('is_plugin_active')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        $active_before = isset($snapshot['active_plugins']) ? (array) $snapshot['active_plugins'] : [];
+        $network_before = isset($snapshot['network_plugins']) ? (array) $snapshot['network_plugins'] : [];
+        $active_now = array_values((array) get_option('active_plugins', []));
+        $network_now = (array) get_site_option('active_sitewide_plugins', []);
+
+        $missing = array_values(array_diff($active_before, $active_now));
+        $missing_network = array_values(array_diff(array_keys($network_before), array_keys($network_now)));
+        $reactivated = [];
+        $failed = [];
+
+        foreach ($this->mcu_sort_plugins_for_activation($missing_network) as $plugin_file) {
+            if (!file_exists(WP_PLUGIN_DIR . '/' . $plugin_file)) {
+                $failed[$plugin_file] = 'Plugin file missing after update';
+                continue;
+            }
+            if (is_multisite() && function_exists('is_plugin_active_for_network') && is_plugin_active_for_network($plugin_file)) {
+                continue;
+            }
+            $activate = activate_plugin($plugin_file, '', true, true);
+            if (is_wp_error($activate)) {
+                $failed[$plugin_file] = $activate->get_error_message();
+            } else {
+                $reactivated[] = $plugin_file;
+            }
+        }
+
+        foreach ($this->mcu_sort_plugins_for_activation($missing) as $plugin_file) {
+            if (!file_exists(WP_PLUGIN_DIR . '/' . $plugin_file)) {
+                $failed[$plugin_file] = 'Plugin file missing after update';
+                continue;
+            }
+            if (is_plugin_active($plugin_file)) {
+                continue;
+            }
+            $activate = activate_plugin($plugin_file, '', false, true);
+            if (is_wp_error($activate)) {
+                $failed[$plugin_file] = $activate->get_error_message();
+            } else {
+                $reactivated[] = $plugin_file;
+            }
+        }
+
+        if (!empty($missing) || !empty($missing_network) || !empty($reactivated) || !empty($failed)) {
+            $this->mcu_log_event(empty($failed) ? 'info' : 'warning', 'active_plugin_snapshot_restored', [
+                'missing'           => $missing,
+                'missing_network'   => $missing_network,
+                'reactivated'       => $reactivated,
+                'failed'            => $failed,
+                'context'           => $context,
+            ]);
+        }
+    }
+
+    private function mcu_flush_update_caches($context = []) {
+        $flushed = [];
+        $active_lock = get_transient('marrison_update_lock');
+
+        $this->delete_internal_cache();
+        $flushed[] = 'mcu_internal';
+
+        delete_site_transient('update_plugins');
+        delete_site_transient('update_themes');
+        delete_site_transient('update_core');
+        $flushed[] = 'wp_update_transients';
+
+        if (function_exists('wp_clean_plugins_cache')) {
+            wp_clean_plugins_cache(true);
+            $flushed[] = 'plugin_cache';
+        }
+        if (function_exists('wp_clean_themes_cache')) {
+            wp_clean_themes_cache(true);
+            $flushed[] = 'theme_cache';
+        }
+        if (function_exists('wp_clean_update_cache')) {
+            wp_clean_update_cache();
+            $flushed[] = 'update_cache';
+        }
+        if (function_exists('wp_cache_flush')) {
+            wp_cache_flush();
+            $flushed[] = 'object_cache';
+            if (is_array($active_lock) && !empty($active_lock['token']) && !empty($active_lock['expires']) && (int) $active_lock['expires'] > time()) {
+                $remaining = !empty($active_lock['expires']) ? max(300, (int) $active_lock['expires'] - time()) : 300;
+                set_transient('marrison_update_lock', $active_lock, $remaining);
+                $flushed[] = 'update_lock_preserved';
+            }
+        }
+        if (function_exists('opcache_reset')) {
+            @opcache_reset();
+            $flushed[] = 'opcache';
+        }
+
+        $cache_callbacks = [
+            'wp_rocket'      => 'rocket_clean_domain',
+            'w3_total_cache' => 'w3tc_flush_all',
+            'wp_fastest'     => 'wpfc_clear_all_cache',
+            'siteground'     => 'sg_cachepress_purge_cache',
+        ];
+        foreach ($cache_callbacks as $name => $callback) {
+            if (function_exists($callback)) {
+                try {
+                    call_user_func($callback);
+                    $flushed[] = $name;
+                } catch (Throwable $e) {
+                    $this->mcu_log_event('warning', 'cache_flush_callback_failed', [
+                        'cache' => $name,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        if (class_exists('LiteSpeed_Cache_API') && method_exists('LiteSpeed_Cache_API', 'purge_all')) {
+            try {
+                LiteSpeed_Cache_API::purge_all();
+                $flushed[] = 'litespeed';
+            } catch (Throwable $e) {
+                $this->mcu_log_event('warning', 'cache_flush_callback_failed', [
+                    'cache' => 'litespeed',
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        clearstatcache();
+        $this->mcu_log_event('info', 'update_cache_flush_completed', [
+            'flushed' => $flushed,
+            'context' => $context,
+        ]);
+    }
+
+    private function mcu_run_update_guard($operation, $context, $callback) {
+        $already_locked = $this->mcu_has_local_update_lock();
+        $token = $this->mcu_acquire_update_lock($operation, $context);
+        if (is_wp_error($token)) {
+            return $token;
+        }
+
+        $owns_lock = !$already_locked;
+        $snapshot = $owns_lock ? $this->mcu_capture_active_plugin_snapshot(['operation' => $operation, 'context' => $context]) : null;
+        $started = microtime(true);
+        $result = null;
+
+        $this->mcu_log_event('info', 'update_operation_started', [
+            'operation' => $operation,
+            'context'   => $context,
+        ]);
+
+        try {
+            $result = call_user_func($callback);
+        } catch (Throwable $e) {
+            $result = new WP_Error(
+                'mcu_update_exception',
+                $e->getMessage(),
+                [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]
+            );
+        }
+
+        if ($owns_lock) {
+            $this->mcu_flush_update_caches(['operation' => $operation, 'context' => $context]);
+            $this->mcu_restore_active_plugin_snapshot($snapshot, ['operation' => $operation, 'context' => $context]);
+        }
+
+        $this->mcu_log_event(is_wp_error($result) || !$result ? 'error' : 'info', 'update_operation_finished', [
+            'operation' => $operation,
+            'duration'  => round(microtime(true) - $started, 3),
+            'result'    => is_wp_error($result) ? $result : (bool) $result,
+            'context'   => $context,
+        ]);
+
+        if ($owns_lock) {
+            $this->mcu_release_update_lock($token);
+        }
+
+        return $result;
+    }
+
+    public function download_update_log() {
+        $filename = sanitize_file_name($_GET['file'] ?? '');
+        if (empty($filename) || !preg_match('/^mcu-update-\d{4}-\d{2}\.log$/', $filename)) {
+            wp_die(esc_html__('File log non valido.', 'marrison-custom-updater'));
+        }
+
+        check_admin_referer('marrison_download_update_log_' . $filename);
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('Permessi insufficienti.', 'marrison-custom-updater'));
+        }
+
+        $dir = realpath($this->mcu_get_update_log_dir());
+        $file = realpath($this->mcu_get_update_log_dir() . '/' . $filename);
+        if (!$dir || !$file || strpos(wp_normalize_path($file), trailingslashit(wp_normalize_path($dir))) !== 0 || !is_readable($file)) {
+            wp_die(esc_html__('File log non trovato.', 'marrison-custom-updater'));
+        }
+
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+
+        header('Content-Description: File Transfer');
+        header('Content-Type: text/plain; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . filesize($file));
+        header('Cache-Control: no-cache, must-revalidate');
+        readfile($file);
+        exit;
+    }
+
+    public function clear_update_logs() {
+        check_admin_referer('marrison_clear_update_logs');
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('Permessi insufficienti.', 'marrison-custom-updater'));
+        }
+
+        foreach ($this->mcu_get_update_log_files() as $file) {
+            @unlink($file);
+        }
+        delete_transient('marrison_update_log_cleanup_ran');
+
+        wp_redirect(admin_url('admin.php?page=marrison-updater-settings&tab=logs&logs_cleared=1'));
+        exit;
     }
 
     public function check_for_updates($transient) {
@@ -258,14 +827,26 @@ trait MCU_Update_Operations_Trait {
 
 
     private function perform_update($slug) {
+        return $this->mcu_run_update_guard('private_plugin_update', ['slug' => $slug], function() use ($slug) {
         global $wp_filesystem;
         require_once ABSPATH . 'wp-admin/includes/file.php';
         WP_Filesystem();
         if (!$wp_filesystem) return new WP_Error('fs_init_failed', __('Impossibile inizializzare il filesystem.', 'marrison-custom-updater'));
         foreach ($this->get_available_updates() as $update) {
             if ($update['slug'] !== $slug) continue;
+            $this->mcu_log_event('info', 'private_plugin_download_started', [
+                'slug'        => $slug,
+                'version'     => $update['version'] ?? '',
+                'download_url' => $update['download_url'] ?? '',
+            ]);
             $zip = download_url($update['download_url']);
-            if (is_wp_error($zip)) return $zip;
+            if (is_wp_error($zip)) {
+                $this->mcu_log_event('error', 'private_plugin_download_failed', [
+                    'slug'  => $slug,
+                    'error' => $zip,
+                ]);
+                return $zip;
+            }
             $current_version = '';
             $plugin_file = $this->find_plugin_file($slug, $update['name'] ?? '');
             if ($plugin_file) {
@@ -277,13 +858,23 @@ trait MCU_Update_Operations_Trait {
                     $current_version = $all_plugins[$plugin_file]['Version'];
                 }
             }
-            $this->create_backup($slug, $current_version, 'plugin', $plugin_file);
+            $backup_created = $this->create_backup($slug, $current_version, 'plugin', $plugin_file);
+            $this->mcu_log_event($backup_created ? 'info' : 'warning', 'private_plugin_backup_created', [
+                'slug'            => $slug,
+                'plugin_file'     => $plugin_file,
+                'current_version' => $current_version,
+                'backup_created'  => (bool) $backup_created,
+            ]);
             $upgrade_dir = WP_CONTENT_DIR . '/upgrade/marrison-' . $slug;
             wp_mkdir_p($upgrade_dir);
             $unzip = unzip_file($zip, $upgrade_dir);
             unlink($zip);
             
             if (is_wp_error($unzip)) {
+                $this->mcu_log_event('error', 'private_plugin_unzip_failed', [
+                    'slug'  => $slug,
+                    'error' => $unzip,
+                ]);
                 return $unzip;
             }
 
@@ -335,15 +926,19 @@ trait MCU_Update_Operations_Trait {
                 $wp_filesystem->delete($dest_old, true);
             }
             
-            delete_site_transient('update_plugins');
-            wp_clean_plugins_cache(true);
+            $this->mcu_flush_update_caches([
+                'operation' => 'private_plugin_update',
+                'slug'      => $slug,
+            ]);
             update_option('marrison_last_plugins_update_time', current_time('mysql'));
             return true;
         }
         return new WP_Error('update_not_found', __('Aggiornamento non trovato.', 'marrison-custom-updater'));
+        });
     }
 
     private function perform_self_update($download_url) {
+        return $this->mcu_run_update_guard('self_update', ['download_url' => $download_url], function() use ($download_url) {
         global $wp_filesystem;
         require_once ABSPATH . 'wp-admin/includes/file.php';
         WP_Filesystem();
@@ -408,10 +1003,10 @@ trait MCU_Update_Operations_Trait {
         }
         $wp_filesystem->delete($upgrade_dir, true);
         
-        delete_site_transient('update_plugins');
-        wp_clean_plugins_cache(true);
+        $this->mcu_flush_update_caches(['operation' => 'self_update']);
         
         return true;
+        });
     }
 
     private function get_backup_dir() {
@@ -522,6 +1117,7 @@ trait MCU_Update_Operations_Trait {
     }
 
     private function perform_restore($filename) {
+        return $this->mcu_run_update_guard('restore_backup', ['filename' => $filename], function() use ($filename) {
         try {
             $backup_dir = $this->get_backup_dir();
             $zip_file = $backup_dir . '/' . $filename;
@@ -606,21 +1202,24 @@ trait MCU_Update_Operations_Trait {
                 return $result;
             }
             if ($type === 'theme') {
-                delete_site_transient('update_themes');
-                wp_clean_themes_cache(true);
+                $this->mcu_flush_update_caches([
+                    'operation' => 'restore_backup',
+                    'type'      => 'theme',
+                    'slug'      => $slug,
+                ]);
             } else {
-                delete_site_transient('update_plugins');
-                wp_clean_plugins_cache(true);
+                $this->mcu_flush_update_caches([
+                    'operation' => 'restore_backup',
+                    'type'      => 'plugin',
+                    'slug'      => $slug,
+                ]);
 
                 if ($was_active) {
                     $new_file = $this->find_plugin_file($slug);
                     if ($new_file) {
-                        activate_plugin($new_file);
+                        activate_plugin($new_file, '', false, true);
                     }
                 }
-            }
-            if (function_exists('opcache_reset')) {
-                @opcache_reset();
             }
             return $slug;
         } catch (Throwable $e) {
@@ -628,34 +1227,63 @@ trait MCU_Update_Operations_Trait {
         } catch (Exception $e) {
             return new WP_Error('exception', 'Exception during restore: ' . $e->getMessage());
         }
+        });
     }
 
     private function perform_theme_update($slug, $download_url) {
-        global $wp_filesystem;
-        require_once ABSPATH . 'wp-admin/includes/file.php';
-        WP_Filesystem();
-        if (!$wp_filesystem) return false;
-        $theme = wp_get_theme($slug);
-        $current_version = $theme->exists() ? $theme->get('Version') : '';
-        $this->create_backup($slug, $current_version, 'theme');
-        $zip = download_url($download_url);
-        if (is_wp_error($zip)) return false;
-        $upgrade_dir = WP_CONTENT_DIR . '/upgrade/marrison-theme-' . $slug;
-        wp_mkdir_p($upgrade_dir);
-        unzip_file($zip, $upgrade_dir);
-        unlink($zip);
-        $dirs = glob($upgrade_dir . '/*', GLOB_ONLYDIR);
-        if (empty($dirs)) return false;
-        $source = trailingslashit($dirs[0]);
-        $dest = trailingslashit(get_theme_root() . '/' . $slug);
-        if ($wp_filesystem->is_dir($dest)) {
-            $wp_filesystem->delete($dest, true);
-        }
-        copy_dir($source, $dest);
-        $wp_filesystem->delete($upgrade_dir, true);
-        delete_site_transient('update_themes');
-        wp_clean_themes_cache(true);
-        return true;
+        return $this->mcu_run_update_guard('private_theme_update', ['slug' => $slug, 'download_url' => $download_url], function() use ($slug, $download_url) {
+            global $wp_filesystem;
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+            if (!$wp_filesystem) {
+                return new WP_Error('fs_init_failed', __('Impossibile inizializzare il filesystem.', 'marrison-custom-updater'));
+            }
+
+            $theme = wp_get_theme($slug);
+            $current_version = $theme->exists() ? $theme->get('Version') : '';
+            $backup_created = $this->create_backup($slug, $current_version, 'theme');
+            $this->mcu_log_event($backup_created ? 'info' : 'warning', 'private_theme_backup_created', [
+                'slug'            => $slug,
+                'current_version' => $current_version,
+                'backup_created'  => (bool) $backup_created,
+            ]);
+
+            $zip = download_url($download_url);
+            if (is_wp_error($zip)) {
+                return $zip;
+            }
+
+            $upgrade_dir = WP_CONTENT_DIR . '/upgrade/marrison-theme-' . $slug;
+            wp_mkdir_p($upgrade_dir);
+            $unzip = unzip_file($zip, $upgrade_dir);
+            @unlink($zip);
+            if (is_wp_error($unzip)) {
+                return $unzip;
+            }
+
+            $dirs = glob($upgrade_dir . '/*', GLOB_ONLYDIR);
+            if (empty($dirs)) {
+                return new WP_Error('empty_archive', __('Archivio vuoto o non valido.', 'marrison-custom-updater'));
+            }
+
+            $source = trailingslashit($dirs[0]);
+            $dest = trailingslashit(get_theme_root() . '/' . $slug);
+            if ($wp_filesystem->is_dir($dest)) {
+                $wp_filesystem->delete($dest, true);
+            }
+
+            $copy = copy_dir($source, $dest);
+            $wp_filesystem->delete($upgrade_dir, true);
+            if (is_wp_error($copy)) {
+                return $copy;
+            }
+
+            $this->mcu_flush_update_caches([
+                'operation' => 'private_theme_update',
+                'slug'      => $slug,
+            ]);
+            return true;
+        });
     }
 
     public function create_db_backup() {
@@ -2494,7 +3122,7 @@ trait MCU_Update_Operations_Trait {
                 
                 if (isset(\Elementor\Plugin::$instance->updater) && method_exists(\Elementor\Plugin::$instance->updater, 'update')) {
                     \Elementor\Plugin::$instance->updater->update();
-                    error_log('[Marrison Updater] Elementor DB update triggered automatically.');
+                    $this->mcu_log_event('info', 'elementor_db_update_triggered', ['plugin' => 'elementor/elementor.php']);
                 }
             }
         }

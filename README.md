@@ -1,6 +1,6 @@
 # Marrison Custom Updater
 
-[![Latest Version](https://img.shields.io/badge/version-9.6.6-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
+[![Latest Version](https://img.shields.io/badge/version-9.7.0-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
 [![WordPress Version](https://img.shields.io/badge/WordPress-6.0%2B-green.svg)](https://wordpress.org)
 [![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-green.svg)](https://php.net)
 [![License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -32,6 +32,14 @@
 - Access to plugin files for backup/restore operations
 
 ## 🔄 Version History
+
+### [9.7.0] - 2026-07-29
+
+- Log mensili degli aggiornamenti scaricabili da Impostazioni > Log, con protezione nonce/capability e pulizia automatica.
+- Lock globale per impedire aggiornamenti concorrenti da AJAX, manuale o cron.
+- Snapshot dei plugin attivi prima dell'update e ripristino controllato dei plugin rimasti disattivati dopo il batch.
+- Flush cache centralizzato dopo gli aggiornamenti: transient WordPress, cache plugin/temi/update, object cache, OPcache e page cache comuni.
+- Errori AJAX piu diagnostici per distinguere timeout, fatal PHP, blocchi HTTP e fallimenti reali dell'updater.
 
 ### [9.6.6] - 2026-07-24
 
@@ -223,6 +231,13 @@ Il plugin invia report dettagliati dopo ogni aggiornamento automatico contenente
 - Controlla i log di errore WordPress
 
 ## 📝 Changelog
+
+### 9.7.0
+- Log aggiornamenti mensili scaricabili dal pannello Impostazioni > Log
+- Lock globale anti-concorrenza per update manuali, AJAX e cron
+- Snapshot/ripristino plugin attivi per ridurre disattivazioni accidentali di WooCommerce e plugin dipendenti
+- Flush cache centralizzato con object cache, OPcache e cache plugin/temi/update
+- Errori AJAX piu diagnostici e consultabili nei log
 
 ### 9.6.6
 - Backup database verificato con manifest JSON, dimensione SQL e hash SHA256 inclusi nello ZIP

@@ -3,6 +3,29 @@ jQuery(document).ready(function($) {
     function t(text) {
         return (window.mcuAdminTranslations && window.mcuAdminTranslations[text]) ? window.mcuAdminTranslations[text] : text;
     }
+
+    function ajaxErrorMessage(xhr, status, error) {
+        var parts = [];
+        if (xhr && xhr.status) {
+            parts.push('HTTP ' + xhr.status);
+        }
+        if (status) {
+            parts.push(status);
+        }
+        if (error) {
+            parts.push(error);
+        }
+        if (xhr && xhr.responseText) {
+            var text = String(xhr.responseText).replace(/\s+/g, ' ').trim();
+            if (text.length > 220) {
+                text = text.substring(0, 220) + '...';
+            }
+            if (text) {
+                parts.push(text);
+            }
+        }
+        return parts.length ? parts.join(' - ') : t('Errore di connessione al server.');
+    }
     
     // UI Helpers
     const MCU = {
@@ -322,11 +345,11 @@ jQuery(document).ready(function($) {
                     MCU.toast(t('Errore:') + ' ' + (response.data || t('Sconosciuto')), 'error');
                 }
             },
-            error: function() {
+            error: function(xhr, status, error) {
                 clearInterval(progressInterval);
                 $btn.prop('disabled', false).removeClass('updating').html(t('Riprova'));
                 MCU.updateProgress(100, t('Errore di connessione'));
-                MCU.toast(t('Errore di connessione al server.'), 'error');
+                MCU.toast(ajaxErrorMessage(xhr, status, error), 'error');
             }
         });
     });
@@ -359,7 +382,12 @@ jQuery(document).ready(function($) {
 
         function processNext(index) {
             if (index >= total) {
-                MCU.updateProgress(100, t('Tutti gli aggiornamenti completati.'));
+                if (failCount > 0) {
+                    MCU.updateProgress(100, successCount + ' OK, ' + failCount + ' errori. Controlla i log aggiornamenti.');
+                    MCU.toast(successCount + ' OK, ' + failCount + ' errori. Controlla i log aggiornamenti.', 'error');
+                } else {
+                    MCU.updateProgress(100, t('Tutti gli aggiornamenti completati.'));
+                }
                 setTimeout(function() {
                     location.reload();
                 }, 1000);
@@ -389,8 +417,9 @@ jQuery(document).ready(function($) {
                         console.error('Update failed for ' + slug, response);
                     }
                 },
-                error: function() {
+                error: function(xhr, status, error) {
                     failCount++;
+                    console.error('Connection error for ' + slug + ': ' + ajaxErrorMessage(xhr, status, error));
                 },
                 complete: function() {
                     processed++;
@@ -499,8 +528,13 @@ jQuery(document).ready(function($) {
 
                 function processQueue(index) {
                     if (index >= total) {
-                        MCU.updateProgress(100, t('Tutti gli aggiornamenti completati!'));
-                        MCU.toast(t('Aggiornamento massivo completato.'), 'success');
+                        if (failCount > 0) {
+                            MCU.updateProgress(100, successCount + ' OK, ' + failCount + ' errori. Controlla i log aggiornamenti.');
+                            MCU.toast(successCount + ' OK, ' + failCount + ' errori. Controlla i log aggiornamenti.', 'error');
+                        } else {
+                            MCU.updateProgress(100, t('Tutti gli aggiornamenti completati!'));
+                            MCU.toast(t('Aggiornamento massivo completato.'), 'success');
+                        }
                         setTimeout(function() {
                             location.reload();
                         }, 1500);
@@ -551,8 +585,9 @@ jQuery(document).ready(function($) {
                                 console.error('Update failed for ' + item.label, res);
                             }
                         },
-                        error: function() {
+                        error: function(xhr, status, error) {
                             failCount++;
+                            console.error('Connection error for ' + item.label + ': ' + ajaxErrorMessage(xhr, status, error));
                         },
                         complete: function() {
                             processed++;
@@ -563,9 +598,9 @@ jQuery(document).ready(function($) {
 
                 processQueue(0);
             },
-            error: function() {
+            error: function(xhr, status, error) {
                 MCU.updateProgress(100, t('Errore di connessione'));
-                MCU.toast(t('Errore di connessione al server.'), 'error');
+                MCU.toast(ajaxErrorMessage(xhr, status, error), 'error');
                 $btn.prop('disabled', false).removeClass('updating');
             }
         });
@@ -654,9 +689,9 @@ jQuery(document).ready(function($) {
                 }
                 $btn.prop('disabled', false).text(t('Aggiorna Tutti'));
             },
-            error: function() {
+            error: function(xhr, status, error) {
                 MCU.updateProgress(100, t('Errore di connessione'));
-                MCU.toast(t('Errore di connessione'), 'error');
+                MCU.toast(ajaxErrorMessage(xhr, status, error), 'error');
                 $btn.prop('disabled', false).text(t('Aggiorna Tutti'));
             }
         });

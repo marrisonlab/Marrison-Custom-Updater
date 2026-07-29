@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.6.6
+Stable tag: 9.7.0
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -34,6 +34,14 @@ Note: il backup completo dei file usa il formato tar.gz e richiede l'estensione 
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 9.7.0 =
+* **Nuovo**: Log mensili degli aggiornamenti scaricabili da Impostazioni > Log, con protezione nonce/capability e pulizia automatica
+* **Sicurezza**: Lock globale per impedire aggiornamenti concorrenti da AJAX, manuale o cron
+* **Sicurezza**: Snapshot dei plugin attivi prima dell'update e ripristino controllato dei plugin rimasti disattivati dopo il batch
+* **Miglioramento**: Flush cache centralizzato dopo gli aggiornamenti: transient WordPress, cache plugin/temi/update, object cache, OPcache e page cache comuni
+* **Fix**: Ridotto il rischio che WooCommerce e plugin dipendenti restino disattivati dopo una finestra temporanea di assenza durante l'aggiornamento
+* **Debug**: Errori AJAX piu diagnostici e consultabili nei log
 
 = 9.6.6 =
 * **Sicurezza**: Backup database con scrittura SQL controllata byte per byte, manifest JSON e hash SHA256 dentro lo ZIP

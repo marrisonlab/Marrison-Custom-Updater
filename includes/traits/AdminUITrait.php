@@ -148,7 +148,7 @@ trait MCU_Admin_UI_Trait {
         if (strpos($hook, 'marrison-updater') === false) {
             return;
         }
-        $asset_version = defined('MCU_PLUGIN_VERSION') ? MCU_PLUGIN_VERSION : '9.6.6';
+        $asset_version = defined('MCU_PLUGIN_VERSION') ? MCU_PLUGIN_VERSION : '9.7.0';
         wp_enqueue_style('mcu-admin-style', plugin_dir_url(__FILE__) . '../../assets/css/admin-style.css', [], $asset_version);
         wp_enqueue_script('mcu-admin-script', plugin_dir_url(__FILE__) . '../../assets/js/admin-script.js', ['jquery'], $asset_version, true);
         wp_localize_script('mcu-admin-script', 'marrisonUpdater', [
@@ -224,6 +224,12 @@ JS
             'Generale' => 'General',
             'Programmazione' => 'Scheduling',
             'Esclusioni' => 'Exclusions',
+            'Log' => 'Logs',
+            'Log Aggiornamenti' => 'Update Logs',
+            'Log aggiornamenti puliti.' => 'Update logs cleared.',
+            'Nessun log disponibile.' => 'No logs available.',
+            'Pulisci Log' => 'Clear Logs',
+            'Ultima Modifica' => 'Last Modified',
             'Guida & Download' => 'Guide & Download',
             'Aggiorna' => 'Update',
             'Aggiorna tutto' => 'Update all',
@@ -410,6 +416,7 @@ JS
                 <a href="?page=marrison-updater-settings&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Generale', 'marrison-custom-updater'); ?></a>
                 <a href="?page=marrison-updater-settings&tab=scheduling" class="nav-tab <?php echo $active_tab == 'scheduling' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Programmazione', 'marrison-custom-updater'); ?></a>
                 <a href="?page=marrison-updater-settings&tab=exclusions" class="nav-tab <?php echo $active_tab == 'exclusions' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Esclusioni', 'marrison-custom-updater'); ?></a>
+                <a href="?page=marrison-updater-settings&tab=logs" class="nav-tab <?php echo $active_tab == 'logs' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Log', 'marrison-custom-updater'); ?></a>
                 <a href="?page=marrison-updater-settings&tab=howto" class="nav-tab <?php echo $active_tab == 'howto' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Guida & Download', 'marrison-custom-updater'); ?></a>
             </h2>
             <?php if ($settingsUpdated === 'saved'): ?>
@@ -422,6 +429,9 @@ JS
             <?php endif; ?>
             <?php if (isset($_GET['mcu_checked'])): ?>
                 <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Controllo aggiornamenti MCU forzato con successo.', 'marrison-custom-updater'); ?></div>
+            <?php endif; ?>
+            <?php if (isset($_GET['logs_cleared'])): ?>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Log aggiornamenti puliti.', 'marrison-custom-updater'); ?></div>
             <?php endif; ?>
             <?php if ($active_tab == 'general'): ?>
                 <div class="mcu-card">
@@ -771,6 +781,53 @@ JS
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                </div>
+
+            <?php elseif ($active_tab == 'logs'): ?>
+                <div class="mcu-card">
+                    <div class="mcu-card-header">
+                        <h2 class="mcu-card-title"><span class="dashicons dashicons-media-text"></span> <?php esc_html_e('Log Aggiornamenti', 'marrison-custom-updater'); ?></h2>
+                    </div>
+                    <p class="description" style="margin-bottom: 15px;"><?php esc_html_e('I log sono divisi per mese, protetti in wp-content e puliti automaticamente con retention di 6 mesi.', 'marrison-custom-updater'); ?></p>
+                    <?php $log_items = $this->mcu_get_update_log_items(); ?>
+                    <?php if (empty($log_items)): ?>
+                        <div class="mcu-empty-state">
+                            <span class="dashicons dashicons-media-text"></span>
+                            <p><?php esc_html_e('Nessun log disponibile.', 'marrison-custom-updater'); ?></p>
+                        </div>
+                    <?php else: ?>
+                        <table class="mcu-table">
+                            <thead>
+                                <tr>
+                                    <th><?php esc_html_e('File', 'marrison-custom-updater'); ?></th>
+                                    <th><?php esc_html_e('Ultima Modifica', 'marrison-custom-updater'); ?></th>
+                                    <th><?php esc_html_e('Dimensione', 'marrison-custom-updater'); ?></th>
+                                    <th style="text-align:right;"><?php esc_html_e('Azioni', 'marrison-custom-updater'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($log_items as $item): ?>
+                                    <tr>
+                                        <td><code><?php echo esc_html($item['filename']); ?></code></td>
+                                        <td><?php echo esc_html($item['date']); ?></td>
+                                        <td><?php echo esc_html($item['size']); ?></td>
+                                        <td style="text-align:right;">
+                                            <a class="mcu-button mcu-button-secondary mcu-button-sm" href="<?php echo esc_url($item['url']); ?>">
+                                                <span class="dashicons dashicons-download"></span> <?php esc_html_e('Scarica', 'marrison-custom-updater'); ?>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                        <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin-top: 20px;">
+                            <?php wp_nonce_field('marrison_clear_update_logs'); ?>
+                            <input type="hidden" name="action" value="marrison_clear_update_logs">
+                            <button type="submit" class="mcu-button mcu-button-secondary" onclick="return confirm('<?php echo esc_js(__('Sei sicuro di voler eliminare tutti i log aggiornamenti?', 'marrison-custom-updater')); ?>');">
+                                <span class="dashicons dashicons-trash"></span> <?php esc_html_e('Pulisci Log', 'marrison-custom-updater'); ?>
+                            </button>
+                        </form>
+                    <?php endif; ?>
                 </div>
 
             <?php elseif ($active_tab == 'howto'): ?>
@@ -1954,6 +2011,15 @@ JS
              wp_send_json_error('Nessun tema da aggiornare (esclusi o aggiornati)');
         }
 
+        $lock = $this->mcu_acquire_update_lock('official_themes_bulk_ajax', ['themes' => $themes]);
+        if (is_wp_error($lock)) {
+            wp_send_json_error($lock->get_error_message());
+        }
+        $snapshot = $this->mcu_capture_active_plugin_snapshot([
+            'operation' => 'official_themes_bulk_ajax',
+            'themes'    => $themes,
+        ]);
+
         foreach ($themes as $theme_slug) {
             $theme = wp_get_theme($theme_slug);
             $current_version = $theme->exists() ? $theme->get('Version') : '';
@@ -1963,6 +2029,14 @@ JS
         $skin = new Automatic_Upgrader_Skin();
         $upgrader = new Theme_Upgrader($skin);
         $result = $upgrader->bulk_upgrade($themes);
+        if (is_wp_error($result)) {
+            $this->mcu_log_event('error', 'official_themes_bulk_failed', ['error' => $result]);
+            $this->mcu_flush_update_caches(['operation' => 'official_themes_bulk_ajax']);
+            $this->mcu_restore_active_plugin_snapshot($snapshot, ['operation' => 'official_themes_bulk_ajax']);
+            $this->mcu_release_update_lock($lock);
+            wp_send_json_error($result->get_error_message());
+        }
+
         $success_count = 0;
         if (is_array($result)) {
             foreach ($result as $theme_result) {
@@ -1972,8 +2046,14 @@ JS
             }
         }
         if ($success_count > 0) {
+             $this->mcu_flush_update_caches(['operation' => 'official_themes_bulk_ajax']);
+             $this->mcu_restore_active_plugin_snapshot($snapshot, ['operation' => 'official_themes_bulk_ajax']);
+             $this->mcu_release_update_lock($lock);
              wp_send_json_success(sprintf('%d temi aggiornati con successo', $success_count));
         } else {
+             $this->mcu_flush_update_caches(['operation' => 'official_themes_bulk_ajax']);
+             $this->mcu_restore_active_plugin_snapshot($snapshot, ['operation' => 'official_themes_bulk_ajax']);
+             $this->mcu_release_update_lock($lock);
              wp_send_json_error('Nessun tema aggiornato');
         }
     }
@@ -1994,9 +2074,7 @@ JS
         include_once ABSPATH . 'wp-admin/includes/translation-install.php';
         
         // Force refresh of all update transients to ensure we get the latest translation data
-        delete_site_transient('update_core');
-        delete_site_transient('update_plugins');
-        delete_site_transient('update_themes');
+        $this->mcu_flush_update_caches(['operation' => 'translations_precheck']);
         
         // Trigger checks
         wp_version_check();
@@ -2008,9 +2086,25 @@ JS
              wp_send_json_error('Nessun aggiornamento traduzioni disponibile dopo il controllo forzato.');
         }
 
+        $lock = $this->mcu_acquire_update_lock('translations_update_ajax', ['count' => count($translations)]);
+        if (is_wp_error($lock)) {
+            wp_send_json_error($lock->get_error_message());
+        }
+        $snapshot = $this->mcu_capture_active_plugin_snapshot([
+            'operation' => 'translations_update_ajax',
+            'count'     => count($translations),
+        ]);
+
         $skin = new Automatic_Upgrader_Skin();
         $upgrader = new Language_Pack_Upgrader($skin);
         $result = $upgrader->bulk_upgrade($translations);
+        if (is_wp_error($result)) {
+            $this->mcu_log_event('error', 'translations_update_failed', ['error' => $result]);
+            $this->mcu_flush_update_caches(['operation' => 'translations_update_ajax']);
+            $this->mcu_restore_active_plugin_snapshot($snapshot, ['operation' => 'translations_update_ajax']);
+            $this->mcu_release_update_lock($lock);
+            wp_send_json_error($result->get_error_message());
+        }
         
         $success_count = 0;
         if (is_array($result)) {
@@ -2021,6 +2115,10 @@ JS
             }
         }
         
+        $this->mcu_flush_update_caches(['operation' => 'translations_update_ajax']);
+        $this->mcu_restore_active_plugin_snapshot($snapshot, ['operation' => 'translations_update_ajax']);
+        $this->mcu_release_update_lock($lock);
+
         if ($success_count > 0) {
              wp_send_json_success(sprintf('%d traduzioni aggiornate con successo', $success_count));
         } else {

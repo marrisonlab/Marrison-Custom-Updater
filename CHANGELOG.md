@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.7.0] - 2026-07-29
+
+### Added
+- Log mensili degli aggiornamenti in `wp-content/marrison-updater-logs`, scaricabili da Impostazioni > Log e protetti da nonce/capability.
+- Lock globale per impedire aggiornamenti concorrenti manuali, AJAX e programmati.
+- Snapshot dei plugin attivi prima degli aggiornamenti e ripristino controllato dei plugin rimasti disattivati dopo il batch.
+- Flush cache centralizzato post-update con transient WordPress, cache plugin/temi/update, object cache, OPcache e integrazioni comuni di page cache.
+
+### Changed
+- Gli errori AJAX degli update pubblici e privati riportano messaggi piu diagnostici, invece del generico errore di connessione.
+- I flussi di update ufficiali, privati, temi, traduzioni, restore e cron usano logging strutturato e rilascio lock controllato.
+
+### Fixed
+- Ridotto il rischio che plugin dipendenti da WooCommerce restino disattivati se WooCommerce risulta temporaneamente assente durante un aggiornamento.
+- Migliorata la pulizia cache dopo aggiornamenti per evitare caricamenti di codice o oggetti persistenti non allineati alla nuova versione.
+
 ## [9.6.6] - 2026-07-24
 
 ### Added
