@@ -16,6 +16,263 @@ trait MCU_Scheduling_Trait {
         return $schedules;
     }
 
+    private function mcu_clear_scheduled_update_events() {
+        wp_clear_scheduled_hook('marrison_scheduled_update_event');
+        wp_clear_scheduled_hook('marrison_scheduled_update_event', ['automatic']);
+    }
+
+    private function mcu_normalize_auto_update_frequency($frequency) {
+        $frequency = sanitize_key((string) $frequency);
+        return in_array($frequency, ['daily', 'weekly', 'monthly', 'biannual'], true) ? $frequency : 'daily';
+    }
+
+    private function mcu_normalize_auto_update_time($time) {
+        $time = trim((string) $time);
+        return preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/', $time) ? $time : '00:00';
+    }
+
+    private function mcu_normalize_auto_update_month_day($day) {
+        $day = absint($day);
+        if ($day < 1) {
+            $day = (int) current_time('j');
+        }
+
+        return max(1, min(31, $day));
+    }
+
+    private function mcu_auto_update_timezone() {
+        return new DateTimeZone('Europe/Rome');
+    }
+
+    private function mcu_datetime_for_month_day($year, $month, $day, $hour, $minute, DateTimeZone $tz) {
+        $year = (int) $year;
+        $month = (int) $month;
+
+        while ($month > 12) {
+            $month -= 12;
+            $year++;
+        }
+
+        while ($month < 1) {
+            $month += 12;
+            $year--;
+        }
+
+        $first_day = new DateTime(sprintf('%04d-%02d-01 00:00:00', $year, $month), $tz);
+        $last_day = (int) $first_day->format('t');
+        $target_day = min(max(1, (int) $day), $last_day);
+
+        $target = clone $first_day;
+        $target->setDate($year, $month, $target_day);
+        $target->setTime((int) $hour, (int) $minute, 0);
+
+        return $target;
+    }
+
+    private function mcu_next_automatic_update_datetime($frequency, $time, $from_timestamp = null) {
+        $frequency = $this->mcu_normalize_auto_update_frequency($frequency);
+        $time = $this->mcu_normalize_auto_update_time($time);
+        [$hour, $minute] = array_map('absint', explode(':', $time));
+        $tz = $this->mcu_auto_update_timezone();
+        $now = $from_timestamp ? new DateTime('@' . (int) $from_timestamp) : new DateTime('now', $tz);
+        $now->setTimezone($tz);
+
+        if (in_array($frequency, ['monthly', 'biannual'], true)) {
+            $month_day = $this->mcu_normalize_auto_update_month_day(get_option('marrison_auto_update_month_day', current_time('j')));
+            $target = $this->mcu_datetime_for_month_day(
+                (int) $now->format('Y'),
+                (int) $now->format('n'),
+                $month_day,
+                $hour,
+                $minute,
+                $tz
+            );
+
+            if ($target <= $now) {
+                $target = $this->mcu_datetime_for_month_day(
+                    (int) $now->format('Y'),
+                    (int) $now->format('n') + ('biannual' === $frequency ? 6 : 1),
+                    $month_day,
+                    $hour,
+                    $minute,
+                    $tz
+                );
+            }
+
+            return $target;
+        }
+
+        $target = clone $now;
+        $target->setTime($hour, $minute, 0);
+
+        if ($target <= $now) {
+            $target->modify('weekly' === $frequency ? '+1 week' : '+1 day');
+        }
+
+        return $target;
+    }
+
+    private function mcu_schedule_automatic_update_event($frequency, $time, $from_timestamp = null) {
+        $frequency = $this->mcu_normalize_auto_update_frequency($frequency);
+        $target_time = $this->mcu_next_automatic_update_datetime($frequency, $time, $from_timestamp);
+        $args = ['automatic'];
+
+        if (in_array($frequency, ['monthly', 'biannual'], true)) {
+            return wp_schedule_single_event($target_time->getTimestamp(), 'marrison_scheduled_update_event', $args);
+        }
+
+        return wp_schedule_event($target_time->getTimestamp(), $frequency, 'marrison_scheduled_update_event', $args);
+    }
+
+    private function mcu_reschedule_calendar_update_if_needed($source = '') {
+        if ('automatic' !== $source || get_option('marrison_auto_update_enabled') !== 'yes') {
+            return;
+        }
+
+        $frequency = $this->mcu_normalize_auto_update_frequency(get_option('marrison_auto_update_frequency', 'daily'));
+        if (!in_array($frequency, ['monthly', 'biannual'], true)) {
+            return;
+        }
+
+        wp_clear_scheduled_hook('marrison_scheduled_update_event', ['automatic']);
+        $this->mcu_schedule_automatic_update_event($frequency, get_option('marrison_auto_update_time', '00:00'), time() + 60);
+    }
+
+    private function mcu_next_scheduled_update_event_timestamp() {
+        $automatic = wp_next_scheduled('marrison_scheduled_update_event', ['automatic']);
+        $legacy = wp_next_scheduled('marrison_scheduled_update_event');
+
+        if ($automatic && $legacy) {
+            return min((int) $automatic, (int) $legacy);
+        }
+
+        return $automatic ? (int) $automatic : ($legacy ? (int) $legacy : 0);
+    }
+
+    private function mcu_cron_started_stale_after_seconds() {
+        $minute = defined('MINUTE_IN_SECONDS') ? MINUTE_IN_SECONDS : 60;
+        $stale_after = (int) apply_filters('mcu_cron_started_stale_after', 10 * $minute);
+        if ($stale_after < 10 * $minute) {
+            $stale_after = 10 * $minute;
+        }
+        return $stale_after;
+    }
+
+    private function mcu_local_mysql_to_timestamp($mysql) {
+        $mysql = trim((string) $mysql);
+        if ($mysql === '' || $mysql === '0000-00-00 00:00:00') {
+            return 0;
+        }
+
+        try {
+            $timezone = function_exists('wp_timezone') ? wp_timezone() : new DateTimeZone('UTC');
+            $date = new DateTimeImmutable($mysql, $timezone);
+            return $date->getTimestamp();
+        } catch (Exception $e) {
+            $timestamp = strtotime($mysql);
+            return $timestamp ? (int) $timestamp : 0;
+        }
+    }
+
+    public function mcu_recover_stale_cron_log_if_needed($context = []) {
+        $last_log = get_option('marrison_last_cron_log', []);
+        if (!is_array($last_log) || sanitize_key((string) ($last_log['status'] ?? '')) !== 'started') {
+            return false;
+        }
+
+        $started_at = $this->mcu_local_mysql_to_timestamp($last_log['time'] ?? '');
+        $stale_after = $this->mcu_cron_started_stale_after_seconds();
+        if ($started_at <= 0 || (time() - $started_at) <= $stale_after) {
+            return false;
+        }
+
+        $last_log['status'] = 'error';
+        $last_log['message'] = sprintf(
+            __('Esecuzione precedente interrotta o scaduta: nessuna chiusura entro %d minuti.', 'marrison-custom-updater'),
+            (int) ceil($stale_after / 60)
+        );
+        $last_log['stale'] = true;
+        $last_log['stale_after_seconds'] = $stale_after;
+        $last_log['recovered_at'] = current_time('mysql');
+
+        update_option('marrison_last_cron_log', $last_log);
+        if (method_exists($this, 'mcu_log_event')) {
+            $this->mcu_log_event('warning', 'cron_log_stale_recovered', [
+                'started_at' => $last_log['time'] ?? '',
+                'recovered_at' => $last_log['recovered_at'],
+                'context' => $context,
+            ]);
+        }
+
+        return true;
+    }
+
+    private function mcu_is_terminal_cron_log_status($status) {
+        return in_array(sanitize_key((string) $status), ['completed', 'error', 'skipped'], true);
+    }
+
+    private function mcu_shutdown_failure_message() {
+        $error = error_get_last();
+        $fatal_types = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR];
+
+        if (is_array($error) && in_array((int) ($error['type'] ?? 0), $fatal_types, true)) {
+            return sprintf(
+                __('Esecuzione interrotta: %s in %s:%d', 'marrison-custom-updater'),
+                sanitize_text_field((string) ($error['message'] ?? 'errore fatale')),
+                sanitize_text_field((string) ($error['file'] ?? 'unknown')),
+                (int) ($error['line'] ?? 0)
+            );
+        }
+
+        return __('Esecuzione interrotta prima della chiusura del job.', 'marrison-custom-updater');
+    }
+
+    private function mcu_mark_master_update_failed_if_running($message, $last_log = []) {
+        $status = get_option('mcu_master_update_status', []);
+        if (!is_array($status) || !in_array(sanitize_key((string) ($status['status'] ?? '')), ['queued', 'running'], true)) {
+            return;
+        }
+
+        $status['status'] = 'failed';
+        $status['finished_at'] = time();
+        $status['message'] = $message;
+        $status['stale'] = true;
+        $status['last_log'] = is_array($last_log) ? $last_log : [];
+
+        update_option('mcu_master_update_status', $status, false);
+    }
+
+    private function mcu_close_interrupted_cron_log($message, $context = []) {
+        $last_log = get_option('marrison_last_cron_log', []);
+        if (!is_array($last_log) || $this->mcu_is_terminal_cron_log_status($last_log['status'] ?? '')) {
+            return false;
+        }
+
+        if (empty($last_log['time'])) {
+            $last_log['time'] = current_time('mysql');
+        }
+
+        $last_log['status'] = 'error';
+        $last_log['message'] = $message;
+        $last_log['interrupted'] = true;
+        $last_log['recovered_at'] = current_time('mysql');
+
+        update_option('marrison_last_cron_log', $last_log);
+
+        if (($context['source'] ?? '') === 'master') {
+            $this->mcu_mark_master_update_failed_if_running($message, $last_log);
+        }
+
+        if (method_exists($this, 'mcu_log_event')) {
+            $this->mcu_log_event('warning', 'cron_log_interrupted_closed', [
+                'message' => $message,
+                'context' => $context,
+            ]);
+        }
+
+        return true;
+    }
+
     public function save_scheduling_settings() {
         check_admin_referer('marrison_save_scheduling');
 
@@ -24,8 +281,9 @@ trait MCU_Scheduling_Trait {
         }
 
         $enabled = isset($_POST['marrison_auto_update_enabled']) ? 'yes' : 'no';
-        $frequency = sanitize_text_field($_POST['marrison_auto_update_frequency']);
-        $time = sanitize_text_field($_POST['marrison_auto_update_time']);
+        $frequency = $this->mcu_normalize_auto_update_frequency($_POST['marrison_auto_update_frequency'] ?? 'daily');
+        $time = $this->mcu_normalize_auto_update_time($_POST['marrison_auto_update_time'] ?? '00:00');
+        $month_day = $this->mcu_normalize_auto_update_month_day($_POST['marrison_auto_update_month_day'] ?? get_option('marrison_auto_update_month_day', current_time('j')));
         $email = sanitize_email($_POST['marrison_auto_update_email']);
         $db_backup = isset($_POST['marrison_db_backup_with_updates']) ? 'yes' : 'no';
         $files_backup = isset($_POST['marrison_files_backup_with_updates']) ? 'yes' : 'no';
@@ -34,44 +292,16 @@ trait MCU_Scheduling_Trait {
         update_option('marrison_auto_update_enabled', $enabled);
         update_option('marrison_auto_update_frequency', $frequency);
         update_option('marrison_auto_update_time', $time);
+        update_option('marrison_auto_update_month_day', $month_day);
         update_option('marrison_auto_update_email', $email);
         update_option('marrison_db_backup_with_updates', $db_backup);
         update_option('marrison_files_backup_with_updates', $files_backup);
         update_option('marrison_files_backup_skip_large_files', $files_backup_skip_large);
 
-        wp_clear_scheduled_hook('marrison_scheduled_update_event');
+        $this->mcu_clear_scheduled_update_events();
 
         if ($enabled === 'yes') {
-            $tz = new DateTimeZone('Europe/Rome');
-            $now = new DateTime('now', $tz);
-            $target_time = DateTime::createFromFormat('H:i', $time, $tz);
-            
-            if (!$target_time) {
-                $target_time = clone $now;
-            } else {
-                $target_time->setDate($now->format('Y'), $now->format('m'), $now->format('d'));
-                
-                // Se l'orario specificato è già passato per oggi
-                if ($target_time <= $now) {
-                    switch ($frequency) {
-                        case 'weekly':
-                            $target_time->modify('+1 week');
-                            break;
-                        case 'monthly':
-                            $target_time->modify('+1 month');
-                            break;
-                        case 'biannual':
-                            $target_time->modify('+6 months');
-                            break;
-                        case 'daily':
-                        default:
-                            $target_time->modify('+1 day');
-                            break;
-                    }
-                }
-            }
-
-            wp_schedule_event($target_time->getTimestamp(), $frequency, 'marrison_scheduled_update_event');
+            $this->mcu_schedule_automatic_update_event($frequency, $time);
         }
 
         wp_redirect(admin_url('admin.php?page=marrison-updater-settings&tab=scheduling&settings-updated=saved'));
@@ -378,7 +608,9 @@ trait MCU_Scheduling_Trait {
         }
     }
 
-    public function run_scheduled_updates() {
+    public function run_scheduled_updates($source = '') {
+        $this->mcu_recover_stale_cron_log_if_needed(['source' => $source ?: 'cron', 'before' => 'run_scheduled_updates']);
+
         $log_entry = [
             'time' => current_time('mysql'),
             'status' => 'started',
@@ -388,12 +620,31 @@ trait MCU_Scheduling_Trait {
 
         $mcu_update_lock = null;
         $mcu_update_snapshot = null;
+        $mcu_shutdown_completed = false;
+        $mcu_shutdown_source = $source ?: 'cron';
+
+        register_shutdown_function(function() use (&$mcu_shutdown_completed, &$mcu_update_lock, &$mcu_update_snapshot, $mcu_shutdown_source) {
+            if ($mcu_shutdown_completed) {
+                return;
+            }
+
+            $message = $this->mcu_shutdown_failure_message();
+            $this->mcu_close_interrupted_cron_log($message, [
+                'source' => $mcu_shutdown_source,
+                'context' => 'shutdown',
+            ]);
+
+            if (!empty($mcu_update_lock) && !is_wp_error($mcu_update_lock)) {
+                $this->mcu_restore_active_plugin_snapshot($mcu_update_snapshot, ['operation' => 'scheduled_updates', 'context' => 'shutdown']);
+                $this->mcu_release_update_lock($mcu_update_lock);
+            }
+        });
 
         try {
             @ignore_user_abort(true);
             @set_time_limit(0);
 
-            $mcu_update_lock = $this->mcu_acquire_update_lock('scheduled_updates', ['source' => 'cron']);
+            $mcu_update_lock = $this->mcu_acquire_update_lock('scheduled_updates', ['source' => $source ?: 'cron']);
             if (is_wp_error($mcu_update_lock)) {
                 $log_entry['status'] = 'skipped';
                 $log_entry['message'] = $mcu_update_lock->get_error_message();
@@ -401,26 +652,35 @@ trait MCU_Scheduling_Trait {
                 return;
             }
             $mcu_update_snapshot = $this->mcu_capture_active_plugin_snapshot(['operation' => 'scheduled_updates']);
-            $this->mcu_log_event('info', 'scheduled_updates_started', ['source' => 'cron']);
+            $this->mcu_log_event('info', 'scheduled_updates_started', ['source' => $source ?: 'cron']);
+            $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'started']);
 
             $db_backup_filename = false;
             $db_backup_error = '';
             if (get_option('marrison_db_backup_with_updates') === 'yes') {
+                $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'db_backup_started']);
                 $db_backup_filename = $this->create_db_backup();
                 if (is_wp_error($db_backup_filename)) {
                     $db_backup_error = $db_backup_filename->get_error_message();
                     $db_backup_filename = false;
+                } elseif ($db_backup_filename) {
+                    update_option('marrison_last_db_backup_filename', $db_backup_filename);
                 }
+                $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'db_backup_finished']);
             }
 
             $files_backup_filename = false;
             $files_backup_error = '';
             if (get_option('marrison_files_backup_with_updates') === 'yes') {
+                $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'files_backup_started']);
                 $files_backup_filename = $this->create_files_backup();
                 if (is_wp_error($files_backup_filename)) {
                     $files_backup_error = $files_backup_filename->get_error_message();
                     $files_backup_filename = false;
+                } elseif ($files_backup_filename) {
+                    update_option('marrison_last_files_backup_filenames', $files_backup_filename);
                 }
+                $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'files_backup_finished']);
             }
 
             $data = $this->get_all_updates_data();
@@ -458,6 +718,7 @@ trait MCU_Scheduling_Trait {
             // --- 1. Aggiornamento Plugin Privati ---
             if (!$backup_blocked_updates && !empty($data['plugins_private'])) {
                 foreach ($data['plugins_private'] as $u) {
+                    $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'private_plugin_started', 'slug' => $u['slug'] ?? '']);
                     $plugin_file = $this->find_plugin_file($u['slug'], $u['name'] ?? '');
                     $old_version = 'N/A';
                     if ($plugin_file && file_exists(WP_PLUGIN_DIR . '/' . $plugin_file)) {
@@ -482,6 +743,7 @@ trait MCU_Scheduling_Trait {
                             'error' => $error_msg
                         ];
                     }
+                    $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'private_plugin_finished', 'slug' => $u['slug'] ?? '']);
                 }
             }
             
@@ -490,8 +752,10 @@ trait MCU_Scheduling_Trait {
 
             // --- 2. Aggiornamento Plugin Ufficiali ---
             if (!$backup_blocked_updates) {
+                $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'official_plugins_check_started']);
                 wp_update_plugins();
                 $transient_plugins = get_site_transient('update_plugins');
+                $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'official_plugins_check_finished']);
             } else {
                 $transient_plugins = null;
             }
@@ -545,6 +809,7 @@ trait MCU_Scheduling_Trait {
                 }
                 
                 if (!empty($plugin_files)) {
+                    $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'official_plugins_update_started', 'count' => count($plugin_files)]);
                     $upgrader = new Plugin_Upgrader($skin);
                     $results = $upgrader->bulk_upgrade($plugin_files);
                     if (is_array($results)) {
@@ -576,6 +841,7 @@ trait MCU_Scheduling_Trait {
                         }
                     }
                     $this->mcu_flush_update_caches(['operation' => 'scheduled_official_plugins']);
+                    $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'official_plugins_update_finished', 'count' => count($plugin_files)]);
                 }
             }
             
@@ -584,6 +850,7 @@ trait MCU_Scheduling_Trait {
 
             // --- 3. Aggiornamento Temi ---
             if (!$backup_blocked_updates && $data['themes_count'] > 0) {
+                $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'themes_update_started']);
                 $current = get_site_transient('update_themes');
                 if (!empty($current->response)) {
                     $themes = array_keys($current->response);
@@ -632,12 +899,14 @@ trait MCU_Scheduling_Trait {
                         }
                     }
                 }
+                $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'themes_update_finished']);
             }
             
             $log_entry['message'] = 'Themes processed.';
             update_option('marrison_last_cron_log', $log_entry);
             
             if (!$backup_blocked_updates && $data['translations_count'] > 0) {
+                $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'translations_update_started']);
                 include_once ABSPATH . 'wp-admin/includes/translation-install.php';
                 $translations = wp_get_translation_updates();
                 if (!empty($translations)) {
@@ -651,6 +920,7 @@ trait MCU_Scheduling_Trait {
                         $updated_translations = $count;
                     }
                 }
+                $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'translations_update_finished']);
             }
             
             
@@ -681,6 +951,7 @@ trait MCU_Scheduling_Trait {
 
             $log_entry['message'] = 'Translations processed. Preparing email...';
             update_option('marrison_last_cron_log', $log_entry);
+            $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'report_started']);
             
             // Check Elementor Log if Elementor was updated
             $elementor_db_info = null;
@@ -1067,6 +1338,8 @@ trait MCU_Scheduling_Trait {
                 $this->mcu_release_update_lock($mcu_update_lock);
                 $this->mcu_log_event('info', 'scheduled_updates_finished', ['status' => $log_entry['status'] ?? 'unknown']);
             }
+            $this->mcu_reschedule_calendar_update_if_needed($source);
+            $mcu_shutdown_completed = true;
         }
     }
 }

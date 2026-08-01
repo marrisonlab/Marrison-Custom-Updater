@@ -1,0 +1,26 @@
+.mcu-client-card code {
+	overflow-wrap: anywhere;
+}
+
+.mcu-client-actions {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin-top: 18px;
+}
+
+.mcu-client-inline-form {
+	margin-top: 12px;
+}
+
+.mcu-client-actions .mcu-client-inline-form {
+	margin-top: 0;
+}
+
+.mcu-client-debug-toggle {
+	align-items: center;
+	display: inline-flex;
+	gap: 8px;
+	font-weight: 600;
+}

@@ -207,6 +207,18 @@
     color: white;
 }
 
+.mcu-button-danger {
+    background: var(--mcu-danger);
+    border: 1px solid var(--mcu-danger);
+    color: white;
+}
+
+.mcu-button-danger:hover {
+    background: #b32d2e;
+    border-color: #b32d2e;
+    color: white;
+}
+
 .mcu-button-sm {
     padding: 4px 10px;
     font-size: 12px;

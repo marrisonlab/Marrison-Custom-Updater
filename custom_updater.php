@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.7.0
+ * Version: 9.7.13
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  * Text Domain: marrison-custom-updater
@@ -13,13 +13,27 @@
 if (!defined('MCU_PLUGIN_DIR')) {
     define('MCU_PLUGIN_DIR', plugin_dir_path(__FILE__));
 }
+if (!defined('MCU_PLUGIN_FILE')) {
+    define('MCU_PLUGIN_FILE', __FILE__);
+}
+if (!defined('MCU_PLUGIN_URL')) {
+    define('MCU_PLUGIN_URL', plugin_dir_url(__FILE__));
+}
 if (!defined('MCU_PLUGIN_VERSION')) {
-    define('MCU_PLUGIN_VERSION', '9.7.0');
+    define('MCU_PLUGIN_VERSION', '9.7.13');
 }
 
+require_once __DIR__ . '/includes/mcu-client/class-settings.php';
+require_once __DIR__ . '/includes/mcu-client/class-installer.php';
+require_once __DIR__ . '/includes/mcu-client/class-plugin.php';
 require_once __DIR__ . '/includes/traits/SchedulingTrait.php';
 require_once __DIR__ . '/includes/traits/AdminUITrait.php';
 require_once __DIR__ . '/includes/traits/UpdateOperationsTrait.php';
+
+register_activation_hook(__FILE__, ['MarrisonCustomUpdater\\MaintenanceClient\\Installer', 'activate']);
+register_deactivation_hook(__FILE__, ['MarrisonCustomUpdater\\MaintenanceClient\\Installer', 'deactivate']);
+
+\MarrisonCustomUpdater\MaintenanceClient\Plugin::init();
 
 if (!class_exists('MCU_Custom_Updater')) {
 class MCU_Custom_Updater {
@@ -63,6 +77,7 @@ class MCU_Custom_Updater {
         add_action('admin_post_marrison_restore_plugin', [$this, 'restore_plugin']);
         add_action('admin_post_marrison_bulk_update', [$this, 'bulk_update']);
         add_action('admin_post_marrison_clear_cache', [$this, 'clear_cache']);
+        add_action('admin_post_mcu_clear_update_lock', [$this, 'mcu_clear_update_lock_admin_action']);
         add_action('admin_post_mcu_save_repo_url', [$this, 'save_repo_url']);
         add_action('admin_post_marrison_force_check_mcu', [$this, 'force_check_mcu']);
         
@@ -78,7 +93,7 @@ class MCU_Custom_Updater {
         
         // Cron
         add_filter('cron_schedules', [$this, 'add_custom_cron_intervals']);
-        add_action('marrison_scheduled_update_event', [$this, 'run_scheduled_updates']);
+        add_action('marrison_scheduled_update_event', [$this, 'run_scheduled_updates'], 10, 1);
         
         // Hook per AJAX
         add_action('wp_ajax_marrison_update_plugin_ajax', [$this, 'update_plugin_ajax']);
@@ -1406,8 +1421,10 @@ echo json_encode($data);
         // Pulisce la cache dopo aver modificato l'URL
         delete_transient('marrison_available_updates');
         delete_transient('marrison_available_updates_v2');
+        delete_transient('marrison_updates_fetch_failed');
         delete_site_transient('update_plugins');
         delete_transient('marrison_available_theme_updates');
+        delete_transient('marrison_theme_updates_fetch_failed');
         delete_site_transient('update_themes');
 
         wp_redirect($redirect_url);

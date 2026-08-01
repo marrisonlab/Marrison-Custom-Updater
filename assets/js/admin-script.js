@@ -26,6 +26,14 @@ jQuery(document).ready(function($) {
         }
         return parts.length ? parts.join(' - ') : t('Errore di connessione al server.');
     }
+
+    function toggleMonthDayField() {
+        var frequency = $('#marrison_auto_update_frequency').val();
+        $('#marrison_auto_update_month_day_row').toggle(frequency === 'monthly' || frequency === 'biannual');
+    }
+
+    $('#marrison_auto_update_frequency').on('change', toggleMonthDayField);
+    toggleMonthDayField();
     
     // UI Helpers
     const MCU = {

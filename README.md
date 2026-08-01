@@ -1,6 +1,6 @@
 # Marrison Custom Updater
 
-[![Latest Version](https://img.shields.io/badge/version-9.7.0-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
+[![Latest Version](https://img.shields.io/badge/version-9.7.13-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
 [![WordPress Version](https://img.shields.io/badge/WordPress-6.0%2B-green.svg)](https://wordpress.org)
 [![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-green.svg)](https://php.net)
 [![License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -13,7 +13,7 @@
 - 📦 **Gestione Aggiornamenti Unificata**: Visualizza e installa aggiornamenti per plugin e temi privati direttamente dalla dashboard
 - 💾 **Sistema di Backup Integrato**: Esegue automaticamente backup di tutti i plugin e temi (privati e pubblici) prima dell'aggiornamento, permettendo il ripristino rapido (rollback) in caso di problemi
 - 🧹 **Pulizia Backup Orfani**: Rimuove automaticamente i backup dei plugin che non sono più installati sul sito
-- ⏰ **Aggiornamenti Automatici**: Configura aggiornamenti automatici programmati (giornalieri o settimanali) con notifiche email dettagliate
+- ⏰ **Aggiornamenti Automatici**: Configura aggiornamenti automatici programmati con giorno del mese dedicato per frequenze mensili e semestrali
 - 🌐 **Gestione Traduzioni**: Strumento dedicato per aggiornare le traduzioni dei plugin
 - 📊 **Log e Debug**: Sistema di logging integrato per monitorare le operazioni di aggiornamento e cron job
 - 🚫 **Esclusione Plugin**: Possibilità di escludere specifici plugin dagli aggiornamenti automatici
@@ -32,6 +32,80 @@
 - Access to plugin files for backup/restore operations
 
 ## 🔄 Version History
+
+### [9.7.13] - 2026-08-01
+
+- Soglia heartbeat stale ridotta a 10 minuti per liberare prima i job Master interrotti.
+- Pulsante admin "Interrompi aggiornamento bloccato" per rimuovere esplicitamente un lock rimasto appeso.
+- Lo sblocco manuale chiude anche il log `started` e marca la richiesta Master come fallita.
+- La pulizia cache non preserva piu lock update gia stale.
+
+### [9.7.12] - 2026-08-01
+
+- Failsafe di shutdown per chiudere come errore i job schedulati interrotti durante backup/update.
+- Il lock update viene rilasciato subito nello shutdown quando possibile, evitando blocchi fino alla soglia stale.
+- Le richieste Master vengono marcate fallite se il job client si interrompe prima della risposta finale.
+
+### [9.7.11] - 2026-08-01
+
+- Recupero automatico dei log cron rimasti in stato `started` dopo un job interrotto o morto prima della chiusura.
+- I lock update scaduti o senza heartbeat vengono liberati alla successiva richiesta utile, incluso status Master, senza daemon o polling.
+- Le richieste Master bloccate da un vecchio job vengono marcate come stale/fallite invece di lasciare il sito in attesa indefinita.
+
+### [9.7.10] - 2026-07-31
+
+- La programmazione mensile e semestrale permette di scegliere il giorno del mese.
+- Le frequenze mensile e semestrale usano eventi calendariali singoli riprogrammati dopo l'esecuzione, evitando il vecchio riferimento implicito al giorno corrente.
+- Il payload Client espone al Master il giorno configurato nella frequenza MCU.
+
+### [9.7.9] - 2026-07-31
+
+- Lo stato repository temi non mostra piu la X rossa quando l'URL e configurato e il repo risponde correttamente ma non ci sono temi aggiornabili.
+- Il salvataggio degli URL repository pulisce anche i transient di errore plugin/temi.
+
+### [9.7.8] - 2026-07-31
+
+- Accesso one-click dashboard dal Master con chiave dedicata separata dalla chiave status/update.
+- Endpoint Client `/dashboard-access` per generare link wp-admin temporanei e monouso.
+- Il file configurazione MCU include endpoint e chiave dashboard, cosi il Master e pronto dopo l'import.
+- Nessun daemon, polling o carico ricorrente sui siti client: il link viene creato solo al click dal Master.
+
+### [9.7.7] - 2026-07-31
+
+- Il payload Client per Master non conta piu i plugin esclusi in MCU, anche quando arrivano dal transient WordPress.org.
+- Matching esclusioni piu tollerante tra slug cartella, slug WordPress.org e file plugin.
+
+### [9.7.6] - 2026-07-31
+
+- Lock aggiornamenti con heartbeat e recupero dei lock stale rimasti da richieste Master interrotte.
+- Lo stato client espone al Master il lock update senza token o segreti.
+- Backup schedulati e aggiornamenti lunghi aggiornano il heartbeat senza introdurre daemon o polling.
+
+### [9.7.5] - 2026-07-31
+
+- Fix fatal error durante il download della configurazione Client MCU da `admin-post.php`.
+
+### [9.7.4] - 2026-07-31
+
+- La richiesta update dal Master ora prova ad avviare subito WP-Cron in modo non bloccante.
+- Conteggio plugin aggiornabili deduplicato tra transient WordPress e repo privato MCU.
+
+### [9.7.3] - 2026-07-31
+
+- Il pannello Client MCU permette di scaricare un file configurazione JSON importabile dal Master.
+- Il file usa il nome sito WordPress del client per compilare il nome sul Master.
+
+### [9.7.2] - 2026-07-31
+
+- Report Master con backup scaricabili quando presenti sul client.
+- Richiesta update MCU dal Master con job WordPress cron accodato.
+- Stato pending esposto al Master per distinguere richiesta inviata e lavoro ancora in corso.
+
+### [9.7.1] - 2026-07-30
+
+- Client MCU integrato per il dialogo autenticato con il Master Marrison Maintenance.
+- Il payload client include l'elenco alfabetico dei plugin aggiornabili, distinguendo update WordPress.org e privati.
+- Il Master può mostrare frequenza, ultimo update, prossimo aggiornamento schedulato e dettagli più leggibili.
 
 ### [9.7.0] - 2026-07-29
 
@@ -163,8 +237,9 @@
 
 1. Vai su **Marrison Updater** > **Pianificazione**
 2. Configura la frequenza degli aggiornamenti automatici
-3. Imposta le notifiche email
-4. Salva le impostazioni
+3. Per frequenze mensili o semestrali scegli il giorno del mese
+4. Imposta le notifiche email
+5. Salva le impostazioni
 
 ## 💾 Sistema di Backup e Restore
 

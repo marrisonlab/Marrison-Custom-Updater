@@ -123,6 +123,46 @@ trait MCU_Update_Operations_Trait {
         return $updates;
     }
 
+    private function mcu_private_repo_status($type = 'plugin') {
+        $type = $type === 'theme' ? 'theme' : 'plugin';
+        if ($type === 'theme') {
+            $repo_url = get_option('marrison_themes_repo_url');
+        } else {
+            $custom_repo_url = get_option('marrison_repo_url');
+            $repo_url = !empty($custom_repo_url) ? $custom_repo_url : $this->updates_url;
+        }
+        $repo_url = !empty($repo_url) ? trailingslashit($repo_url) : '';
+
+        if (empty($repo_url)) {
+            return [
+                'configured' => false,
+                'reachable' => false,
+                'class'      => 'warning',
+                'icon'       => 'warning',
+                'message'    => __('Repository non configurato.', 'marrison-custom-updater'),
+            ];
+        }
+
+        $failure_transient = $type === 'theme' ? 'marrison_theme_updates_fetch_failed' : 'marrison_updates_fetch_failed';
+        if (get_transient($failure_transient) !== false) {
+            return [
+                'configured' => true,
+                'reachable' => false,
+                'class'      => 'danger',
+                'icon'       => 'no',
+                'message'    => __('Ultimo controllo repository fallito. Usa "Forza controllo MCU" dopo aver verificato l URL.', 'marrison-custom-updater'),
+            ];
+        }
+
+        return [
+            'configured' => true,
+            'reachable' => true,
+            'class'      => 'success',
+            'icon'       => 'yes',
+            'message'    => __('Repository configurato.', 'marrison-custom-updater'),
+        ];
+    }
+
     protected function is_item_excluded($slug, $type = 'plugin') {
         $option_name = ($type === 'theme') ? 'marrison_excluded_themes' : 'marrison_excluded_plugins';
         $excluded = get_option($option_name, []);
@@ -317,40 +357,108 @@ trait MCU_Update_Operations_Trait {
         return !empty($this->mcu_update_lock_token);
     }
 
-    private function mcu_acquire_update_lock($operation, $context = []) {
-        if ($this->mcu_has_local_update_lock()) {
-            return $this->mcu_update_lock_token;
-        }
-
-        $existing = get_transient('marrison_update_lock');
-        if (is_array($existing) && !empty($existing['expires']) && (int) $existing['expires'] > time()) {
-            $this->mcu_log_event('warning', 'update_lock_blocked', [
-                'operation' => $operation,
-                'existing'  => $existing,
-                'context'   => $context,
-            ]);
-            return new WP_Error(
-                'mcu_update_locked',
-                sprintf(
-                    __('Aggiornamento gia in corso (%s). Riprova tra qualche minuto.', 'marrison-custom-updater'),
-                    isset($existing['operation']) ? $existing['operation'] : 'unknown'
-                )
-            );
-        }
-
+    private function mcu_update_lock_timeout_seconds() {
         $minute = defined('MINUTE_IN_SECONDS') ? MINUTE_IN_SECONDS : 60;
         $hour = defined('HOUR_IN_SECONDS') ? HOUR_IN_SECONDS : 3600;
         $timeout = (int) apply_filters('mcu_update_lock_timeout', 2 * $hour);
         if ($timeout < 5 * $minute) {
             $timeout = 5 * $minute;
         }
+        return $timeout;
+    }
+
+    private function mcu_update_lock_stale_after_seconds() {
+        $minute = defined('MINUTE_IN_SECONDS') ? MINUTE_IN_SECONDS : 60;
+        $stale_after = (int) apply_filters('mcu_update_lock_stale_after', 10 * $minute);
+        if ($stale_after < 10 * $minute) {
+            $stale_after = 10 * $minute;
+        }
+        return $stale_after;
+    }
+
+    private function mcu_update_lock_last_activity($lock) {
+        if (!is_array($lock)) {
+            return 0;
+        }
+        if (!empty($lock['heartbeat_at'])) {
+            return (int) $lock['heartbeat_at'];
+        }
+        if (!empty($lock['started_at_unix'])) {
+            return (int) $lock['started_at_unix'];
+        }
+        if (!empty($lock['expires'])) {
+            return max(0, (int) $lock['expires'] - $this->mcu_update_lock_timeout_seconds());
+        }
+        return 0;
+    }
+
+    private function mcu_is_update_lock_stale($lock) {
+        if (!is_array($lock) || empty($lock['expires'])) {
+            return false;
+        }
+        if ((int) $lock['expires'] <= time()) {
+            return true;
+        }
+        $last_activity = $this->mcu_update_lock_last_activity($lock);
+        return $last_activity > 0 && (time() - $last_activity) > $this->mcu_update_lock_stale_after_seconds();
+    }
+
+    private function mcu_acquire_update_lock($operation, $context = []) {
+        if ($this->mcu_has_local_update_lock()) {
+            $this->mcu_touch_update_lock(['operation' => $operation, 'context' => $context]);
+            return $this->mcu_update_lock_token;
+        }
+
+        if (method_exists($this, 'mcu_recover_stale_cron_log_if_needed')) {
+            $this->mcu_recover_stale_cron_log_if_needed(['operation' => $operation, 'context' => $context]);
+        }
+
+        $existing = get_transient('marrison_update_lock');
+        if (is_array($existing) && (!empty($existing['expires']) && (int) $existing['expires'] <= time())) {
+            delete_transient('marrison_update_lock');
+            $this->mcu_log_event('warning', 'update_lock_expired_cleared', [
+                'operation' => $operation,
+                'existing'  => $existing,
+                'context'   => $context,
+            ]);
+            $existing = false;
+        }
+
+        if (is_array($existing) && !empty($existing['expires']) && (int) $existing['expires'] > time()) {
+            if ($this->mcu_is_update_lock_stale($existing)) {
+                delete_transient('marrison_update_lock');
+                $this->mcu_log_event('warning', 'update_lock_stale_cleared', [
+                    'operation' => $operation,
+                    'existing'  => $existing,
+                    'context'   => $context,
+                ]);
+            } else {
+                $this->mcu_log_event('warning', 'update_lock_blocked', [
+                    'operation' => $operation,
+                    'existing'  => $existing,
+                    'context'   => $context,
+                ]);
+                return new WP_Error(
+                    'mcu_update_locked',
+                    sprintf(
+                        __('Aggiornamento gia in corso (%s). Riprova tra qualche minuto.', 'marrison-custom-updater'),
+                        isset($existing['operation']) ? $existing['operation'] : 'unknown'
+                    )
+                );
+            }
+        }
+
+        $timeout = $this->mcu_update_lock_timeout_seconds();
         $token = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : md5(uniqid('mcu-lock', true));
         $lock = [
-            'token'      => $token,
-            'operation'  => $operation,
-            'started_at' => current_time('mysql'),
-            'expires'    => time() + $timeout,
-            'run_id'     => $this->mcu_get_update_run_id(),
+            'token'              => $token,
+            'operation'          => $operation,
+            'started_at'         => current_time('mysql'),
+            'started_at_unix'    => time(),
+            'heartbeat_at'       => time(),
+            'heartbeat_at_mysql' => current_time('mysql'),
+            'expires'            => time() + $timeout,
+            'run_id'             => $this->mcu_get_update_run_id(),
         ];
 
         set_transient('marrison_update_lock', $lock, $timeout);
@@ -363,6 +471,34 @@ trait MCU_Update_Operations_Trait {
         return $token;
     }
 
+    private function mcu_touch_update_lock($context = []) {
+        if (!$this->mcu_has_local_update_lock()) {
+            return false;
+        }
+
+        $existing = get_transient('marrison_update_lock');
+        if (!is_array($existing) || empty($existing['token']) || !hash_equals((string) $existing['token'], (string) $this->mcu_update_lock_token)) {
+            return false;
+        }
+
+        $now = time();
+        if (empty($context['force']) && !empty($existing['heartbeat_at']) && ($now - (int) $existing['heartbeat_at']) < 30) {
+            return true;
+        }
+
+        $existing['heartbeat_at'] = $now;
+        $existing['heartbeat_at_mysql'] = current_time('mysql');
+        $remaining = !empty($existing['expires']) ? max(300, (int) $existing['expires'] - $now) : $this->mcu_update_lock_timeout_seconds();
+        set_transient('marrison_update_lock', $existing, $remaining);
+
+        $this->mcu_log_event('info', 'update_lock_heartbeat', [
+            'operation' => isset($existing['operation']) ? $existing['operation'] : 'unknown',
+            'context'   => $context,
+        ]);
+
+        return true;
+    }
+
     private function mcu_release_update_lock($token = '') {
         $token = $token !== '' ? $token : $this->mcu_update_lock_token;
         $existing = get_transient('marrison_update_lock');
@@ -373,6 +509,40 @@ trait MCU_Update_Operations_Trait {
         if (hash_equals((string) $this->mcu_update_lock_token, (string) $token)) {
             $this->mcu_update_lock_token = '';
         }
+    }
+
+    public function mcu_clear_update_lock_admin_action() {
+        check_admin_referer('mcu_clear_update_lock');
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('Permessi insufficienti.', 'marrison-custom-updater'));
+        }
+
+        $existing = get_transient('marrison_update_lock');
+        delete_transient('marrison_update_lock');
+
+        $message = __('Aggiornamento bloccato interrotto manualmente.', 'marrison-custom-updater');
+        if (method_exists($this, 'mcu_close_interrupted_cron_log')) {
+            $this->mcu_close_interrupted_cron_log($message, [
+                'source' => 'admin',
+                'context' => 'manual_unlock',
+            ]);
+        } else {
+            $last_log = get_option('marrison_last_cron_log', []);
+            if (is_array($last_log) && sanitize_key((string) ($last_log['status'] ?? '')) === 'started') {
+                $last_log['status'] = 'error';
+                $last_log['message'] = $message;
+                $last_log['interrupted'] = true;
+                $last_log['recovered_at'] = current_time('mysql');
+                update_option('marrison_last_cron_log', $last_log);
+            }
+        }
+
+        $this->mcu_log_event('warning', 'update_lock_manually_cleared', [
+            'existing' => is_array($existing) ? $existing : [],
+        ]);
+
+        wp_redirect(admin_url('admin.php?page=marrison-updater-settings&tab=scheduling&mcu_lock_cleared=1'));
+        exit;
     }
 
     private function mcu_capture_active_plugin_snapshot($context = []) {
@@ -512,9 +682,14 @@ trait MCU_Update_Operations_Trait {
             wp_cache_flush();
             $flushed[] = 'object_cache';
             if (is_array($active_lock) && !empty($active_lock['token']) && !empty($active_lock['expires']) && (int) $active_lock['expires'] > time()) {
-                $remaining = !empty($active_lock['expires']) ? max(300, (int) $active_lock['expires'] - time()) : 300;
-                set_transient('marrison_update_lock', $active_lock, $remaining);
-                $flushed[] = 'update_lock_preserved';
+                if ($this->mcu_is_update_lock_stale($active_lock)) {
+                    delete_transient('marrison_update_lock');
+                    $flushed[] = 'stale_update_lock_cleared';
+                } else {
+                    $remaining = !empty($active_lock['expires']) ? max(300, (int) $active_lock['expires'] - time()) : 300;
+                    set_transient('marrison_update_lock', $active_lock, $remaining);
+                    $flushed[] = 'update_lock_preserved';
+                }
             }
         }
         if (function_exists('opcache_reset')) {
@@ -577,6 +752,7 @@ trait MCU_Update_Operations_Trait {
             'operation' => $operation,
             'context'   => $context,
         ]);
+        $this->mcu_touch_update_lock(['operation' => $operation, 'stage' => 'started', 'context' => $context]);
 
         try {
             $result = call_user_func($callback);
@@ -590,6 +766,7 @@ trait MCU_Update_Operations_Trait {
                 ]
             );
         }
+        $this->mcu_touch_update_lock(['operation' => $operation, 'stage' => 'callback_finished', 'context' => $context]);
 
         if ($owns_lock) {
             $this->mcu_flush_update_caches(['operation' => $operation, 'context' => $context]);
@@ -1372,6 +1549,7 @@ trait MCU_Update_Operations_Trait {
         }
 
         foreach ($tables as $table) {
+            $this->mcu_touch_update_lock(['operation' => 'db_backup', 'stage' => 'table_started', 'table' => $table]);
             $table_sql = $this->quote_db_identifier($table);
             $create = $wpdb->get_row("SHOW CREATE TABLE {$table_sql}", ARRAY_N);
             if (!$create || empty($create[1])) {
@@ -1439,6 +1617,7 @@ trait MCU_Update_Operations_Trait {
                 $insert_chunk_limit = 1024 * 1024;
 
                 while (true) {
+                    $this->mcu_touch_update_lock(['operation' => 'db_backup', 'stage' => 'rows_batch', 'table' => $table]);
                     $rows = $wpdb->get_results(
                         $wpdb->prepare("SELECT {$select_columns_sql} FROM {$table_sql}{$order_clause} LIMIT %d OFFSET %d", $batch, $offset),
                         ARRAY_A
@@ -2052,12 +2231,14 @@ trait MCU_Update_Operations_Trait {
         }
 
         do {
+            $this->mcu_touch_update_lock(['operation' => 'files_backup', 'stage' => 'job_step_started']);
             $running_state = $state;
             $state = $this->process_files_backup_job($state);
             if (is_wp_error($state)) {
                 $this->cleanup_files_backup_job_artifacts($running_state);
                 return $state;
             }
+            $this->mcu_touch_update_lock(['operation' => 'files_backup', 'stage' => 'job_step_finished']);
         } while ($state['status'] !== 'complete');
 
         update_option('marrison_last_files_backup_skipped', [
@@ -2229,6 +2410,7 @@ trait MCU_Update_Operations_Trait {
         $stack = [$root_path];
         $part_limit = $this->get_files_backup_part_limit();
         $skip_large_files = get_option('marrison_files_backup_skip_large_files') === 'yes';
+        $heartbeat_entries = 0;
 
         while (!empty($stack)) {
             $dir = array_pop($stack);
@@ -2270,6 +2452,10 @@ trait MCU_Update_Operations_Trait {
                         return new WP_Error('backup_manifest_write_failed', __('Errore durante la scrittura del manifest del backup file.', 'marrison-custom-updater'));
                     }
                     $stats['entries']++;
+                    $heartbeat_entries++;
+                    if ($heartbeat_entries % 500 === 0) {
+                        $this->mcu_touch_update_lock(['operation' => 'files_backup', 'stage' => 'manifest_scan', 'entries' => $stats['entries']]);
+                    }
                     $stack[] = $path;
                     continue;
                 }
@@ -2318,6 +2504,10 @@ trait MCU_Update_Operations_Trait {
                 $stats['entries']++;
                 $stats['files']++;
                 $stats['bytes'] += $size;
+                $heartbeat_entries++;
+                if ($heartbeat_entries % 500 === 0) {
+                    $this->mcu_touch_update_lock(['operation' => 'files_backup', 'stage' => 'manifest_scan', 'entries' => $stats['entries']]);
+                }
             }
         }
 
@@ -2338,6 +2528,7 @@ trait MCU_Update_Operations_Trait {
             return new WP_Error('backup_manifest_missing', __('Manifest del backup non trovato.', 'marrison-custom-updater'));
         }
         fseek($handle, (int) $state['manifest_offset']);
+        $heartbeat_entries = 0;
 
         while (!feof($handle) && time() < $deadline) {
             $line = fgets($handle);
@@ -2363,6 +2554,10 @@ trait MCU_Update_Operations_Trait {
                 $state['processed_bytes'] += (int) $entry['size'];
             }
             $state['manifest_offset'] = ftell($handle);
+            $heartbeat_entries++;
+            if ($heartbeat_entries % 100 === 0) {
+                $this->mcu_touch_update_lock(['operation' => 'files_backup', 'stage' => 'archive_write', 'processed_entries' => $state['processed_entries']]);
+            }
         }
 
         $complete = feof($handle);
@@ -2485,6 +2680,7 @@ trait MCU_Update_Operations_Trait {
                 return new WP_Error('targz_write_failed', sprintf(__('Errore durante la scrittura del file: %s', 'marrison-custom-updater'), $relative_path));
             }
             $written += strlen($chunk);
+            $this->mcu_touch_update_lock(['operation' => 'files_backup', 'stage' => 'file_chunk', 'file' => $relative_path]);
         }
         fclose($file_handle);
 
@@ -2866,6 +3062,7 @@ trait MCU_Update_Operations_Trait {
             } elseif ($filename) {
                 $record = get_option('marrison_db_backup_integrity', []);
                 $record = is_array($record) && isset($record[$filename]) ? $record[$filename] : [];
+                update_option('marrison_last_db_backup_filename', $filename);
                 $message = __('Backup database completato e verificato!', 'marrison-custom-updater');
                 if (!empty($record)) {
                     $message .= ' ' . sprintf(
@@ -2917,6 +3114,7 @@ trait MCU_Update_Operations_Trait {
                 : 0;
 
             if ($state['status'] === 'complete') {
+                update_option('marrison_last_files_backup_filenames', $state['parts']);
                 $message = sprintf(__('Backup file completato in %d parti.', 'marrison-custom-updater'), count($state['parts']));
                 if (!empty($state['skipped_count'])) {
                     $message .= ' ' . sprintf(

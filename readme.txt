@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.7.0
+Stable tag: 9.7.13
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -22,7 +22,7 @@ Note: il backup completo dei file usa il formato tar.gz e richiede l'estensione 
 *   **Gestione Aggiornamenti Unificata:** Visualizza e installa aggiornamenti per plugin e temi privati direttamente dalla dashboard.
 *   **Sistema di Backup Integrato:** Esegue automaticamente backup di tutti i plugin e temi (privati e pubblici) prima dell'aggiornamento, permettendo il ripristino rapido (rollback) in caso di problemi.
 *   **Pulizia Backup Orfani:** Rimuove automaticamente i backup dei plugin che non sono più installati sul sito.
-*   **Aggiornamenti Automatici:** Configura aggiornamenti automatici programmati (giornalieri o settimanali) con notifiche email dettagliate.
+*   **Aggiornamenti Automatici:** Configura aggiornamenti automatici programmati con giorno del mese dedicato per frequenze mensili e semestrali.
 *   **Gestione Traduzioni:** Strumento dedicato per aggiornare le traduzioni dei plugin.
 *   **Log e Debug:** Sistema di logging integrato per monitorare le operazioni di aggiornamento e cron job.
 *   **Esclusione Plugin:** Possibilità di escludere specifici plugin dagli aggiornamenti automatici.
@@ -34,6 +34,46 @@ Note: il backup completo dei file usa il formato tar.gz e richiede l'estensione 
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 9.7.13 =
+* **Nuovo**: Pulsante admin "Interrompi aggiornamento bloccato" nella scheda Programmazione, protetto da nonce e capability
+* **Miglioramento**: Soglia heartbeat stale ridotta a 10 minuti per liberare prima i job Master interrotti
+* **Fix**: Lo sblocco manuale chiude il log `started`, rimuove il lock update e marca la richiesta Master come fallita
+* **Fix**: La pulizia cache non preserva piu lock update gia stale
+
+= 9.7.12 =
+* **Fix**: Failsafe di shutdown per chiudere come errore i job schedulati interrotti durante backup/update
+* **Fix**: Rilascio immediato del lock update nello shutdown quando PHP riesce a completare la fase di arresto
+* **Miglioramento**: Le richieste Master vengono marcate fallite se il job client si interrompe prima della risposta finale
+
+= 9.7.11 =
+* **Fix**: Recupero automatico dei log cron rimasti in stato `started` dopo un job interrotto o morto prima della chiusura
+* **Fix**: I lock update scaduti o senza heartbeat vengono liberati alla successiva richiesta utile, incluso status Master e tentativi manuali
+* **Miglioramento**: Le richieste Master bloccate da un vecchio job vengono marcate come stale/fallite invece di lasciare il sito in attesa indefinita
+* **Sicurezza**: Nessun daemon, polling o traffico extra verso il Master; il recupero lavora solo durante admin/status/update gia richiesti
+
+= 9.7.10 =
+* **Nuovo**: Campo "Giorno del mese" nella programmazione automatica MCU per frequenze mensili e semestrali
+* **Miglioramento**: Mensile e semestrale usano eventi calendariali singoli riprogrammati dopo l'esecuzione, senza daemon o polling ricorrente
+* **Miglioramento**: Il payload Client espone al Master il giorno configurato nella frequenza MCU
+
+= 9.7.9 =
+* **Fix**: Lo stato repository temi non mostra piu la X rossa quando l URL e configurato e il repo risponde correttamente ma non ci sono temi aggiornabili
+* **Fix**: Il salvataggio URL repository pulisce anche i transient di errore plugin/temi
+
+= 9.7.8 =
+* **Nuovo**: Accesso one-click dashboard dal Master con chiave dedicata separata dalla connessione status/update
+* **Nuovo**: Endpoint Client `/dashboard-access` che genera link wp-admin temporanei e monouso
+* **Miglioramento**: Il file configurazione MCU include i dati dashboard per import automatico sul Master
+* **Sicurezza**: Nessun daemon, polling o carico ricorrente sui siti client; il link viene creato solo al click dal Master
+
+= 9.7.7 =
+* **Fix**: Il payload Client usato dal Master non conta i plugin esclusi in MCU, inclusi quelli provenienti dal transient WordPress.org
+* **Miglioramento**: Matching esclusioni plugin piu robusto tra slug MCU, slug WordPress.org, cartella e file principale
+
+= 9.7.6 =
+* **Fix**: Lock aggiornamenti con heartbeat e recupero dei lock stale rimasti da richieste Master interrotte
+* **Miglioramento**: Stato lock esposto al Master senza token o segreti
 
 = 9.7.0 =
 * **Nuovo**: Log mensili degli aggiornamenti scaricabili da Impostazioni > Log, con protezione nonce/capability e pulizia automatica

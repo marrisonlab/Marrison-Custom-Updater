@@ -257,6 +257,10 @@ JS
             'Messaggio:' => 'Message:',
             'Programmazione Aggiornamenti' => 'Update Scheduling',
             'Abilita Aggiornamenti Automatici' => 'Enable Automatic Updates',
+            'Frequenza' => 'Frequency',
+            'Giorno del mese' => 'Day of month',
+            'Usato per frequenza mensile e semestrale. Nei mesi piu corti viene usato l\'ultimo giorno disponibile.' => 'Used for monthly and semiannual frequency. In shorter months, the last available day is used.',
+            'giorno %d' => 'day %d',
             'Salva Programmazione' => 'Save Schedule',
             'Aggiornamenti Trovati:' => 'Updates Found:',
             'Sì' => 'Yes',
@@ -415,6 +419,7 @@ JS
             <h2 class="nav-tab-wrapper" style="margin-bottom: 20px;">
                 <a href="?page=marrison-updater-settings&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Generale', 'marrison-custom-updater'); ?></a>
                 <a href="?page=marrison-updater-settings&tab=scheduling" class="nav-tab <?php echo $active_tab == 'scheduling' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Programmazione', 'marrison-custom-updater'); ?></a>
+                <a href="?page=marrison-updater-settings&tab=client" class="nav-tab <?php echo $active_tab == 'client' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Client', 'marrison-custom-updater'); ?></a>
                 <a href="?page=marrison-updater-settings&tab=exclusions" class="nav-tab <?php echo $active_tab == 'exclusions' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Esclusioni', 'marrison-custom-updater'); ?></a>
                 <a href="?page=marrison-updater-settings&tab=logs" class="nav-tab <?php echo $active_tab == 'logs' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Log', 'marrison-custom-updater'); ?></a>
                 <a href="?page=marrison-updater-settings&tab=howto" class="nav-tab <?php echo $active_tab == 'howto' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Guida & Download', 'marrison-custom-updater'); ?></a>
@@ -432,6 +437,9 @@ JS
             <?php endif; ?>
             <?php if (isset($_GET['logs_cleared'])): ?>
                 <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Log aggiornamenti puliti.', 'marrison-custom-updater'); ?></div>
+            <?php endif; ?>
+            <?php if (isset($_GET['mcu_lock_cleared'])): ?>
+                <div class="mcu-notice mcu-notice-success"><span class="dashicons dashicons-yes"></span> <?php esc_html_e('Aggiornamento bloccato interrotto e lock rimosso.', 'marrison-custom-updater'); ?></div>
             <?php endif; ?>
             <?php if ($active_tab == 'general'): ?>
                 <div class="mcu-card">
@@ -489,7 +497,10 @@ JS
                 ?>
                 <div class="mcu-dashboard-grid" style="margin-top: 30px;">
                     <div class="mcu-card mcu-stat-card">
-                        <div class="mcu-stat-number"><?php echo !empty($updates) ? '<span class="dashicons dashicons-yes" style="color:var(--mcu-success); font-size: 36px; height: 36px; width: 36px;"></span>' : '<span class="dashicons dashicons-no" style="color:var(--mcu-danger); font-size: 36px; height: 36px; width: 36px;"></span>'; ?></div>
+                        <?php $plugin_repo_status = $this->mcu_private_repo_status('plugin'); ?>
+                        <div class="mcu-stat-number" title="<?php echo esc_attr($plugin_repo_status['message']); ?>">
+                            <span class="dashicons dashicons-<?php echo esc_attr($plugin_repo_status['icon']); ?>" style="color:var(--mcu-<?php echo esc_attr($plugin_repo_status['class']); ?>); font-size: 36px; height: 36px; width: 36px;"></span>
+                        </div>
                         <div class="mcu-stat-label"><?php esc_html_e('Stato Plugin', 'marrison-custom-updater'); ?></div>
                     </div>
                     <div class="mcu-card mcu-stat-card">
@@ -560,7 +571,10 @@ JS
                 ?>
                 <div class="mcu-dashboard-grid" style="margin-top: 30px;">
                     <div class="mcu-card mcu-stat-card">
-                        <div class="mcu-stat-number"><?php echo !empty($theme_updates) ? '<span class="dashicons dashicons-yes" style="color:var(--mcu-success); font-size: 36px; height: 36px; width: 36px;"></span>' : '<span class="dashicons dashicons-no" style="color:var(--mcu-danger); font-size: 36px; height: 36px; width: 36px;"></span>'; ?></div>
+                        <?php $theme_repo_status = $this->mcu_private_repo_status('theme'); ?>
+                        <div class="mcu-stat-number" title="<?php echo esc_attr($theme_repo_status['message']); ?>">
+                            <span class="dashicons dashicons-<?php echo esc_attr($theme_repo_status['icon']); ?>" style="color:var(--mcu-<?php echo esc_attr($theme_repo_status['class']); ?>); font-size: 36px; height: 36px; width: 36px;"></span>
+                        </div>
                         <div class="mcu-stat-label"><?php esc_html_e('Stato Temi', 'marrison-custom-updater'); ?></div>
                     </div>
 
@@ -624,6 +638,18 @@ JS
                                     </select>
                                 </td>
                             </tr>
+                            <tr id="marrison_auto_update_month_day_row">
+                                <th scope="row"><label for="marrison_auto_update_month_day"><?php esc_html_e('Giorno del mese', 'marrison-custom-updater'); ?></label></th>
+                                <td>
+                                    <?php $scheduled_month_day = max(1, min(31, absint(get_option('marrison_auto_update_month_day', current_time('j'))))); ?>
+                                    <select id="marrison_auto_update_month_day" name="marrison_auto_update_month_day">
+                                        <?php for ($day = 1; $day <= 31; $day++): ?>
+                                            <option value="<?php echo esc_attr((string) $day); ?>" <?php selected($day, $scheduled_month_day); ?>><?php echo esc_html((string) $day); ?></option>
+                                        <?php endfor; ?>
+                                    </select>
+                                    <p class="description"><?php esc_html_e('Usato per frequenza mensile e semestrale. Nei mesi piu corti viene usato l\'ultimo giorno disponibile.', 'marrison-custom-updater'); ?></p>
+                                </td>
+                            </tr>
                             <tr>
                                 <th scope="row"><label for="marrison_auto_update_time"><?php esc_html_e('Orario (Fuso Orario Italiano)', 'marrison-custom-updater'); ?></label></th>
                                 <td>
@@ -674,7 +700,7 @@ JS
                             </tr>
                         </table>
                         <?php 
-                        $next_run = wp_next_scheduled('marrison_scheduled_update_event');
+                        $next_run = $this->mcu_next_scheduled_update_event_timestamp();
                         if ($next_run): 
                             $tz = new DateTimeZone('Europe/Rome');
                             $date = new DateTime('@' . $next_run);
@@ -688,13 +714,21 @@ JS
                                 'biannual' => __('Semestrale', 'marrison-custom-updater')
                             ];
                             $freq_label = isset($freq_labels[$freq_slug]) ? $freq_labels[$freq_slug] : $freq_slug;
+                            if (in_array($freq_slug, ['monthly', 'biannual'], true)) {
+                                $freq_label .= ' - ' . sprintf(__('giorno %d', 'marrison-custom-updater'), max(1, min(31, absint(get_option('marrison_auto_update_month_day', current_time('j'))))));
+                            }
                         ?>
                             <div class="mcu-notice mcu-notice-info" style="margin-top: 20px;">
                                 <span class="dashicons dashicons-clock"></span> <?php esc_html_e('Prossima esecuzione programmata:', 'marrison-custom-updater'); ?> <strong><?php echo $date->format('d/m/Y H:i'); ?></strong> <small>(<?php esc_html_e('Frequenza:', 'marrison-custom-updater'); ?> <?php echo esc_html($freq_label); ?>)</small>
                             </div>
                         <?php endif; ?>
                         <?php 
+                        if (method_exists($this, 'mcu_recover_stale_cron_log_if_needed')) {
+                            $this->mcu_recover_stale_cron_log_if_needed(['context' => 'admin_ui']);
+                        }
                         $last_log = get_option('marrison_last_cron_log');
+                        $active_update_lock = get_transient('marrison_update_lock');
+                        $show_manual_unlock = is_array($active_update_lock) || (is_array($last_log) && sanitize_key((string) ($last_log['status'] ?? '')) === 'started');
                         if ($last_log && is_array($last_log)): 
                         ?>
                             <div class="mcu-card" style="margin-top: 20px; border-left: 4px solid <?php echo ($last_log['status'] === 'completed' && (!isset($last_log['email_sent']) || $last_log['email_sent'])) ? 'var(--mcu-success)' : 'var(--mcu-danger)'; ?>;">
@@ -707,11 +741,42 @@ JS
                                 <?php endif; ?>
                             </div>
                         <?php endif; ?>
+                        <?php if ($show_manual_unlock): ?>
+                            <?php
+                            $lock_operation = is_array($active_update_lock) && !empty($active_update_lock['operation']) ? sanitize_key((string) $active_update_lock['operation']) : '';
+                            $last_activity = is_array($active_update_lock) && method_exists($this, 'mcu_update_lock_last_activity') ? $this->mcu_update_lock_last_activity($active_update_lock) : 0;
+                            $last_activity_minutes = $last_activity > 0 ? floor(max(0, time() - $last_activity) / 60) : 0;
+                            $unlock_url = wp_nonce_url(admin_url('admin-post.php?action=mcu_clear_update_lock'), 'mcu_clear_update_lock');
+                            ?>
+                            <div class="mcu-notice mcu-notice-error" style="margin-top: 20px;">
+                                <span class="dashicons dashicons-warning"></span>
+                                <strong><?php esc_html_e('Aggiornamento MCU in corso o bloccato.', 'marrison-custom-updater'); ?></strong>
+                                <?php if ($lock_operation !== ''): ?>
+                                    <span><?php printf(esc_html__('Operazione: %s.', 'marrison-custom-updater'), esc_html($lock_operation)); ?></span>
+                                <?php endif; ?>
+                                <?php if ($last_activity_minutes > 0): ?>
+                                    <span><?php printf(esc_html__('Ultimo heartbeat: %d minuti fa.', 'marrison-custom-updater'), (int) $last_activity_minutes); ?></span>
+                                <?php endif; ?>
+                                <a class="mcu-button mcu-button-danger mcu-button-sm" style="margin-left: 10px;" href="<?php echo esc_url($unlock_url); ?>" onclick="return confirm('<?php echo esc_js(__('Interrompere l aggiornamento bloccato e rimuovere il lock? Usa questa azione solo se sei sicuro che il job non sia piu in esecuzione.', 'marrison-custom-updater')); ?>');">
+                                    <span class="dashicons dashicons-controls-pause"></span> <?php esc_html_e('Interrompi aggiornamento bloccato', 'marrison-custom-updater'); ?>
+                                </a>
+                            </div>
+                        <?php endif; ?>
                         <div style="margin-top: 20px;">
                             <button class="mcu-button mcu-button-primary" type="submit"><?php esc_html_e('Salva Programmazione', 'marrison-custom-updater'); ?></button>
                         </div>
                     </form>
                 </div>
+            <?php elseif ($active_tab == 'client'): ?>
+                <?php
+                if (!class_exists('\MarrisonCustomUpdater\MaintenanceClient\Admin')) {
+                    require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-admin.php';
+                }
+                if (!class_exists('\MarrisonCustomUpdater\MaintenanceClient\Rest_Controller')) {
+                    require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-rest-controller.php';
+                }
+                \MarrisonCustomUpdater\MaintenanceClient\Admin::render_settings_panel();
+                ?>
             <?php elseif ($active_tab == 'exclusions'): ?>
                 <div class="mcu-card">
                     <div class="mcu-card-header">

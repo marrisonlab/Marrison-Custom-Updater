@@ -5,6 +5,117 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.7.13] - 2026-08-01
+
+### Added
+- Pulsante admin "Interrompi aggiornamento bloccato" nella scheda Programmazione, protetto da nonce e capability.
+
+### Changed
+- Soglia heartbeat stale ridotta a 10 minuti per liberare prima i job Master interrotti senza aspettare il timeout completo.
+
+### Fixed
+- Lo sblocco manuale chiude il log `started`, rimuove il lock update e marca la richiesta Master come fallita.
+- La pulizia cache non preserva piu lock update gia stale.
+
+## [9.7.12] - 2026-08-01
+
+### Fixed
+- Failsafe di shutdown per chiudere come errore i job schedulati interrotti durante backup/update.
+- Rilascio immediato del lock update nello shutdown quando PHP riesce a completare la fase di arresto.
+- Le richieste Master vengono marcate fallite se il job client si interrompe prima della risposta finale.
+
+## [9.7.11] - 2026-08-01
+
+### Fixed
+- Recupero automatico dei log cron rimasti in stato `started` dopo un job interrotto o morto prima della chiusura.
+- I lock update scaduti o senza heartbeat vengono liberati alla successiva richiesta utile, incluso status Master e tentativi manuali.
+- Le richieste Master bloccate da un vecchio job vengono marcate come stale/fallite invece di lasciare il sito in attesa indefinita.
+
+### Security
+- Il recupero resta lazy: nessun daemon, polling o traffico extra verso il Master; lavora solo durante admin/status/update gia richiesti.
+
+## [9.7.10] - 2026-07-31
+
+### Added
+- Campo "Giorno del mese" nella programmazione automatica MCU per frequenze mensili e semestrali.
+- Il payload Client espone al Master il giorno configurato nella frequenza automatica.
+
+### Changed
+- Le frequenze mensile e semestrale vengono programmate come eventi calendariali singoli e riprogrammate dopo l'esecuzione, senza daemon o polling ricorrente.
+- Nei mesi piu corti del giorno scelto viene usato l'ultimo giorno disponibile.
+
+## [9.7.9] - 2026-07-31
+
+### Fixed
+- Stato repository temi nella dashboard MCU: un repository configurato e raggiungibile non mostra piu la X rossa solo perche non ci sono temi aggiornabili.
+- Salvataggio URL repository ora pulisce anche i transient di errore plugin/temi, evitando stati rossi temporanei dopo una correzione URL.
+
+## [9.7.8] - 2026-07-31
+
+### Added
+- Accesso one-click dashboard per il Master con chiave dedicata separata dalla connessione status/update.
+- Endpoint Client `/dashboard-access` che genera link wp-admin temporanei, monouso e senza password WordPress salvate sul Master.
+- File configurazione Client arricchito con endpoint e chiave dashboard per import automatico sul Master.
+
+### Security
+- I link dashboard scadono rapidamente, vengono consumati una sola volta e non introducono daemon, polling o carichi ricorrenti sul sito Client.
+
+## [9.7.7] - 2026-07-31
+
+### Fixed
+- Il payload Client usato dal Master esclude dal conteggio i plugin marcati come esclusi in MCU.
+- Matching esclusioni plugin piu robusto tra slug MCU, slug WordPress.org, cartella e file principale.
+
+## [9.7.6] - 2026-07-31
+
+### Added
+- Heartbeat sul lock globale degli aggiornamenti, incluso nei backup e nel flusso schedulato usato dal Master.
+- Stato lock nel payload Client per permettere al Master di distinguere update attivi e lock stale.
+
+### Fixed
+- Recupero automatico dei lock update stale lasciati da job Master o cron interrotti prima del rilascio.
+- Le nuove richieste Master possono riaccodare un job rimasto senza risposta invece di restare in `running` indefinito.
+
+## [9.7.5] - 2026-07-31
+
+### Fixed
+- Caricamento del controller REST anche nel contesto admin, evitando fatal error nel download configurazione Client.
+
+## [9.7.4] - 2026-07-31
+
+### Fixed
+- La richiesta update dal Master ora sveglia WP-Cron in modo non bloccante dopo aver accodato il job.
+- Conteggio plugin aggiornabili deduplicato tra transient WordPress e repo privato MCU.
+- Matching plugin privati piu tollerante per evitare doppi conteggi quando slug e cartella differiscono solo per separatori.
+
+## [9.7.3] - 2026-07-31
+
+### Added
+- Download configurazione Client MCU in formato JSON per import diretto sul Master.
+- Nome sito WordPress incluso nella configurazione per compilare automaticamente il nome su Master.
+
+## [9.7.2] - 2026-07-31
+
+### Added
+- Report Master con backup scaricabili quando presenti sul client.
+- Richiesta update MCU dal Master con job WordPress cron accodato.
+- Stato del job Master esposto nel payload client per mostrare il pending sul Master.
+
+### Changed
+- Versione client riallineata alla nuova integrazione col Master.
+
+## [9.7.1] - 2026-07-30
+
+### Added
+- Client MCU integrato per il dialogo autenticato con il Master Marrison Maintenance.
+- Payload client arricchito con l'elenco alfabetico dei plugin aggiornabili, compresi update privati e WordPress.org.
+
+### Changed
+- Il Master mostra i dati MCU in forma leggibile, inclusi frequenza, ultimo update, prossimo update schedulato e plugin da aggiornare.
+
+### Fixed
+- Evitate scritture ripetute della stessa metadata di richiesta Master in un intervallo molto breve.
+
 ## [9.7.0] - 2026-07-29
 
 ### Added
