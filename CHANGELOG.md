@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.7.16] - 2026-08-01
+
+### Added
+- Azione remota `cancel_master_update` per annullare da Master/Commander solo le richieste update accodate dal Master.
+
+### Security
+- L'annullamento rimuove esclusivamente i cron `mcu_master_update_event` e non tocca la programmazione automatica MCU `marrison_scheduled_update_event`.
+- Se il job risulta gia in esecuzione, MCU rimuove solo eventuali cron residui e non interrompe l'aggiornamento in corso.
+- Un job Master annullato non viene eseguito anche se WP-Cron lo aveva gia letto prima della rimozione dalla coda.
+
+## [9.7.15] - 2026-08-01
+
+### Fixed
+- Il pulsante "Elimina cron bloccato" torna visibile nella scheda Programmazione quando ci sono lock, richieste Master pendenti o log cron stale da pulire.
+- La pulizia manuale rimuove anche eventuali job Master `mcu_master_update_event` rimasti in WP-Cron e marca la richiesta Master come fallita.
+
+### Changed
+- Dopo la pulizia manuale il log cron viene marcato come azzerato, evitando che il pulsante resti visibile senza necessita.
+
+## [9.7.14] - 2026-08-01
+
+### Added
+- Azione remota `force_sync` per forzare da Master/Commander il controllo aggiornamenti senza eseguire update.
+
+### Changed
+- La sincronizzazione esplicita aggiorna cache WordPress, repository privati plugin/temi e traduzioni, poi lascia al Master la rilettura dello stato.
+
+### Security
+- Se un update e gia in corso, MCU rifiuta `force_sync` per evitare lavoro sovrapposto sul client.
+
 ## [9.7.13] - 2026-08-01
 
 ### Added

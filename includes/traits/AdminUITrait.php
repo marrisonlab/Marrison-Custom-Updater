@@ -728,7 +728,15 @@ JS
                         }
                         $last_log = get_option('marrison_last_cron_log');
                         $active_update_lock = get_transient('marrison_update_lock');
-                        $show_manual_unlock = is_array($active_update_lock) || (is_array($last_log) && sanitize_key((string) ($last_log['status'] ?? '')) === 'started');
+                        $last_log_status = is_array($last_log) ? sanitize_key((string) ($last_log['status'] ?? '')) : '';
+                        $master_update_status = get_option('mcu_master_update_status', []);
+                        $master_update_active = is_array($master_update_status) && in_array(sanitize_key((string) ($master_update_status['status'] ?? '')), ['queued', 'running'], true);
+                        $last_log_manually_cleared = is_array($last_log) && !empty($last_log['manual_cleared']);
+                        $last_log_needs_cleanup = is_array($last_log) && (
+                            in_array($last_log_status, ['started', 'running'], true)
+                            || (!empty($last_log['stale']) && !$last_log_manually_cleared)
+                        );
+                        $show_manual_unlock = is_array($active_update_lock) || $master_update_active || $last_log_needs_cleanup;
                         if ($last_log && is_array($last_log)): 
                         ?>
                             <div class="mcu-card" style="margin-top: 20px; border-left: 4px solid <?php echo ($last_log['status'] === 'completed' && (!isset($last_log['email_sent']) || $last_log['email_sent'])) ? 'var(--mcu-success)' : 'var(--mcu-danger)'; ?>;">
@@ -750,15 +758,18 @@ JS
                             ?>
                             <div class="mcu-notice mcu-notice-error" style="margin-top: 20px;">
                                 <span class="dashicons dashicons-warning"></span>
-                                <strong><?php esc_html_e('Aggiornamento MCU in corso o bloccato.', 'marrison-custom-updater'); ?></strong>
+                                <strong><?php esc_html_e('Cron/update MCU in corso o bloccato.', 'marrison-custom-updater'); ?></strong>
                                 <?php if ($lock_operation !== ''): ?>
                                     <span><?php printf(esc_html__('Operazione: %s.', 'marrison-custom-updater'), esc_html($lock_operation)); ?></span>
+                                <?php endif; ?>
+                                <?php if ($master_update_active): ?>
+                                    <span><?php esc_html_e('Richiesta Master ancora in attesa.', 'marrison-custom-updater'); ?></span>
                                 <?php endif; ?>
                                 <?php if ($last_activity_minutes > 0): ?>
                                     <span><?php printf(esc_html__('Ultimo heartbeat: %d minuti fa.', 'marrison-custom-updater'), (int) $last_activity_minutes); ?></span>
                                 <?php endif; ?>
-                                <a class="mcu-button mcu-button-danger mcu-button-sm" style="margin-left: 10px;" href="<?php echo esc_url($unlock_url); ?>" onclick="return confirm('<?php echo esc_js(__('Interrompere l aggiornamento bloccato e rimuovere il lock? Usa questa azione solo se sei sicuro che il job non sia piu in esecuzione.', 'marrison-custom-updater')); ?>');">
-                                    <span class="dashicons dashicons-controls-pause"></span> <?php esc_html_e('Interrompi aggiornamento bloccato', 'marrison-custom-updater'); ?>
+                                <a class="mcu-button mcu-button-danger mcu-button-sm" style="margin-left: 10px;" href="<?php echo esc_url($unlock_url); ?>" onclick="return confirm('<?php echo esc_js(__('Eliminare il cron/update bloccato e rimuovere lock e richieste Master pendenti? Usa questa azione solo se sei sicuro che il job non sia piu in esecuzione.', 'marrison-custom-updater')); ?>');">
+                                    <span class="dashicons dashicons-dismiss"></span> <?php esc_html_e('Elimina cron bloccato', 'marrison-custom-updater'); ?>
                                 </a>
                             </div>
                         <?php endif; ?>

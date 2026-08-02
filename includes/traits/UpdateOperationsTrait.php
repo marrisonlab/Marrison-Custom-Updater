@@ -511,6 +511,35 @@ trait MCU_Update_Operations_Trait {
         }
     }
 
+    private function mcu_clear_master_update_cron_events() {
+        $cleared = 0;
+
+        if (!function_exists('_get_cron_array') || !function_exists('wp_unschedule_event')) {
+            return $cleared;
+        }
+
+        $crons = _get_cron_array();
+        if (!is_array($crons)) {
+            return $cleared;
+        }
+
+        foreach ($crons as $timestamp => $hooks) {
+            if (empty($hooks['mcu_master_update_event']) || !is_array($hooks['mcu_master_update_event'])) {
+                continue;
+            }
+
+            foreach ($hooks['mcu_master_update_event'] as $event) {
+                $args = isset($event['args']) && is_array($event['args']) ? $event['args'] : [];
+                $result = wp_unschedule_event((int) $timestamp, 'mcu_master_update_event', $args);
+                if (!is_wp_error($result) && $result !== false) {
+                    $cleared++;
+                }
+            }
+        }
+
+        return $cleared;
+    }
+
     public function mcu_clear_update_lock_admin_action() {
         check_admin_referer('mcu_clear_update_lock');
         if (!current_user_can('manage_options')) {
@@ -518,12 +547,14 @@ trait MCU_Update_Operations_Trait {
         }
 
         $existing = get_transient('marrison_update_lock');
+        $master_status = get_option('mcu_master_update_status', []);
+        $cleared_master_cron_events = $this->mcu_clear_master_update_cron_events();
         delete_transient('marrison_update_lock');
 
-        $message = __('Aggiornamento bloccato interrotto manualmente.', 'marrison-custom-updater');
+        $message = __('Cron/update bloccato azzerato manualmente.', 'marrison-custom-updater');
         if (method_exists($this, 'mcu_close_interrupted_cron_log')) {
             $this->mcu_close_interrupted_cron_log($message, [
-                'source' => 'admin',
+                'source' => 'master',
                 'context' => 'manual_unlock',
             ]);
         } else {
@@ -537,8 +568,21 @@ trait MCU_Update_Operations_Trait {
             }
         }
 
+        if (method_exists($this, 'mcu_mark_master_update_failed_if_running')) {
+            $this->mcu_mark_master_update_failed_if_running($message, get_option('marrison_last_cron_log', []));
+        }
+
+        $last_log = get_option('marrison_last_cron_log', []);
+        if (is_array($last_log)) {
+            $last_log['manual_cleared'] = true;
+            $last_log['manual_cleared_at'] = current_time('mysql');
+            update_option('marrison_last_cron_log', $last_log);
+        }
+
         $this->mcu_log_event('warning', 'update_lock_manually_cleared', [
             'existing' => is_array($existing) ? $existing : [],
+            'master_status' => is_array($master_status) ? $master_status : [],
+            'cleared_master_cron_events' => $cleared_master_cron_events,
         ]);
 
         wp_redirect(admin_url('admin.php?page=marrison-updater-settings&tab=scheduling&mcu_lock_cleared=1'));

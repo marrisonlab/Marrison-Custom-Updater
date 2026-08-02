@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.7.13
+Stable tag: 9.7.16
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -34,6 +34,22 @@ Note: il backup completo dei file usa il formato tar.gz e richiede l'estensione 
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 9.7.16 =
+* **Nuovo**: Azione remota `cancel_master_update` per annullare da Master/Commander solo la richiesta update accodata dal Master
+* **Sicurezza**: L'annullamento rimuove esclusivamente i cron `mcu_master_update_event` e non tocca la programmazione automatica MCU `marrison_scheduled_update_event`
+* **Sicurezza**: Se il job risulta gia in esecuzione, MCU rimuove solo eventuali cron residui e non interrompe l'aggiornamento in corso
+* **Sicurezza**: Un job Master annullato non viene eseguito anche se WP-Cron lo aveva gia letto prima della rimozione dalla coda
+
+= 9.7.15 =
+* **Fix**: Il pulsante "Elimina cron bloccato" torna visibile nella scheda Programmazione quando ci sono lock, richieste Master pendenti o log cron stale da pulire
+* **Fix**: La pulizia manuale rimuove anche eventuali job Master `mcu_master_update_event` rimasti in WP-Cron e marca la richiesta Master come fallita
+* **Miglioramento**: Dopo la pulizia il log viene marcato come azzerato manualmente, evitando che il pulsante resti visibile senza necessita
+
+= 9.7.14 =
+* **Nuovo**: Azione remota `force_sync` per forzare da Master/Commander il controllo aggiornamenti senza eseguire update
+* **Miglioramento**: La sincronizzazione esplicita aggiorna cache WordPress, repository privati plugin/temi e traduzioni
+* **Sicurezza**: Se un update e gia in corso, MCU rifiuta `force_sync` per evitare lavoro sovrapposto sul client
 
 = 9.7.13 =
 * **Nuovo**: Pulsante admin "Interrompi aggiornamento bloccato" nella scheda Programmazione, protetto da nonce e capability

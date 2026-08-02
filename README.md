@@ -1,6 +1,6 @@
 # Marrison Custom Updater
 
-[![Latest Version](https://img.shields.io/badge/version-9.7.13-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
+[![Latest Version](https://img.shields.io/badge/version-9.7.16-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
 [![WordPress Version](https://img.shields.io/badge/WordPress-6.0%2B-green.svg)](https://wordpress.org)
 [![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-green.svg)](https://php.net)
 [![License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -32,6 +32,25 @@
 - Access to plugin files for backup/restore operations
 
 ## 🔄 Version History
+
+### [9.7.16] - 2026-08-01
+
+- Nuova azione remota `cancel_master_update` per annullare da Master/Commander solo la richiesta update accodata dal Master.
+- L'annullamento rimuove esclusivamente i cron `mcu_master_update_event` e non tocca la programmazione automatica MCU `marrison_scheduled_update_event`.
+- Se il job risulta gia in esecuzione, MCU rimuove solo eventuali cron residui e non interrompe l'aggiornamento in corso.
+- Un job Master annullato non viene eseguito anche se WP-Cron lo aveva gia letto prima della rimozione dalla coda.
+
+### [9.7.15] - 2026-08-01
+
+- Il pulsante "Elimina cron bloccato" torna visibile nella scheda Programmazione quando ci sono lock, richieste Master pendenti o log cron stale da pulire.
+- La pulizia manuale rimuove anche eventuali job Master `mcu_master_update_event` rimasti in WP-Cron e marca la richiesta Master come fallita.
+- Dopo la pulizia il log viene marcato come azzerato manualmente, evitando che il pulsante resti visibile senza necessita.
+
+### [9.7.14] - 2026-08-01
+
+- Nuova azione remota `force_sync` per forzare da Master/Commander il controllo aggiornamenti.
+- La sincronizzazione esplicita aggiorna cache WordPress, repo privati plugin/temi e traduzioni senza avviare update.
+- Se un update e gia in corso, MCU rifiuta la sincronizzazione per non sovrapporre carico.
 
 ### [9.7.13] - 2026-08-01
 

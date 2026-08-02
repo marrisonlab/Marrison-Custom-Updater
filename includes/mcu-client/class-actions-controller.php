@@ -109,6 +109,14 @@ final class Actions_Controller {
 			);
 		}
 
+		if ( 'force_sync' === $operation || 'force_check' === $operation ) {
+			return self::force_update_sync();
+		}
+
+		if ( 'cancel_master_update' === $operation || 'clear_master_cron' === $operation ) {
+			return self::cancel_master_update();
+		}
+
 		if ( 'update_all' === $operation ) {
 			return self::queue_update();
 		}
@@ -235,6 +243,97 @@ final class Actions_Controller {
 	}
 
 	/**
+	 * Cancel only the update request queued by Master/Commander.
+	 *
+	 * This deliberately does not touch MCU's automatic schedule
+	 * (marrison_scheduled_update_event) and does not interrupt an update that
+	 * has already started.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private static function cancel_master_update() {
+		$status              = self::current_update_status();
+		$status_key          = sanitize_key( (string) ( isset( $status['status'] ) ? $status['status'] : '' ) );
+		$cleared_cron_events = self::clear_master_update_cron_events();
+		$cancelled           = false;
+		$message             = __( 'Nessuna richiesta Master/Commander in coda.', 'marrison-custom-updater' );
+
+		if ( 'queued' === $status_key ) {
+			$status = array_merge(
+				$status,
+				array(
+					'status'              => 'cancelled',
+					'finished_at'         => time(),
+					'cancelled_at'        => time(),
+					'message'             => __( 'Richiesta Master/Commander annullata.', 'marrison-custom-updater' ),
+					'cleared_cron_events' => $cleared_cron_events,
+				)
+			);
+			self::save_update_status( $status );
+			$cancelled = true;
+			$message   = __( 'Richiesta Master/Commander annullata e cron rimosso.', 'marrison-custom-updater' );
+		} elseif ( 'running' === $status_key ) {
+			$message = __( 'Il job Master/Commander risulta gia in esecuzione: eventuali cron residui sono stati rimossi, ma l update in corso non viene interrotto.', 'marrison-custom-updater' );
+		} elseif ( $cleared_cron_events > 0 ) {
+			$message = __( 'Cron Master/Commander residui rimossi.', 'marrison-custom-updater' );
+		}
+
+		if ( class_exists( __NAMESPACE__ . '\\Debug_Logger' ) ) {
+			Debug_Logger::log(
+				'master_update_cancel_requested',
+				array(
+					'previous_status'     => $status_key,
+					'cancelled'           => $cancelled ? '1' : '0',
+					'cleared_cron_events' => $cleared_cron_events,
+				)
+			);
+		}
+
+		return array(
+			'success'             => true,
+			'message'             => $message,
+			'cancelled'           => $cancelled,
+			'previous_status'     => $status_key,
+			'cleared_cron_events' => $cleared_cron_events,
+			'status'              => self::current_update_status(),
+		);
+	}
+
+	/**
+	 * Remove only Master/Commander queued update cron events.
+	 *
+	 * @return int Number of removed events.
+	 */
+	private static function clear_master_update_cron_events() {
+		$cleared = 0;
+
+		if ( ! function_exists( '_get_cron_array' ) || ! function_exists( 'wp_unschedule_event' ) ) {
+			return $cleared;
+		}
+
+		$crons = _get_cron_array();
+		if ( ! is_array( $crons ) ) {
+			return $cleared;
+		}
+
+		foreach ( $crons as $timestamp => $hooks ) {
+			if ( empty( $hooks[ self::MASTER_UPDATE_HOOK ] ) || ! is_array( $hooks[ self::MASTER_UPDATE_HOOK ] ) ) {
+				continue;
+			}
+
+			foreach ( $hooks[ self::MASTER_UPDATE_HOOK ] as $event ) {
+				$args   = isset( $event['args'] ) && is_array( $event['args'] ) ? $event['args'] : array();
+				$result = wp_unschedule_event( (int) $timestamp, self::MASTER_UPDATE_HOOK, $args );
+				if ( ! is_wp_error( $result ) && false !== $result ) {
+					$cleared++;
+				}
+			}
+		}
+
+		return $cleared;
+	}
+
+	/**
 	 * Execute the queued update through MCU's existing scheduled update flow.
 	 *
 	 * @param string $job_id Queued job identifier.
@@ -248,7 +347,12 @@ final class Actions_Controller {
 			return;
 		}
 
-		if ( 'running' === ( isset( $status['status'] ) ? $status['status'] : '' ) && ! self::is_stale_status( $status ) ) {
+		$status_key = sanitize_key( (string) ( isset( $status['status'] ) ? $status['status'] : '' ) );
+		if ( ! in_array( $status_key, array( 'queued', 'running' ), true ) ) {
+			return;
+		}
+
+		if ( 'running' === $status_key && ! self::is_stale_status( $status ) ) {
 			return;
 		}
 
@@ -315,6 +419,185 @@ final class Actions_Controller {
 		if ( function_exists( 'wp_clean_update_cache' ) ) {
 			wp_clean_update_cache();
 		}
+	}
+
+	/**
+	 * Force a user-requested update metadata refresh for Master/Commander.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private static function force_update_sync() {
+		$lock = self::current_update_lock_status();
+		if ( ! empty( $lock['locked'] ) ) {
+			return array(
+				'success' => false,
+				'message' => __( 'Aggiornamento in corso: sincronizzazione rimandata.', 'marrison-custom-updater' ),
+				'locked'  => true,
+				'lock'    => $lock,
+			);
+		}
+
+		@set_time_limit( 120 );
+		self::clear_update_caches();
+
+		if ( file_exists( ABSPATH . WPINC . '/update.php' ) ) {
+			require_once ABSPATH . WPINC . '/update.php';
+		}
+		if ( ! function_exists( 'get_plugins' ) && file_exists( ABSPATH . 'wp-admin/includes/plugin.php' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+
+		if ( function_exists( 'wp_version_check' ) ) {
+			wp_version_check( array(), true );
+		}
+		if ( function_exists( 'wp_update_plugins' ) ) {
+			wp_update_plugins();
+		}
+		if ( function_exists( 'wp_update_themes' ) ) {
+			wp_update_themes();
+		}
+
+		$private_plugins = self::fetch_private_repo_updates( 'plugin' );
+		$private_themes  = self::fetch_private_repo_updates( 'theme' );
+		self::inject_private_theme_updates( $private_themes );
+
+		if ( file_exists( ABSPATH . 'wp-admin/includes/translation-install.php' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/translation-install.php';
+		}
+		if ( function_exists( 'wp_get_translation_updates' ) ) {
+			wp_get_translation_updates();
+		}
+
+		Debug_Logger::log(
+			'force_update_sync_completed',
+			array(
+				'private_plugins' => count( $private_plugins ),
+				'private_themes'  => count( $private_themes ),
+			)
+		);
+
+		return array(
+			'success' => true,
+			'message' => __( 'Sincronizzazione aggiornamenti completata.', 'marrison-custom-updater' ),
+			'private_plugins_count' => count( $private_plugins ),
+			'private_themes_count'  => count( $private_themes ),
+		);
+	}
+
+	/**
+	 * Fetch private repo metadata and refresh MCU transients.
+	 *
+	 * @param string $type plugin|theme.
+	 * @return array<int,array<string,mixed>>
+	 */
+	private static function fetch_private_repo_updates( $type = 'plugin' ) {
+		$type              = 'theme' === $type ? 'theme' : 'plugin';
+		$repo_option       = 'theme' === $type ? 'marrison_themes_repo_url' : 'marrison_repo_url';
+		$cache_key         = 'theme' === $type ? 'marrison_available_theme_updates' : 'marrison_available_updates_v2';
+		$failure_key       = 'theme' === $type ? 'marrison_theme_updates_fetch_failed' : 'marrison_updates_fetch_failed';
+		$repo_url          = trailingslashit( trim( (string) get_option( $repo_option, '' ) ) );
+		$hour              = defined( 'HOUR_IN_SECONDS' ) ? HOUR_IN_SECONDS : 3600;
+		$minute            = defined( 'MINUTE_IN_SECONDS' ) ? MINUTE_IN_SECONDS : 60;
+
+		delete_transient( $failure_key );
+
+		if ( '' === $repo_url ) {
+			delete_transient( $cache_key );
+			return array();
+		}
+
+		$response = wp_remote_get(
+			$repo_url . 'index.php',
+			array(
+				'timeout' => 10,
+			)
+		);
+
+		if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) >= 400 ) {
+			set_transient( $failure_key, 1, 5 * $minute );
+			return array();
+		}
+
+		$updates = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $updates ) ) {
+			set_transient( $failure_key, 1, 5 * $minute );
+			return array();
+		}
+
+		$cleaned = array();
+		foreach ( $updates as $update ) {
+			if ( ! is_array( $update ) || empty( $update['slug'] ) ) {
+				continue;
+			}
+
+			$update['slug'] = trim( (string) $update['slug'] );
+			if ( isset( $update['version'] ) ) {
+				$update['version'] = trim( (string) $update['version'] );
+			}
+			if ( isset( $update['name'] ) ) {
+				$update['name'] = trim( (string) $update['name'] );
+			}
+			if ( isset( $update['name'] ) && ( false !== strpos( (string) $update['name'], '$' ) || false !== strpos( (string) $update['name'], '/i\'' ) ) ) {
+				continue;
+			}
+			if ( isset( $update['version'] ) && false !== strpos( (string) $update['version'], '$' ) ) {
+				continue;
+			}
+
+			$cleaned[] = $update;
+		}
+
+		set_transient( $cache_key, $cleaned, 6 * $hour );
+		return $cleaned;
+	}
+
+	/**
+	 * Inject private theme updates into WordPress theme update transient.
+	 *
+	 * @param array<int,array<string,mixed>> $updates Theme updates.
+	 * @return void
+	 */
+	private static function inject_private_theme_updates( array $updates ) {
+		if ( empty( $updates ) ) {
+			return;
+		}
+
+		$transient = get_site_transient( 'update_themes' );
+		if ( ! is_object( $transient ) ) {
+			$transient = new \stdClass();
+		}
+		if ( ! isset( $transient->response ) || ! is_array( $transient->response ) ) {
+			$transient->response = array();
+		}
+
+		$excluded = get_option( 'marrison_excluded_themes', array() );
+		$excluded = is_array( $excluded ) ? array_map( 'sanitize_key', $excluded ) : array();
+
+		foreach ( $updates as $update ) {
+			$slug = sanitize_key( (string) ( $update['slug'] ?? '' ) );
+			if ( '' === $slug || in_array( $slug, $excluded, true ) ) {
+				continue;
+			}
+
+			$theme = wp_get_theme( $slug );
+			if ( ! $theme->exists() ) {
+				continue;
+			}
+
+			$new_version = sanitize_text_field( (string) ( $update['version'] ?? '' ) );
+			if ( '' === $new_version || ! version_compare( (string) $theme->get( 'Version' ), $new_version, '<' ) ) {
+				continue;
+			}
+
+			$transient->response[ $slug ] = array(
+				'theme'       => $slug,
+				'new_version' => $new_version,
+				'url'         => isset( $update['info_url'] ) ? esc_url_raw( (string) $update['info_url'] ) : '',
+				'package'     => isset( $update['download_url'] ) ? esc_url_raw( (string) $update['download_url'] ) : '',
+			);
+		}
+
+		set_site_transient( 'update_themes', $transient );
 	}
 
 	/**
