@@ -23,9 +23,11 @@ final class Plugin {
 	public static function init() {
 		require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-actions-controller.php';
 		require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-dashboard-access-controller.php';
+		require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-scheduler.php';
 		require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-rest-controller.php';
 		Actions_Controller::init();
 		Dashboard_Access_Controller::init();
+		Diagnostics_Scheduler::init();
 
 		add_action( 'rest_api_init', array( __CLASS__, 'register_rest_routes' ) );
 

@@ -31,6 +31,10 @@ final class Installer {
 		}
 
 		Settings::ensure_defaults();
+
+		require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-sanitizer.php';
+		require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-storage.php';
+		Diagnostics_Storage::install();
 	}
 
 	/**

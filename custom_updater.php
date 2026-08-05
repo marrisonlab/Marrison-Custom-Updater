@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.7.16
+ * Version: 9.8.0
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  * Text Domain: marrison-custom-updater
@@ -20,7 +20,7 @@ if (!defined('MCU_PLUGIN_URL')) {
     define('MCU_PLUGIN_URL', plugin_dir_url(__FILE__));
 }
 if (!defined('MCU_PLUGIN_VERSION')) {
-    define('MCU_PLUGIN_VERSION', '9.7.16');
+    define('MCU_PLUGIN_VERSION', '9.8.0');
 }
 
 require_once __DIR__ . '/includes/mcu-client/class-settings.php';
@@ -80,6 +80,7 @@ class MCU_Custom_Updater {
         add_action('admin_post_mcu_clear_update_lock', [$this, 'mcu_clear_update_lock_admin_action']);
         add_action('admin_post_mcu_save_repo_url', [$this, 'save_repo_url']);
         add_action('admin_post_marrison_force_check_mcu', [$this, 'force_check_mcu']);
+        add_filter('mcu_remote_update_plugin', [$this, 'mcu_remote_update_plugin'], 10, 2);
         
         add_action('admin_post_marrison_download_repo_file', [$this, 'download_repo_file']);
         add_action('admin_post_marrison_download_theme_repo_file', [$this, 'download_theme_repo_file']);
@@ -1511,6 +1512,203 @@ echo json_encode($data);
         } else {
             wp_send_json_error('Errore durante l\'aggiornamento del plugin');
         }
+    }
+
+    public function mcu_remote_update_plugin($response, $parameters) {
+        @ignore_user_abort(true);
+        @set_time_limit(0);
+
+        $parameters = is_array($parameters) ? $parameters : [];
+        $type = sanitize_key((string) ($parameters['type'] ?? ''));
+        $slug = sanitize_key((string) ($parameters['slug'] ?? ''));
+        $name = sanitize_text_field((string) ($parameters['name'] ?? ''));
+        $new_version = sanitize_text_field((string) ($parameters['new_version'] ?? ''));
+        $package = isset($parameters['package']) ? esc_url_raw((string) $parameters['package']) : '';
+        $file = $this->mcu_safe_remote_plugin_file((string) ($parameters['plugin_file'] ?? $parameters['file'] ?? ''));
+
+        include_once ABSPATH . 'wp-admin/includes/plugin.php';
+
+        if ($file === '' && $slug !== '') {
+            $file = (string) $this->find_plugin_file($slug, $name);
+        }
+        if ($slug === '' && $file !== '') {
+            $slug = dirname($file);
+            if ($slug === '.' || $slug === '') {
+                $slug = basename($file, '.php');
+            }
+            $slug = sanitize_key($slug);
+        }
+        if ($file === '' || !file_exists(WP_PLUGIN_DIR . '/' . $file)) {
+            return [
+                'success' => false,
+                'error_code' => 'plugin_not_found',
+                'message' => __('Plugin non trovato sul sito client.', 'marrison-custom-updater'),
+            ];
+        }
+        if ($slug === 'marrison-custom-updater' || $file === plugin_basename(__FILE__)) {
+            return [
+                'success' => false,
+                'error_code' => 'self_update_not_supported',
+                'message' => __('Aggiornamento diretto di MCU non supportato in questa modalita.', 'marrison-custom-updater'),
+            ];
+        }
+
+        $plugins = get_plugins();
+        $before = isset($plugins[$file]) ? $plugins[$file] : [];
+        $old_version = isset($before['Version']) ? (string) $before['Version'] : '';
+        $plugin_name = $name !== '' ? $name : (isset($before['Name']) ? (string) $before['Name'] : $slug);
+        $was_active = is_plugin_active($file);
+        $was_network_active = is_multisite() && function_exists('is_plugin_active_for_network') && is_plugin_active_for_network($file);
+
+        if ($type === 'private') {
+            $result = $this->perform_update($slug);
+        } else {
+            $result = $this->mcu_remote_update_official_plugin($file, $new_version, $package);
+            $type = 'wordpress_org';
+        }
+
+        if (is_wp_error($result)) {
+            return [
+                'success' => false,
+                'error_code' => $result->get_error_code() ?: 'plugin_update_failed',
+                'message' => $result->get_error_message(),
+                'plugin' => [
+                    'file' => $file,
+                    'slug' => $slug,
+                    'name' => $plugin_name,
+                    'old_version' => $old_version,
+                    'new_version' => $new_version,
+                    'type' => $type,
+                ],
+            ];
+        }
+        if ($result !== true) {
+            return [
+                'success' => false,
+                'error_code' => 'plugin_update_failed',
+                'message' => __('Aggiornamento plugin non completato.', 'marrison-custom-updater'),
+                'plugin' => [
+                    'file' => $file,
+                    'slug' => $slug,
+                    'name' => $plugin_name,
+                    'old_version' => $old_version,
+                    'new_version' => $new_version,
+                    'type' => $type,
+                ],
+            ];
+        }
+
+        if ($was_active && !is_plugin_active($file)) {
+            $activate = activate_plugin($file, '', $was_network_active, true);
+            if (is_wp_error($activate)) {
+                $this->mcu_log_event('warning', 'remote_plugin_reactivation_failed', [
+                    'file' => $file,
+                    'error' => $activate,
+                ]);
+            }
+        }
+
+        clearstatcache();
+        if (function_exists('wp_clean_plugins_cache')) {
+            wp_clean_plugins_cache(true);
+        }
+        $this->check_for_available_updates();
+        $plugins_after = get_plugins();
+        $after = isset($plugins_after[$file]) ? $plugins_after[$file] : [];
+        $installed_version = isset($after['Version']) ? (string) $after['Version'] : $new_version;
+
+        return [
+            'success' => true,
+            'message' => sprintf(__('Plugin aggiornato: %s.', 'marrison-custom-updater'), $plugin_name),
+            'plugin' => [
+                'file' => $file,
+                'slug' => $slug,
+                'name' => $plugin_name,
+                'old_version' => $old_version,
+                'new_version' => $new_version,
+                'installed_version' => $installed_version,
+                'type' => $type,
+                'was_active' => $was_active,
+                'is_active' => is_plugin_active($file),
+            ],
+        ];
+    }
+
+    private function mcu_remote_update_official_plugin($file, $new_version = '', $package = '') {
+        return $this->mcu_run_update_guard('commander_official_plugin_update', [
+            'file' => $file,
+            'new_version' => $new_version,
+        ], function() use ($file, $new_version, $package) {
+            include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+            include_once ABSPATH . 'wp-admin/includes/plugin.php';
+            include_once ABSPATH . 'wp-admin/includes/file.php';
+
+            $plugins = get_plugins();
+            if (!isset($plugins[$file])) {
+                return new WP_Error('plugin_not_found', __('Plugin non trovato.', 'marrison-custom-updater'));
+            }
+
+            $plugin_slug = dirname($file);
+            if ($plugin_slug === '.' || $plugin_slug === '') {
+                $plugin_slug = basename($file, '.php');
+            }
+            $current_version = isset($plugins[$file]['Version']) ? (string) $plugins[$file]['Version'] : '';
+            $this->create_backup($plugin_slug, $current_version, 'plugin', $file);
+
+            $transient = get_site_transient('update_plugins');
+            if (!is_object($transient)) {
+                $transient = new stdClass();
+            }
+            if (!isset($transient->response) || !is_array($transient->response)) {
+                $transient->response = [];
+            }
+
+            if (!isset($transient->response[$file]) && $package !== '') {
+                $obj = new stdClass();
+                $obj->slug = $plugin_slug;
+                $obj->plugin = $file;
+                $obj->package = $package;
+                $obj->new_version = $new_version;
+                $obj->url = '';
+                $transient->response[$file] = $obj;
+                set_site_transient('update_plugins', $transient);
+            } elseif (!isset($transient->response[$file])) {
+                wp_update_plugins();
+                $transient = get_site_transient('update_plugins');
+                if (!is_object($transient) || empty($transient->response[$file])) {
+                    return new WP_Error('update_not_found', __('Aggiornamento WordPress.org non trovato.', 'marrison-custom-updater'));
+                }
+            }
+
+            $skin = new Automatic_Upgrader_Skin();
+            $upgrader = new Plugin_Upgrader($skin);
+            $result = $upgrader->upgrade($file);
+
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            if (!$result) {
+                return new WP_Error('plugin_update_failed', __('Update failed', 'marrison-custom-updater'));
+            }
+
+            update_option('marrison_last_plugins_update_time', current_time('mysql'));
+            return true;
+        });
+    }
+
+    private function mcu_safe_remote_plugin_file($file) {
+        $file = str_replace('\\', '/', sanitize_text_field((string) $file));
+        $file = ltrim($file, '/');
+        if ($file === '' || substr($file, -4) !== '.php') {
+            return '';
+        }
+        if (function_exists('validate_file') && validate_file($file) !== 0) {
+            return '';
+        }
+        if (strpos($file, '..') !== false || !preg_match('/^[A-Za-z0-9._\/-]+$/', $file)) {
+            return '';
+        }
+        return $file;
     }
 
     /* ===================== THEME AJAX HANDLER ===================== */

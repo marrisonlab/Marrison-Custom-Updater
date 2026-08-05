@@ -59,6 +59,14 @@ final class Actions_Controller {
 		$site_id = (string) $request->get_header( 'x-marrison-site-id' );
 		Debug_Logger::log( 'action_start', array( 'site_id' => $site_id ) );
 
+		if ( strlen( (string) $request->get_body() ) > 1048576 ) {
+			return new \WP_Error(
+				'marrison_payload_too_large',
+				__( 'Payload too large.', 'marrison-custom-updater' ),
+				array( 'status' => 413 )
+			);
+		}
+
 		$auth = Authenticator::authenticate( $request );
 		if ( empty( $auth['ok'] ) ) {
 			return new \WP_Error(
@@ -73,12 +81,10 @@ final class Actions_Controller {
 			$operation = 'unsupported';
 		}
 
-		$result = self::execute( $operation );
-		$result['site_id']         = (string) $site_id;
-		$result['operation']       = $operation;
-		$result['duration_ms']     = self::duration_ms( $start );
-		$result['client_version']  = defined( 'MCU_PLUGIN_VERSION' ) ? MCU_PLUGIN_VERSION : '';
-		$result['success']         = ! empty( $result['success'] );
+		$parameters = $request->get_param( 'parameters' );
+		$parameters = is_array( $parameters ) ? $parameters : array();
+
+		$result = self::execute( $operation, $parameters, $site_id, $start );
 
 		Debug_Logger::log(
 			'action_end',
@@ -96,35 +102,251 @@ final class Actions_Controller {
 	/**
 	 * Execute one of the explicit maintenance actions.
 	 *
-	 * @param string $operation Requested operation.
+	 * @param string              $operation  Requested operation.
+	 * @param array<string,mixed> $parameters Operation parameters.
+	 * @param string              $site_id    Site ID.
+	 * @param float               $start      Start time.
 	 * @return array<string,mixed>
 	 */
-	private static function execute( $operation ) {
-		if ( 'cache' === $operation || 'clear_cache' === $operation ) {
-			self::clear_update_caches();
+	private static function execute( $operation, array $parameters, $site_id, $start ) {
+		$operation = self::canonical_operation( $operation );
+		$registry  = self::operation_registry();
 
-			return array(
+		if ( ! isset( $registry[ $operation ] ) ) {
+			return self::operation_error( $site_id, $operation, 'unknown', 'unsupported_operation', __( 'Unsupported operation.', 'marrison-custom-updater' ), $start );
+		}
+
+		$meta = $registry[ $operation ];
+		if ( 'read' === $meta['type'] ) {
+			require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-sanitizer.php';
+			require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-storage.php';
+			require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-controller.php';
+
+			$result = Diagnostics_Controller::execute_read_operation( $operation, $parameters );
+			if ( empty( $result['success'] ) ) {
+				return self::operation_error(
+					$site_id,
+					$operation,
+					'read',
+					isset( $result['error_code'] ) ? (string) $result['error_code'] : 'operation_failed',
+					isset( $result['message'] ) ? (string) $result['message'] : __( 'Diagnostic operation failed.', 'marrison-custom-updater' ),
+					$start
+				);
+			}
+
+			return self::operation_success( $site_id, $operation, $meta, isset( $result['data'] ) && is_array( $result['data'] ) ? $result['data'] : array(), $start );
+		}
+
+		if ( 'clear_cache' === $operation ) {
+			self::clear_update_caches();
+			$payload = array(
 				'success' => true,
 				'message' => __( 'Cache cleared.', 'marrison-custom-updater' ),
 			);
+		} elseif ( 'force_sync' === $operation ) {
+			$payload = self::force_update_sync();
+		} elseif ( 'cancel_master_update' === $operation ) {
+			$payload = self::cancel_master_update();
+		} elseif ( 'diagnostics_schedule_snapshot' === $operation ) {
+			$payload = self::schedule_diagnostic_snapshot();
+		} elseif ( 'update_plugin' === $operation ) {
+			$payload = self::update_plugin( $parameters );
+		} elseif ( 'update_all' === $operation ) {
+			$payload = self::queue_update();
+		} else {
+			$payload = array(
+				'success' => false,
+				'message' => __( 'Unsupported operation.', 'marrison-custom-updater' ),
+			);
 		}
 
-		if ( 'force_sync' === $operation || 'force_check' === $operation ) {
-			return self::force_update_sync();
+		if ( empty( $payload['success'] ) ) {
+			return self::operation_error(
+				$site_id,
+				$operation,
+				'write',
+				isset( $payload['error_code'] ) ? (string) $payload['error_code'] : 'operation_failed',
+				isset( $payload['message'] ) ? (string) $payload['message'] : __( 'Operation failed.', 'marrison-custom-updater' ),
+				$start,
+				$payload
+			);
 		}
 
-		if ( 'cancel_master_update' === $operation || 'clear_master_cron' === $operation ) {
-			return self::cancel_master_update();
+		return self::operation_success( $site_id, $operation, $meta, $payload, $start, $payload );
+	}
+
+	/**
+	 * Explicit operation registry.
+	 *
+	 * @return array<string,array<string,mixed>>
+	 */
+	private static function operation_registry() {
+		$read_operations = array();
+		try {
+			require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-sanitizer.php';
+			require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-storage.php';
+			require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-controller.php';
+			$read_operations = Diagnostics_Controller::read_operations();
+		} catch ( \Throwable $exception ) {
+			$read_operations = array();
 		}
 
-		if ( 'update_all' === $operation ) {
-			return self::queue_update();
-		}
-
-		return array(
-			'success' => false,
-			'message' => __( 'Unsupported operation.', 'marrison-custom-updater' ),
+		return array_merge(
+			array(
+				'clear_cache' => array(
+					'type'           => 'write',
+					'cost_class'     => 'light',
+					'required'       => array(),
+					'allowed_params' => array(),
+					'timeout'        => 30,
+					'schema_version' => 1,
+				),
+				'force_sync' => array(
+					'type'           => 'write',
+					'cost_class'     => 'moderate',
+					'required'       => array(),
+					'allowed_params' => array(),
+					'timeout'        => 120,
+					'schema_version' => 1,
+				),
+				'cancel_master_update' => array(
+					'type'           => 'write',
+					'cost_class'     => 'light',
+					'required'       => array(),
+					'allowed_params' => array(),
+					'timeout'        => 30,
+					'schema_version' => 1,
+				),
+				'update_all' => array(
+					'type'           => 'write',
+					'cost_class'     => 'deferred',
+					'required'       => array(),
+					'allowed_params' => array(),
+					'timeout'        => 30,
+					'schema_version' => 1,
+				),
+				'update_plugin' => array(
+					'type'           => 'write',
+					'cost_class'     => 'moderate',
+					'required'       => array( 'plugin_file' ),
+					'allowed_params' => array( 'plugin_file', 'file', 'slug', 'name', 'type', 'current_version', 'new_version', 'package', 'job_id', 'step', 'total' ),
+					'timeout'        => 300,
+					'schema_version' => 1,
+				),
+				'diagnostics_schedule_snapshot' => array(
+					'type'           => 'write',
+					'cost_class'     => 'deferred',
+					'required'       => array(),
+					'allowed_params' => array(),
+					'timeout'        => 30,
+					'schema_version' => class_exists( __NAMESPACE__ . '\\Diagnostics_Storage' ) ? Diagnostics_Storage::SCHEMA_VERSION : 1,
+				),
+			),
+			$read_operations
 		);
+	}
+
+	/**
+	 * Normalize operation aliases while preserving old names.
+	 *
+	 * @param string $operation Raw operation.
+	 * @return string
+	 */
+	private static function canonical_operation( $operation ) {
+		$operation = sanitize_key( (string) $operation );
+		$aliases = array(
+			'cache'                      => 'clear_cache',
+			'force_check'                => 'force_sync',
+			'clear_master_cron'          => 'cancel_master_update',
+			'diagnostics_start_snapshot' => 'diagnostics_schedule_snapshot',
+		);
+
+		return isset( $aliases[ $operation ] ) ? $aliases[ $operation ] : $operation;
+	}
+
+	/**
+	 * Standard success response.
+	 *
+	 * @param string              $site_id Site ID.
+	 * @param string              $operation Operation.
+	 * @param array<string,mixed> $meta Operation metadata.
+	 * @param array<string,mixed> $data Response data.
+	 * @param float               $start Start time.
+	 * @param array<string,mixed> $compat Top-level compatibility fields.
+	 * @return array<string,mixed>
+	 */
+	private static function operation_success( $site_id, $operation, array $meta, array $data, $start, array $compat = array() ) {
+		$standard = array(
+			'success'         => true,
+			'site_id'         => sanitize_text_field( (string) $site_id ),
+			'operation'       => sanitize_key( (string) $operation ),
+			'operation_type'  => sanitize_key( (string) $meta['type'] ),
+			'cost_class'      => sanitize_key( (string) $meta['cost_class'] ),
+			'schema_version'  => isset( $meta['schema_version'] ) ? (int) $meta['schema_version'] : 1,
+			'generated_at'    => time(),
+			'duration_ms'     => self::duration_ms( $start ),
+			'partial'         => false,
+			'warnings'        => array(),
+			'data'            => self::safe_data( $data ),
+			'client_version'  => defined( 'MCU_PLUGIN_VERSION' ) ? MCU_PLUGIN_VERSION : '',
+		);
+
+		return array_merge( $standard, self::safe_data( $compat ) );
+	}
+
+	/**
+	 * Standard error response.
+	 *
+	 * @param string              $site_id Site ID.
+	 * @param string              $operation Operation.
+	 * @param string              $type Operation type.
+	 * @param string              $code Error code.
+	 * @param string              $message Message.
+	 * @param float               $start Start time.
+	 * @param array<string,mixed> $compat Top-level compatibility fields.
+	 * @return array<string,mixed>
+	 */
+	private static function operation_error( $site_id, $operation, $type, $code, $message, $start, array $compat = array() ) {
+		$standard = array(
+			'success'        => false,
+			'site_id'        => sanitize_text_field( (string) $site_id ),
+			'operation'      => sanitize_key( (string) $operation ),
+			'operation_type' => sanitize_key( (string) $type ),
+			'error_code'     => sanitize_key( (string) $code ),
+			'message'        => self::safe_text( $message ),
+			'duration_ms'    => self::duration_ms( $start ),
+			'client_version' => defined( 'MCU_PLUGIN_VERSION' ) ? MCU_PLUGIN_VERSION : '',
+		);
+
+		return array_merge( $standard, self::safe_data( $compat ) );
+	}
+
+	/**
+	 * Sanitize structured data for action responses.
+	 *
+	 * @param mixed $data Raw data.
+	 * @return mixed
+	 */
+	private static function safe_data( $data ) {
+		if ( class_exists( __NAMESPACE__ . '\\Diagnostics_Sanitizer' ) ) {
+			return Diagnostics_Sanitizer::sanitize( $data );
+		}
+
+		return $data;
+	}
+
+	/**
+	 * Sanitize response text.
+	 *
+	 * @param string $text Raw text.
+	 * @return string
+	 */
+	private static function safe_text( $text ) {
+		if ( class_exists( __NAMESPACE__ . '\\Diagnostics_Sanitizer' ) ) {
+			return Diagnostics_Sanitizer::sanitize_text( $text );
+		}
+
+		return sanitize_text_field( (string) $text );
 	}
 
 	/**
@@ -300,6 +522,102 @@ final class Actions_Controller {
 	}
 
 	/**
+	 * Schedule a manual diagnostic snapshot requested by Commander.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private static function schedule_diagnostic_snapshot() {
+		require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-sanitizer.php';
+		require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-storage.php';
+		require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-scheduler.php';
+
+		$lock = self::current_update_lock_status();
+		if ( ! empty( $lock['locked'] ) ) {
+			return array(
+				'success'    => false,
+				'error_code' => 'update_lock_active',
+				'message'    => __( 'Aggiornamento in corso: snapshot diagnostico rimandato.', 'marrison-custom-updater' ),
+				'lock'       => $lock,
+			);
+		}
+
+		$pipeline = Diagnostics_Storage::pipeline_status();
+		$status   = sanitize_key( (string) ( isset( $pipeline['status'] ) ? $pipeline['status'] : '' ) );
+		if ( in_array( $status, array( 'queued', 'running' ), true ) ) {
+			$snapshot_id = Diagnostics_Storage::safe_id( isset( $pipeline['snapshot_id'] ) ? $pipeline['snapshot_id'] : '' );
+			$snapshot    = Diagnostics_Storage::latest_snapshot_summary();
+			return array(
+				'success'    => true,
+				'message'    => __( 'Snapshot diagnostico gia in raccolta.', 'marrison-custom-updater' ),
+				'status'     => $status,
+				'snapshot_id' => $snapshot_id,
+				'next_run'   => (int) ( isset( $pipeline['next_run'] ) ? $pipeline['next_run'] : 0 ),
+				'snapshot'   => $snapshot,
+				'pipeline'   => Diagnostics_Storage::pipeline_summary(),
+			);
+		}
+
+		$run_id = function_exists( 'wp_generate_uuid4' ) ? wp_generate_uuid4() : md5( uniqid( 'mcu-manual-diagnostic', true ) );
+		$fingerprint = Diagnostics_Scheduler::capture_pre_maintenance_fingerprint(
+			array(
+				'maintenance_run_id' => $run_id,
+				'source'             => 'commander',
+				'manual'             => true,
+			)
+		);
+		$manifest = Diagnostics_Storage::create_manifest( 'manual_commander', 'commander', $run_id, $fingerprint );
+		$run_at   = time() + 5;
+
+		if ( ! wp_next_scheduled( Diagnostics_Scheduler::START_HOOK, array( $manifest['snapshot_id'] ) ) ) {
+			$scheduled = wp_schedule_single_event( $run_at, Diagnostics_Scheduler::START_HOOK, array( $manifest['snapshot_id'] ), true );
+			if ( is_wp_error( $scheduled ) || ! $scheduled ) {
+				Diagnostics_Storage::save_pipeline(
+					array(
+						'status'      => 'failed',
+						'snapshot_id' => $manifest['snapshot_id'],
+						'last_error'  => is_wp_error( $scheduled ) ? $scheduled->get_error_message() : __( 'Impossibile accodare WP-Cron.', 'marrison-custom-updater' ),
+						'updated_at'  => time(),
+					)
+				);
+
+				return array(
+					'success'    => false,
+					'error_code' => 'diagnostic_snapshot_schedule_failed',
+					'message'    => __( 'Impossibile accodare lo snapshot diagnostico.', 'marrison-custom-updater' ),
+					'snapshot'   => Diagnostics_Storage::latest_snapshot_summary(),
+					'pipeline'   => Diagnostics_Storage::pipeline_summary(),
+				);
+			}
+		}
+
+		Diagnostics_Storage::save_pipeline(
+			array(
+				'status'         => 'queued',
+				'snapshot_id'    => $manifest['snapshot_id'],
+				'pending_since'  => time(),
+				'next_run'       => $run_at,
+				'current_module' => '',
+				'updated_at'     => time(),
+			)
+		);
+
+		$cron_spawned = self::spawn_queued_update_cron( $run_at );
+
+		return array(
+			'success'      => true,
+			'message'      => $cron_spawned
+				? __( 'Snapshot diagnostico accodato e WP-Cron avviato.', 'marrison-custom-updater' )
+				: __( 'Snapshot diagnostico accodato, in attesa di WP-Cron.', 'marrison-custom-updater' ),
+			'status'       => 'queued',
+			'snapshot_id'  => $manifest['snapshot_id'],
+			'next_run'     => $run_at,
+			'cron_spawned' => $cron_spawned,
+			'snapshot'     => Diagnostics_Storage::latest_snapshot_summary(),
+			'pipeline'     => Diagnostics_Storage::pipeline_summary(),
+		);
+	}
+
+	/**
 	 * Remove only Master/Commander queued update cron events.
 	 *
 	 * @return int Number of removed events.
@@ -331,6 +649,118 @@ final class Actions_Controller {
 		}
 
 		return $cleared;
+	}
+
+	/**
+	 * Execute one plugin update immediately for Commander.
+	 *
+	 * @param array<string,mixed> $parameters Operation parameters.
+	 * @return array<string,mixed>
+	 */
+	private static function update_plugin( array $parameters ) {
+		$job_id = isset( $parameters['job_id'] ) ? sanitize_text_field( (string) $parameters['job_id'] ) : '';
+		if ( '' === $job_id ) {
+			$job_id = function_exists( 'wp_generate_uuid4' ) ? wp_generate_uuid4() : md5( uniqid( 'mcu-plugin-update', true ) );
+		}
+
+		$plugin_file = self::safe_plugin_file( isset( $parameters['plugin_file'] ) ? (string) $parameters['plugin_file'] : (string) ( $parameters['file'] ?? '' ) );
+		$slug        = sanitize_key( (string) ( $parameters['slug'] ?? '' ) );
+		$name        = self::safe_text( (string) ( $parameters['name'] ?? '' ) );
+		$step        = max( 1, (int) ( $parameters['step'] ?? 1 ) );
+		$total       = max( $step, (int) ( $parameters['total'] ?? $step ) );
+
+		if ( '' === $plugin_file && '' === $slug ) {
+			return array(
+				'success'    => false,
+				'error_code' => 'missing_plugin',
+				'message'    => __( 'Plugin da aggiornare non specificato.', 'marrison-custom-updater' ),
+			);
+		}
+
+		self::clear_master_update_cron_events();
+		self::save_update_status(
+			array(
+				'job_id'       => $job_id,
+				'status'       => 'running',
+				'requested_at' => time(),
+				'started_at'   => time(),
+				'finished_at'  => 0,
+				'operation'    => 'update_plugin',
+				'plugin_file'  => $plugin_file,
+				'plugin_slug'  => $slug,
+				'plugin_name'  => $name,
+				'step'         => $step,
+				'total'        => $total,
+				'message'      => sprintf(
+					/* translators: 1: plugin name, 2: current step, 3: total steps. */
+					__( 'Aggiornamento plugin %1$s (%2$d/%3$d).', 'marrison-custom-updater' ),
+					$name !== '' ? $name : ( $slug !== '' ? $slug : $plugin_file ),
+					$step,
+					$total
+				),
+			)
+		);
+
+		$parameters['plugin_file'] = $plugin_file;
+		$parameters['slug']        = $slug;
+		$parameters['name']        = $name;
+		$result = apply_filters( 'mcu_remote_update_plugin', array( 'success' => false, 'error_code' => 'update_plugin_unavailable', 'message' => __( 'Runner aggiornamento plugin non disponibile.', 'marrison-custom-updater' ) ), $parameters );
+		$result = is_array( $result ) ? $result : array(
+			'success'    => false,
+			'error_code' => 'invalid_update_plugin_response',
+			'message'    => __( 'Risposta aggiornamento plugin non valida.', 'marrison-custom-updater' ),
+		);
+
+		$success = ! empty( $result['success'] );
+		$message = isset( $result['message'] ) && '' !== trim( (string) $result['message'] )
+			? self::safe_text( (string) $result['message'] )
+			: ( $success ? __( 'Plugin aggiornato.', 'marrison-custom-updater' ) : __( 'Aggiornamento plugin fallito.', 'marrison-custom-updater' ) );
+
+		self::save_update_status(
+			array_merge(
+				self::current_update_status(),
+				array(
+					'job_id'      => $job_id,
+					'status'      => $success ? 'completed' : 'failed',
+					'finished_at' => time(),
+					'message'     => $message,
+					'last_result' => $result,
+				)
+			)
+		);
+
+		return array_merge(
+			$result,
+			array(
+				'job_id'  => $job_id,
+				'status'  => $success ? 'completed' : 'failed',
+				'step'    => $step,
+				'total'   => $total,
+				'message' => $message,
+			)
+		);
+	}
+
+	/**
+	 * Sanitize a plugin file parameter.
+	 *
+	 * @param string $file Raw plugin file.
+	 * @return string
+	 */
+	private static function safe_plugin_file( $file ) {
+		$file = str_replace( '\\', '/', sanitize_text_field( (string) $file ) );
+		$file = ltrim( $file, '/' );
+		if ( '' === $file || '.php' !== substr( $file, -4 ) ) {
+			return '';
+		}
+		if ( function_exists( 'validate_file' ) && 0 !== validate_file( $file ) ) {
+			return '';
+		}
+		if ( false !== strpos( $file, '..' ) || ! preg_match( '/^[A-Za-z0-9._\/-]+$/', $file ) ) {
+			return '';
+		}
+
+		return $file;
 	}
 
 	/**

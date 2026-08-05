@@ -622,6 +622,14 @@ trait MCU_Scheduling_Trait {
         $mcu_update_snapshot = null;
         $mcu_shutdown_completed = false;
         $mcu_shutdown_source = $source ?: 'cron';
+        $mcu_diagnostics_pre_fingerprint = [];
+        $mcu_diagnostics_run_id = '';
+        $mcu_diagnostics_maintenance_executed = false;
+        $updated_plugins = [];
+        $updated_themes = [];
+        $updated_translations = 0;
+        $failed_updates = [];
+        $skipped_updates = [];
 
         register_shutdown_function(function() use (&$mcu_shutdown_completed, &$mcu_update_lock, &$mcu_update_snapshot, $mcu_shutdown_source) {
             if ($mcu_shutdown_completed) {
@@ -652,6 +660,18 @@ trait MCU_Scheduling_Trait {
                 return;
             }
             $mcu_update_snapshot = $this->mcu_capture_active_plugin_snapshot(['operation' => 'scheduled_updates']);
+            $mcu_diagnostics_maintenance_executed = true;
+            $mcu_diagnostics_run_id = $this->mcu_get_update_run_id();
+            $mcu_diagnostics_scheduler = '\\MarrisonCustomUpdater\\MaintenanceClient\\Diagnostics_Scheduler';
+            if (!class_exists($mcu_diagnostics_scheduler) && defined('MCU_PLUGIN_DIR')) {
+                require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-scheduler.php';
+            }
+            if (class_exists($mcu_diagnostics_scheduler)) {
+                $mcu_diagnostics_pre_fingerprint = $mcu_diagnostics_scheduler::capture_pre_maintenance_fingerprint([
+                    'source' => $source ?: 'cron',
+                    'maintenance_run_id' => $mcu_diagnostics_run_id,
+                ]);
+            }
             $this->mcu_log_event('info', 'scheduled_updates_started', ['source' => $source ?: 'cron']);
             $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'started']);
 
@@ -700,11 +720,6 @@ trait MCU_Scheduling_Trait {
             }
             
             $skin = new Automatic_Upgrader_Skin();
-            $updated_plugins = [];
-            $updated_themes = [];
-            $updated_translations = 0;
-            $failed_updates = [];
-            $skipped_updates = [];
             $backup_blocked_updates = ($db_backup_error !== '' || $files_backup_error !== '');
             if ($backup_blocked_updates) {
                 $backup_errors = array_filter([$db_backup_error, $files_backup_error]);
@@ -1339,6 +1354,24 @@ trait MCU_Scheduling_Trait {
                 $this->mcu_log_event('info', 'scheduled_updates_finished', ['status' => $log_entry['status'] ?? 'unknown']);
             }
             $this->mcu_reschedule_calendar_update_if_needed($source);
+            $mcu_diagnostics_scheduler = '\\MarrisonCustomUpdater\\MaintenanceClient\\Diagnostics_Scheduler';
+            if (!class_exists($mcu_diagnostics_scheduler) && defined('MCU_PLUGIN_DIR')) {
+                require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-scheduler.php';
+            }
+            if (class_exists($mcu_diagnostics_scheduler)) {
+                $mcu_diagnostics_scheduler::maybe_schedule_after_maintenance([
+                    'maintenance_executed' => $mcu_diagnostics_maintenance_executed,
+                    'source' => $source ?: 'cron',
+                    'maintenance_run_id' => $mcu_diagnostics_run_id,
+                    'pre_fingerprint' => $mcu_diagnostics_pre_fingerprint,
+                    'log_entry' => $log_entry,
+                    'updated_plugins' => $updated_plugins,
+                    'updated_themes' => $updated_themes,
+                    'updated_translations' => $updated_translations,
+                    'failed_updates' => $failed_updates,
+                    'skipped_updates' => $skipped_updates,
+                ]);
+            }
             $mcu_shutdown_completed = true;
         }
     }

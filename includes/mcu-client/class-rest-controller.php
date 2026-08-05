@@ -127,9 +127,16 @@ final class Rest_Controller {
 		$backup_summary      = self::backup_summary();
 		$master_update       = class_exists( __NAMESPACE__ . '\\Actions_Controller' ) ? Actions_Controller::current_update_status() : array();
 		$update_lock         = class_exists( __NAMESPACE__ . '\\Actions_Controller' ) ? Actions_Controller::current_update_lock_status() : array( 'locked' => false );
+		$diagnostics         = self::diagnostic_protocol_status();
 
 		return array(
 			'success'                    => true,
+			'protocol_version'           => 2,
+			'diagnostic_schema_version'  => 1,
+			'supported_read_operations'  => $diagnostics['supported_read_operations'],
+			'supported_write_operations' => $diagnostics['supported_write_operations'],
+			'snapshot'                   => $diagnostics['snapshot'],
+			'snapshot_pipeline'          => $diagnostics['snapshot_pipeline'],
 			'site_url'                   => site_url(),
 			'site_name'                  => get_bloginfo( 'name' ),
 			'client_plugin_version'      => defined( 'MCU_PLUGIN_VERSION' ) ? MCU_PLUGIN_VERSION : '',
@@ -169,6 +176,41 @@ final class Rest_Controller {
 			'debug_mode'                 => defined( 'WP_DEBUG' ) && WP_DEBUG,
 			'environment_type'           => function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'production',
 		);
+	}
+
+	/**
+	 * Return light protocol v2 diagnostic metadata for /status.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private static function diagnostic_protocol_status() {
+		try {
+			require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-sanitizer.php';
+			require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-storage.php';
+			require_once MCU_PLUGIN_DIR . 'includes/mcu-client/class-diagnostics-controller.php';
+
+			return array(
+				'supported_read_operations'  => Diagnostics_Controller::supported_read_operations(),
+				'supported_write_operations' => Diagnostics_Controller::supported_write_operations(),
+				'snapshot'                   => Diagnostics_Storage::latest_snapshot_summary(),
+				'snapshot_pipeline'          => Diagnostics_Storage::pipeline_summary(),
+			);
+		} catch ( \Throwable $exception ) {
+			return array(
+				'supported_read_operations'  => array(),
+				'supported_write_operations' => array( 'clear_cache', 'force_sync', 'cancel_master_update', 'update_all', 'update_plugin', 'diagnostics_schedule_snapshot' ),
+				'snapshot'                   => array(
+					'available' => false,
+					'status'    => 'unavailable',
+				),
+				'snapshot_pipeline'          => array(
+					'status'         => 'unavailable',
+					'pending_since'  => 0,
+					'next_run'       => 0,
+					'current_module' => '',
+				),
+			);
+		}
 	}
 
 	/**

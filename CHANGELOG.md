@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.8.0] - 2026-08-04
+
+### Added
+- Protocollo Maintenance 2 con `supported_read_operations`, `supported_write_operations`, manifest snapshot e stato pipeline nello status leggero.
+- Operazioni diagnostiche read-only `diagnostics_snapshot_manifest`, `diagnostics_snapshot_module`, `diagnostics_live_module`, `diagnostics_page_inspect` e `diagnostics_menu_inspect`.
+- Snapshot diagnostici post-manutenzione con fingerprint leggero pre-update, delay distribuito 10-45 minuti e pipeline modulare a eventi singoli.
+- Collector tecnici aggregati per ambiente, estensioni, capability, cache, database, cron, errori, contenuti, menu, builder, WooCommerce e manutenzione.
+
+### Changed
+- `/action` usa un registry esplicito read/write, mantiene le operazioni esistenti e rifiuta payload oltre 1 MB.
+- La diagnostica usa opzioni non autoload e non esegue lavoro nelle richieste WordPress normali.
+
+### Security
+- Sanitizzazione centralizzata di snapshot e risposte, con redazione di secret, token, cookie, nonce, email, IP e path assoluti noti.
+- Nessuna operazione diagnostica accetta callback, nomi classe/metodo, SQL, URL arbitrari, table name arbitrari o letture filesystem arbitrarie.
+
 ## [9.7.16] - 2026-08-01
 
 ### Added

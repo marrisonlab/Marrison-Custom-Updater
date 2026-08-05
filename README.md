@@ -1,6 +1,6 @@
 # Marrison Custom Updater
 
-[![Latest Version](https://img.shields.io/badge/version-9.7.16-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
+[![Latest Version](https://img.shields.io/badge/version-9.8.0-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
 [![WordPress Version](https://img.shields.io/badge/WordPress-6.0%2B-green.svg)](https://wordpress.org)
 [![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-green.svg)](https://php.net)
 [![License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -32,6 +32,14 @@
 - Access to plugin files for backup/restore operations
 
 ## 🔄 Version History
+
+### [9.8.0] - 2026-08-04
+
+- Protocollo Maintenance 2 con operazioni read/write dichiarate esplicitamente.
+- Nuove operazioni diagnostiche read-only per manifest snapshot, moduli, diagnostica live singolo modulo, pagina e menu.
+- Snapshot diagnostici post-manutenzione schedulati dopo il rilascio del lock, con ritardo distribuito e pipeline a eventi singoli.
+- Collector tecnici aggregati e sanitizzati, senza polling verso Commander e senza lavoro diagnostico sulle richieste normali.
+- Storage diagnostico temporaneo in opzioni non autoload e registry `/action` esplicito con validazione parametri.
 
 ### [9.7.16] - 2026-08-01
 

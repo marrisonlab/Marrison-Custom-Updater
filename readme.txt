@@ -5,7 +5,7 @@ Tags: updater, plugin-updates, custom repository, auto update
 Requires at least: 6.0
 Tested up to: 6.9.1
 Requires PHP: 7.4
-Stable tag: 9.7.16
+Stable tag: 9.8.0
 License: GPL-3.0+
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -34,6 +34,13 @@ Note: il backup completo dei file usa il formato tar.gz e richiede l'estensione 
 3.  Vai su 'Marrison Updater' > 'Impostazioni' per configurare l'URL del tuo repository privato.
 
 == Changelog ==
+
+= 9.8.0 =
+* **Nuovo**: Protocollo Maintenance 2 con operazioni read/write dichiarate nello status leggero.
+* **Nuovo**: Operazioni diagnostiche read-only per manifest snapshot, moduli, diagnostica live singolo modulo, pagina e menu.
+* **Nuovo**: Snapshot diagnostici post-manutenzione con fingerprint pre-update, ritardo distribuito e pipeline modulare a eventi singoli.
+* **Sicurezza**: Registry esplicito `/action`, payload massimo 1 MB e sanitizzazione centralizzata di dati diagnostici.
+* **Performance**: Nessun polling verso Commander, nessun collector sulle richieste normali e opzioni diagnostiche non autoload.
 
 = 9.7.16 =
 * **Nuovo**: Azione remota `cancel_master_update` per annullare da Master/Commander solo la richiesta update accodata dal Master
