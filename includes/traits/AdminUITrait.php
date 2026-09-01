@@ -672,10 +672,10 @@ JS
                                 <th scope="row"><label for="marrison_db_backup_with_updates"><?php esc_html_e('Backup Database', 'marrison-custom-updater'); ?></label></th>
                                 <td>
                                     <label class="mcu-switch">
-                                        <input type="checkbox" id="marrison_db_backup_with_updates" name="marrison_db_backup_with_updates" value="yes" <?php checked('yes', get_option('marrison_db_backup_with_updates')); ?>>
+                                        <input type="checkbox" id="marrison_db_backup_with_updates" name="marrison_db_backup_with_updates" value="yes" <?php checked(true, get_option('marrison_db_backup_with_updates') === 'yes' || get_option('marrison_files_backup_with_updates') === 'yes'); ?>>
                                         <span class="mcu-slider"></span>
                                     </label>
-                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;"><?php esc_html_e('Esegui un backup del database prima di ogni aggiornamento automatico (mantiene gli ultimi 3).', 'marrison-custom-updater'); ?></p>
+                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;"><?php esc_html_e('Esegui un backup del database prima di ogni aggiornamento automatico (mantiene gli ultimi 3; obbligatorio se il backup file e attivo).', 'marrison-custom-updater'); ?></p>
                                 </td>
                             </tr>
                             <tr>
@@ -685,7 +685,7 @@ JS
                                         <input type="checkbox" id="marrison_files_backup_with_updates" name="marrison_files_backup_with_updates" value="yes" <?php checked('yes', get_option('marrison_files_backup_with_updates')); ?>>
                                         <span class="mcu-slider"></span>
                                     </label>
-                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;"><?php esc_html_e('Esegui un backup completo dei file prima di ogni aggiornamento automatico (mantiene gli ultimi 3 set, formato tar.gz in parti).', 'marrison-custom-updater'); ?></p>
+                                    <p class="description" style="display: inline-block; vertical-align: super; margin-left: 10px;"><?php esc_html_e('Esegui un backup completo dei file prima di ogni aggiornamento automatico (mantiene solo l\'ultimo set, formato tar.gz in parti).', 'marrison-custom-updater'); ?></p>
                                 </td>
                             </tr>
                             <tr>

@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.8.4] - 2026-08-24
+
+### Fixed
+- Il backup database non fallisce piu sui siti con tabelle MyISAM o engine non transazionali: in questi casi MCU usa un lock di lettura sulle tabelle per creare un dump coerente.
+- Il manifest del backup database registra il metodo di snapshot usato (`transaction`, `read_locks` o `read_locks_fallback`) mantenendo le verifiche su dimensione SQL, hash SHA256, conteggi righe e ZIP.
+
+## [9.8.3] - 2026-08-24
+
+### Changed
+- Il backup file schedulato richiede automaticamente anche il backup database, cosi il set generato prima degli aggiornamenti resta sufficiente per il ripristino del sito WordPress.
+- I siti gia configurati con backup file attivo ma backup database disattivo eseguono comunque il backup DB prima degli aggiornamenti automatici.
+
+## [9.8.2] - 2026-08-24
+
+### Changed
+- La rotazione dei backup file completi mantiene solo l'ultimo set disponibile, riducendo l'accumulo di archivi in `wp-content/marrison-backups`.
+- Aggiunta la costante/filtro `MCU_FILES_BACKUP_MAX_SETS` / `mcu_files_backup_max_sets` per rialzare il limite nei casi in cui serve una retention locale maggiore.
+
+## [9.8.1] - 2026-08-24
+
+### Changed
+- Il backup file automatico e manuale ora limita lo scope alla sola installazione WordPress: directory `wp-admin`, `wp-includes`, `wp-content` e file root standard di WordPress.
+- Le directory extra presenti alla radice dell'hosting, ad esempio cartelle di sottodomini o materiale non WordPress, non vengono piu incluse nel backup file.
+
 ## [9.8.0] - 2026-08-04
 
 ### Added

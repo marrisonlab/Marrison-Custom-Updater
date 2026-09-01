@@ -1,6 +1,6 @@
 # Marrison Custom Updater
 
-[![Latest Version](https://img.shields.io/badge/version-9.8.0-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
+[![Latest Version](https://img.shields.io/badge/version-9.8.4-blue.svg)](https://github.com/marrisonlab/marrison-custom-updater)
 [![WordPress Version](https://img.shields.io/badge/WordPress-6.0%2B-green.svg)](https://wordpress.org)
 [![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-green.svg)](https://php.net)
 [![License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -32,6 +32,26 @@
 - Access to plugin files for backup/restore operations
 
 ## 🔄 Version History
+
+### [9.8.4] - 2026-08-24
+
+- Il backup database non fallisce piu sui siti con tabelle MyISAM o engine non transazionali: in questi casi MCU usa un lock di lettura sulle tabelle per creare un dump coerente.
+- Il manifest del backup database registra il metodo di snapshot usato, mantenendo le verifiche su dimensione SQL, hash SHA256, conteggi righe e ZIP.
+
+### [9.8.3] - 2026-08-24
+
+- Il backup file schedulato richiede automaticamente anche il backup database, cosi il set generato prima degli aggiornamenti resta sufficiente per il ripristino del sito WordPress.
+- I siti gia configurati con backup file attivo ma backup database disattivo eseguono comunque il backup DB prima degli aggiornamenti automatici.
+
+### [9.8.2] - 2026-08-24
+
+- La rotazione dei backup file completi mantiene solo l'ultimo set disponibile, riducendo l'accumulo in `wp-content/marrison-backups`.
+- Aggiunta la costante/filtro `MCU_FILES_BACKUP_MAX_SETS` / `mcu_files_backup_max_sets` per rialzare il limite su siti specifici.
+
+### [9.8.1] - 2026-08-24
+
+- Il backup file automatico e manuale viene limitato alla sola installazione WordPress: `wp-admin`, `wp-includes`, `wp-content` e file root standard.
+- Le cartelle extra alla radice dell'hosting, come sottodomini o materiale non WordPress, non vengono piu incluse nei backup file.
 
 ### [9.8.0] - 2026-08-04
 

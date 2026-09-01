@@ -3,7 +3,7 @@
  * Plugin Name: WP Master Updater
  * Plugin URI:  https://github.com/marrisonlab/marrison-custom-updater
  * Description: This plugin is used to add a personal repository for updating plugins.
- * Version: 9.8.0
+ * Version: 9.8.4
  * Author: Marrisonlab
  * Author URI:  https://marrisonlab.com
  * Text Domain: marrison-custom-updater
@@ -20,7 +20,7 @@ if (!defined('MCU_PLUGIN_URL')) {
     define('MCU_PLUGIN_URL', plugin_dir_url(__FILE__));
 }
 if (!defined('MCU_PLUGIN_VERSION')) {
-    define('MCU_PLUGIN_VERSION', '9.8.0');
+    define('MCU_PLUGIN_VERSION', '9.8.4');
 }
 
 require_once __DIR__ . '/includes/mcu-client/class-settings.php';
@@ -125,6 +125,7 @@ class MCU_Custom_Updater {
         add_action('admin_menu', [$this, 'add_menu_notification_badge'], 999);
         add_action('admin_head', [$this, 'add_menu_badge_styles']);
         add_action('admin_init', [$this, 'flush_rules_on_upgrade']);
+        add_action('admin_init', [$this, 'maybe_cleanup_files_backup_retention']);
 
         // Ricalcola il conteggio badge ad ogni richiesta admin: senza questo hook
         // il valore restava bloccato all'ultimo conteggio calcolato dopo un update

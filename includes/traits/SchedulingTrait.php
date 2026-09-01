@@ -288,6 +288,9 @@ trait MCU_Scheduling_Trait {
         $db_backup = isset($_POST['marrison_db_backup_with_updates']) ? 'yes' : 'no';
         $files_backup = isset($_POST['marrison_files_backup_with_updates']) ? 'yes' : 'no';
         $files_backup_skip_large = isset($_POST['marrison_files_backup_skip_large_files']) ? 'yes' : 'no';
+        if ($files_backup === 'yes') {
+            $db_backup = 'yes';
+        }
 
         update_option('marrison_auto_update_enabled', $enabled);
         update_option('marrison_auto_update_frequency', $frequency);
@@ -674,10 +677,12 @@ trait MCU_Scheduling_Trait {
             }
             $this->mcu_log_event('info', 'scheduled_updates_started', ['source' => $source ?: 'cron']);
             $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'started']);
+            $files_backup_required = get_option('marrison_files_backup_with_updates') === 'yes';
+            $db_backup_required = get_option('marrison_db_backup_with_updates') === 'yes' || $files_backup_required;
 
             $db_backup_filename = false;
             $db_backup_error = '';
-            if (get_option('marrison_db_backup_with_updates') === 'yes') {
+            if ($db_backup_required) {
                 $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'db_backup_started']);
                 $db_backup_filename = $this->create_db_backup();
                 if (is_wp_error($db_backup_filename)) {
@@ -691,7 +696,7 @@ trait MCU_Scheduling_Trait {
 
             $files_backup_filename = false;
             $files_backup_error = '';
-            if (get_option('marrison_files_backup_with_updates') === 'yes') {
+            if ($files_backup_required) {
                 $this->mcu_touch_update_lock(['operation' => 'scheduled_updates', 'stage' => 'files_backup_started']);
                 $files_backup_filename = $this->create_files_backup();
                 if (is_wp_error($files_backup_filename)) {
@@ -1247,7 +1252,7 @@ trait MCU_Scheduling_Trait {
                     }
                     $message_html .= '<tr><td style="padding: 8px;"><strong>Download:</strong></td><td style="padding: 8px;"><a href="' . esc_url($backup_download_url) . '" style="display: inline-block; background: #46b450; color: #fff; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 13px;">Scarica backup database</a></td></tr>';
                     $message_html .= '</table>';
-                } elseif (get_option('marrison_db_backup_with_updates') === 'yes') {
+                } elseif ($db_backup_required) {
                     $message_html .= '<h3 style="' . $style_section_title . '; border-left-color: #d63638;">🗄️ Backup Database</h3>';
                     $message_html .= '<div style="background: #fef7f7; padding: 10px; font-size: 13px; border-left: 4px solid #d63638; margin-top: 10px;">';
                     $message_html .= '⚠️ <strong>Attenzione:</strong> Il backup del database non è stato completato correttamente.';
@@ -1288,7 +1293,7 @@ trait MCU_Scheduling_Trait {
                     }
                     $message_html .= '<tr><td style="padding: 8px;"><strong>Download:</strong></td><td style="padding: 8px;">' . implode('', $backup_download_links) . '</td></tr>';
                     $message_html .= '</table>';
-                } elseif (get_option('marrison_files_backup_with_updates') === 'yes') {
+                } elseif ($files_backup_required) {
                     $message_html .= '<h3 style="' . $style_section_title . '; border-left-color: #d63638;">Backup File</h3>';
                     $message_html .= '<div style="background: #fef7f7; padding: 10px; font-size: 13px; border-left: 4px solid #d63638; margin-top: 10px;">';
                     $message_html .= '<strong>Attenzione:</strong> Il backup dei file non è stato completato correttamente.';

@@ -1527,29 +1527,17 @@ trait MCU_Update_Operations_Trait {
 
         $handle = null;
         $snapshot_started = false;
+        $tables_locked = false;
+        $snapshot_method = 'transaction';
+        $non_transactional_tables = [];
         $sql_bytes = 0;
         $table_stats = [];
         $total_rows = 0;
         $charset = $this->get_db_backup_charset();
 
-        $fail = function($code, $message) use (&$handle, &$snapshot_started, $sql_path, $zip_path, $manifest_path) {
-            return $this->abort_db_backup($handle, $snapshot_started, $sql_path, $zip_path, $manifest_path, $code, $message);
+        $fail = function($code, $message) use (&$handle, &$snapshot_started, &$tables_locked, $sql_path, $zip_path, $manifest_path) {
+            return $this->abort_db_backup($handle, $snapshot_started, $tables_locked, $sql_path, $zip_path, $manifest_path, $code, $message);
         };
-
-        if ($wpdb->query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ') === false) {
-            return $fail(
-                'db_backup_isolation_failed',
-                __('Backup database non creato: impossibile impostare una transazione coerente.', 'marrison-custom-updater')
-            );
-        }
-
-        if ($wpdb->query('START TRANSACTION WITH CONSISTENT SNAPSHOT') === false) {
-            return $fail(
-                'db_backup_snapshot_failed',
-                __('Backup database non creato: impossibile creare uno snapshot coerente del database.', 'marrison-custom-updater')
-            );
-        }
-        $snapshot_started = true;
 
         $tables = $this->get_db_backup_base_tables($wpdb);
         if (is_wp_error($tables)) {
@@ -1557,6 +1545,29 @@ trait MCU_Update_Operations_Trait {
         }
         if (empty($tables)) {
             return $fail('db_backup_no_tables', __('Backup database non creato: nessuna tabella trovata.', 'marrison-custom-updater'));
+        }
+
+        $table_engines = $this->get_db_backup_table_engines($wpdb, $tables);
+        $non_transactional_tables = $this->get_db_backup_non_transactional_tables($tables, $table_engines);
+
+        if (empty($non_transactional_tables)) {
+            if ($wpdb->query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ') !== false && $wpdb->query('START TRANSACTION WITH CONSISTENT SNAPSHOT') !== false) {
+                $snapshot_started = true;
+            } else {
+                $snapshot_method = 'read_locks_fallback';
+                $lock_result = $this->lock_db_backup_tables($wpdb, $tables);
+                if (is_wp_error($lock_result)) {
+                    return $fail($lock_result->get_error_code(), $lock_result->get_error_message());
+                }
+                $tables_locked = true;
+            }
+        } else {
+            $snapshot_method = 'read_locks';
+            $lock_result = $this->lock_db_backup_tables($wpdb, $tables);
+            if (is_wp_error($lock_result)) {
+                return $fail($lock_result->get_error_code(), $lock_result->get_error_message());
+            }
+            $tables_locked = true;
         }
 
         $handle = @fopen($sql_path, 'wb');
@@ -1573,6 +1584,7 @@ trait MCU_Update_Operations_Trait {
             "-- Generation Time: " . date('r') . "\n" .
             "-- Server version: " . $wpdb->db_version() . "\n" .
             "-- PHP Version: " . phpversion() . "\n" .
+            "-- Snapshot method: " . $snapshot_method . "\n" .
             "--\n" .
             "-- Database: " . $this->quote_db_identifier(DB_NAME) . "\n" .
             "--\n\n" .
@@ -1593,7 +1605,9 @@ trait MCU_Update_Operations_Trait {
         }
 
         foreach ($tables as $table) {
-            $this->mcu_touch_update_lock(['operation' => 'db_backup', 'stage' => 'table_started', 'table' => $table]);
+            if (!$tables_locked) {
+                $this->mcu_touch_update_lock(['operation' => 'db_backup', 'stage' => 'table_started', 'table' => $table]);
+            }
             $table_sql = $this->quote_db_identifier($table);
             $create = $wpdb->get_row("SHOW CREATE TABLE {$table_sql}", ARRAY_N);
             if (!$create || empty($create[1])) {
@@ -1661,7 +1675,9 @@ trait MCU_Update_Operations_Trait {
                 $insert_chunk_limit = 1024 * 1024;
 
                 while (true) {
-                    $this->mcu_touch_update_lock(['operation' => 'db_backup', 'stage' => 'rows_batch', 'table' => $table]);
+                    if (!$tables_locked) {
+                        $this->mcu_touch_update_lock(['operation' => 'db_backup', 'stage' => 'rows_batch', 'table' => $table]);
+                    }
                     $rows = $wpdb->get_results(
                         $wpdb->prepare("SELECT {$select_columns_sql} FROM {$table_sql}{$order_clause} LIMIT %d OFFSET %d", $batch, $offset),
                         ARRAY_A
@@ -1731,6 +1747,14 @@ trait MCU_Update_Operations_Trait {
             }
         }
 
+        if ($tables_locked) {
+            $unlock_result = $this->unlock_db_backup_tables($wpdb);
+            if (is_wp_error($unlock_result)) {
+                return $fail($unlock_result->get_error_code(), $unlock_result->get_error_message());
+            }
+            $tables_locked = false;
+        }
+
         $footer_sql =
             "COMMIT;\n\n" .
             "/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;\n" .
@@ -1797,6 +1821,9 @@ trait MCU_Update_Operations_Trait {
             'tables' => $table_stats,
             'integrity' => [
                 'consistent_snapshot' => true,
+                'snapshot_method' => $snapshot_method,
+                'table_locks' => in_array($snapshot_method, ['read_locks', 'read_locks_fallback'], true),
+                'non_transactional_tables' => count($non_transactional_tables),
                 'write_verified' => true,
                 'row_counts_verified' => true,
                 'sql_hash_verified' => true,
@@ -1840,6 +1867,8 @@ trait MCU_Update_Operations_Trait {
             'sql_sha256' => $sql_hash,
             'total_tables' => count($table_stats),
             'total_rows' => $total_rows,
+            'snapshot_method' => $snapshot_method,
+            'non_transactional_tables' => count($non_transactional_tables),
         ]);
 
         @unlink($sql_path);
@@ -1857,7 +1886,7 @@ trait MCU_Update_Operations_Trait {
         return $zip_filename;
     }
 
-    private function abort_db_backup(&$handle, &$snapshot_started, $sql_path, $zip_path, $manifest_path, $code, $message) {
+    private function abort_db_backup(&$handle, &$snapshot_started, &$tables_locked, $sql_path, $zip_path, $manifest_path, $code, $message) {
         global $wpdb;
 
         if (is_resource($handle)) {
@@ -1868,6 +1897,11 @@ trait MCU_Update_Operations_Trait {
         if ($snapshot_started) {
             $wpdb->query('ROLLBACK');
             $snapshot_started = false;
+        }
+
+        if ($tables_locked) {
+            $wpdb->query('UNLOCK TABLES');
+            $tables_locked = false;
         }
 
         foreach ([$sql_path, $zip_path, $manifest_path] as $path) {
@@ -1922,6 +1956,11 @@ trait MCU_Update_Operations_Trait {
             );
         }
 
+        sort($tables, SORT_STRING);
+        return $tables;
+    }
+
+    private function get_db_backup_table_engines($wpdb, $tables) {
         $table_engines = [];
         $status_rows = $wpdb->get_results('SHOW TABLE STATUS', ARRAY_A);
         if (is_array($status_rows)) {
@@ -1932,28 +1971,56 @@ trait MCU_Update_Operations_Trait {
             }
         }
 
-        $unsupported_engines = [];
+        foreach ($tables as $table) {
+            if (!isset($table_engines[$table])) {
+                $table_engines[$table] = '';
+            }
+        }
+
+        return $table_engines;
+    }
+
+    private function get_db_backup_non_transactional_tables($tables, $table_engines) {
+        $non_transactional = [];
         foreach ($tables as $table) {
             $engine = isset($table_engines[$table]) ? strtolower($table_engines[$table]) : '';
             if ($engine !== 'innodb') {
-                $unsupported_engines[] = ($engine !== '' ? strtoupper($engine) : 'UNKNOWN') . ' ' . $table;
+                $non_transactional[] = ($engine !== '' ? strtoupper($engine) : 'UNKNOWN') . ' ' . $table;
             }
         }
 
-        if (!empty($unsupported_engines)) {
-            $sample = implode(', ', array_slice($unsupported_engines, 0, 10));
-            if (count($unsupported_engines) > 10) {
-                $sample .= ', ...';
-            }
+        return $non_transactional;
+    }
 
+    private function lock_db_backup_tables($wpdb, $tables) {
+        if (empty($tables)) {
+            return true;
+        }
+
+        $locks = [];
+        foreach ($tables as $table) {
+            $locks[] = $this->quote_db_identifier($table) . ' READ';
+        }
+
+        if ($wpdb->query('LOCK TABLES ' . implode(', ', $locks)) === false) {
             return new WP_Error(
-                'db_backup_non_transactional_tables',
-                sprintf(__('Backup database non creato: lo snapshot verificato richiede tabelle InnoDB, ma sono presenti tabelle con engine diverso (%s). Usa phpMyAdmin o mysqldump per un export bloccante.', 'marrison-custom-updater'), $sample)
+                'db_backup_table_lock_failed',
+                sprintf(__('Backup database non creato: impossibile bloccare le tabelle per creare un dump coerente (%s).', 'marrison-custom-updater'), $wpdb->last_error ?: __('errore sconosciuto', 'marrison-custom-updater'))
             );
         }
 
-        sort($tables, SORT_STRING);
-        return $tables;
+        return true;
+    }
+
+    private function unlock_db_backup_tables($wpdb) {
+        if ($wpdb->query('UNLOCK TABLES') === false) {
+            return new WP_Error(
+                'db_backup_table_unlock_failed',
+                sprintf(__('Backup database creato ma impossibile rilasciare il lock delle tabelle (%s).', 'marrison-custom-updater'), $wpdb->last_error ?: __('errore sconosciuto', 'marrison-custom-updater'))
+            );
+        }
+
+        return true;
     }
 
     private function get_db_backup_charset() {
@@ -2341,9 +2408,10 @@ trait MCU_Update_Operations_Trait {
             glob($backup_dir . '/files-backup-*.tar.gz') ?: [],
             glob($backup_dir . '/files-backup-*.zip') ?: []
         );
-        if (count($file_backups) > 3) {
+        $max_file_backup_sets = $this->get_files_backup_max_sets();
+        if (count($file_backups) > $max_file_backup_sets) {
             usort($file_backups, function($a, $b) { return filemtime($a) - filemtime($b); });
-            foreach (array_slice($file_backups, 0, count($file_backups) - 3) as $f) @unlink($f);
+            foreach (array_slice($file_backups, 0, count($file_backups) - $max_file_backup_sets) as $f) @unlink($f);
         }
 
         return $archive_filename;
@@ -2355,6 +2423,31 @@ trait MCU_Update_Operations_Trait {
         }
 
         return 850 * 1024 * 1024;
+    }
+
+    private function get_files_backup_max_sets() {
+        $max_sets = defined('MCU_FILES_BACKUP_MAX_SETS') ? (int) MCU_FILES_BACKUP_MAX_SETS : 1;
+        return max(1, (int) apply_filters('mcu_files_backup_max_sets', $max_sets));
+    }
+
+    public function maybe_cleanup_files_backup_retention() {
+        if (!is_admin() || (function_exists('wp_doing_ajax') && wp_doing_ajax())) {
+            return;
+        }
+
+        $version = defined('MCU_PLUGIN_VERSION') ? MCU_PLUGIN_VERSION : 'unknown';
+        $max_sets = $this->get_files_backup_max_sets();
+        $option_value = $version . '|' . $max_sets;
+        if (get_option('mcu_files_backup_retention_applied') === $option_value) {
+            return;
+        }
+
+        $backup_dir = WP_CONTENT_DIR . '/marrison-backups';
+        if (is_dir($backup_dir)) {
+            $this->cleanup_files_backup_sets($backup_dir, $max_sets);
+        }
+
+        update_option('mcu_files_backup_retention_applied', $option_value, false);
     }
 
     private function get_files_backup_job_key($job_id) {
@@ -2391,6 +2484,7 @@ trait MCU_Update_Operations_Trait {
     private function init_files_backup_job() {
         $backup_dir = $this->get_backup_dir();
         $root_path  = wp_normalize_path(untrailingslashit(ABSPATH));
+        $root_entries = $this->get_files_backup_allowed_root_entries($root_path);
         $date       = date('Ymd');
         $time       = date('His');
         $prefix     = 'files-backup-' . $date . '-' . $time;
@@ -2408,7 +2502,7 @@ trait MCU_Update_Operations_Trait {
             return new WP_Error('backup_dir_not_writable', __('Directory backup non scrivibile.', 'marrison-custom-updater'));
         }
 
-        $scan = $this->scan_files_backup_manifest($root_path, $backup_dir, $manifest);
+        $scan = $this->scan_files_backup_manifest($root_path, $backup_dir, $manifest, $root_entries);
         if (is_wp_error($scan)) {
             if (file_exists($manifest)) {
                 @unlink($manifest);
@@ -2421,6 +2515,8 @@ trait MCU_Update_Operations_Trait {
             'prefix' => $prefix,
             'backup_dir' => $backup_dir,
             'root_path' => $root_path,
+            'scope' => 'wordpress',
+            'root_entries' => $root_entries,
             'manifest_path' => $manifest,
             'manifest_offset' => 0,
             'total_entries' => $scan['entries'],
@@ -2444,13 +2540,77 @@ trait MCU_Update_Operations_Trait {
         return $state;
     }
 
-    private function scan_files_backup_manifest($root_path, $backup_dir, $manifest_path) {
+    private function get_files_backup_allowed_root_entries($root_path) {
+        $root_path = trailingslashit(wp_normalize_path(untrailingslashit($root_path)));
+        $directories = ['wp-admin', defined('WPINC') ? trim(WPINC, '/\\') : 'wp-includes'];
+        $content_dir = wp_normalize_path(untrailingslashit(WP_CONTENT_DIR));
+
+        if ($content_dir && strpos($content_dir, $root_path) === 0) {
+            $content_entry = trim(substr($content_dir, strlen($root_path)), '/\\');
+            if ($content_entry !== '' && strpos($content_entry, '/') === false) {
+                $directories[] = $content_entry;
+            }
+        } else {
+            $directories[] = 'wp-content';
+        }
+
+        $files = [
+            '.htaccess',
+            '.user.ini',
+            'index.php',
+            'license.txt',
+            'readme.html',
+            'web.config',
+            'wp-activate.php',
+            'wp-blog-header.php',
+            'wp-comments-post.php',
+            'wp-config.php',
+            'wp-config-sample.php',
+            'wp-cron.php',
+            'wp-links-opml.php',
+            'wp-load.php',
+            'wp-login.php',
+            'wp-mail.php',
+            'wp-settings.php',
+            'wp-signup.php',
+            'wp-trackback.php',
+            'xmlrpc.php',
+        ];
+
+        $directories = array_values(array_unique(array_filter($directories, function($entry) use ($root_path) {
+            return $entry !== '' && strpos($entry, '/') === false && is_dir($root_path . $entry);
+        })));
+        $files = array_values(array_unique(array_filter($files, function($entry) use ($root_path) {
+            return $entry !== '' && is_file($root_path . $entry);
+        })));
+
+        return [
+            'directories' => $directories,
+            'files' => $files,
+        ];
+    }
+
+    private function is_allowed_files_backup_root_entry($item, $path, $root_entries) {
+        if (is_dir($path)) {
+            return in_array($item, $root_entries['directories'] ?? [], true);
+        }
+
+        if (is_file($path)) {
+            return in_array($item, $root_entries['files'] ?? [], true);
+        }
+
+        return false;
+    }
+
+    private function scan_files_backup_manifest($root_path, $backup_dir, $manifest_path, $root_entries = null) {
         $handle = @fopen($manifest_path, 'wb');
         if (!$handle) {
             return new WP_Error('backup_manifest_failed', __('Impossibile creare il manifest del backup file.', 'marrison-custom-updater'));
         }
 
         $stats = ['entries' => 0, 'files' => 0, 'bytes' => 0, 'skipped_count' => 0, 'skipped_bytes' => 0, 'skipped_files' => []];
+        $root_path = wp_normalize_path(untrailingslashit($root_path));
+        $root_entries = is_array($root_entries) ? $root_entries : $this->get_files_backup_allowed_root_entries($root_path);
         $stack = [$root_path];
         $part_limit = $this->get_files_backup_part_limit();
         $skip_large_files = get_option('marrison_files_backup_skip_large_files') === 'yes';
@@ -2458,6 +2618,7 @@ trait MCU_Update_Operations_Trait {
 
         while (!empty($stack)) {
             $dir = array_pop($stack);
+            $is_root_dir = wp_normalize_path(untrailingslashit($dir)) === $root_path;
             $items = @scandir($dir);
             if (!is_array($items)) {
                 $relative_dir = ltrim(str_replace($root_path, '', wp_normalize_path($dir)), '/\\');
@@ -2473,6 +2634,10 @@ trait MCU_Update_Operations_Trait {
                 }
 
                 $path = $dir . '/' . $item;
+                if ($is_root_dir && !$this->is_allowed_files_backup_root_entry($item, $path, $root_entries)) {
+                    continue;
+                }
+
                 if (is_link($path) || $this->is_excluded_from_files_backup($path, $manifest_path)) {
                     continue;
                 }
@@ -2617,7 +2782,7 @@ trait MCU_Update_Operations_Trait {
                 return $result;
             }
             $state['status'] = 'complete';
-            $this->cleanup_files_backup_sets($state['backup_dir'], 3);
+            $this->cleanup_files_backup_sets($state['backup_dir'], $this->get_files_backup_max_sets());
             $this->delete_files_backup_job($state);
         } else {
             $this->save_files_backup_job($state);
@@ -2774,7 +2939,9 @@ trait MCU_Update_Operations_Trait {
         return true;
     }
 
-    private function cleanup_files_backup_sets($backup_dir, $max_sets = 3) {
+    private function cleanup_files_backup_sets($backup_dir, $max_sets = null) {
+        $max_sets = ($max_sets === null) ? $this->get_files_backup_max_sets() : max(1, (int) $max_sets);
+
         foreach (glob($backup_dir . '/files-backup-*.tmp') ?: [] as $tmp_file) {
             if (filemtime($tmp_file) < time() - DAY_IN_SECONDS) {
                 @unlink($tmp_file);
